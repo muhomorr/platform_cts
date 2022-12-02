@@ -19,13 +19,14 @@ package android.media.codec.cts;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
 import android.media.MediaFormat;
-import android.media.cts.NonMediaMainlineTest;
 import android.media.cts.TestArgs;
 import android.platform.test.annotations.RequiresDevice;
 import android.util.Log;
 
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
+
+import com.android.compatibility.common.util.NonMainlineTest;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -43,7 +44,7 @@ import java.util.List;
  */
 @SmallTest
 @RequiresDevice
-@NonMediaMainlineTest   // fails in windowing on pure older releases
+@NonMainlineTest   // fails in windowing on pure older releases
 @RunWith(Parameterized.class)
 public class VideoDecoderRotationTest {
     private static final String TAG = "VideoDecoderRotationTest";

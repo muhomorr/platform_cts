@@ -771,7 +771,7 @@ public class TestHelper {
             // interactions.
             Thread.sleep(1_000);
             // Start the UI interactions.
-            uiThread.run();
+            uiThread.start();
             // now wait for callback
             assertThat(testNetworkCallback.waitForAnyCallback(DURATION_NETWORK_CONNECTION_MILLIS))
                     .isTrue();
@@ -786,6 +786,7 @@ public class TestHelper {
                     // be the primary connection.
                     if (mWifiManager.isStaConcurrencyForLocalOnlyConnectionsSupported()) {
                         assertThat(wifiInfo.isPrimary()).isFalse();
+                        assertConnectionEquals(network, mWifiManager.getConnectionInfo());
                     } else {
                         assertThat(wifiInfo.isPrimary()).isTrue();
                     }

@@ -142,8 +142,6 @@ public class CameraTestUtils extends Assert {
 
     public static final String OFFLINE_CAMERA_ID = "offline_camera_id";
     public static final String REPORT_LOG_NAME = "CtsCameraTestCases";
-    public static final String MPC_REPORT_LOG_NAME = "MediaPerformanceClassLogs";
-    public static final String MPC_STREAM_NAME = "CameraCts";
 
     private static final int EXIF_DATETIME_LENGTH = 19;
     private static final int EXIF_DATETIME_ERROR_MARGIN_SEC = 60;
@@ -726,10 +724,22 @@ public class CameraTestUtils extends Assert {
 
         @Override
         public void onImageAvailable(ImageReader reader) {
-            if (VERBOSE) Log.v(TAG, "new image available");
+            if (VERBOSE) Log.v(TAG, "new image available from reader " + reader.toString());
 
             if (mAcquireLatest) {
-                mLastReader = reader;
+                synchronized (mLock) {
+                    // If there is switch of image readers, acquire and releases all images
+                    // from the previous image reader
+                    if (mLastReader != reader) {
+                        if (mLastReader != null) {
+                            Image image = mLastReader.acquireLatestImage();
+                            if (image != null) {
+                                image.close();
+                            }
+                        }
+                        mLastReader = reader;
+                    }
+                }
                 mImageAvailable.open();
             } else {
                 if (mQueue.size() < mMaxBuffers) {
@@ -746,11 +756,17 @@ public class CameraTestUtils extends Assert {
             if (mAcquireLatest) {
                 Image image = null;
                 if (mImageAvailable.block(timeoutMs)) {
-                    if (mLastReader != null) {
-                        image = mLastReader.acquireLatestImage();
-                        if (VERBOSE) Log.v(TAG, "acquireLatestImage");
-                    } else {
-                        fail("invalid image reader");
+                    synchronized (mLock) {
+                        if (mLastReader != null) {
+                            image = mLastReader.acquireLatestImage();
+                            if (VERBOSE) Log.v(TAG, "acquireLatestImage from "
+                                    + mLastReader.toString() + " produces " + image);
+                            if (image == null) {
+                                return null;
+                            }
+                        } else {
+                            fail("invalid image reader");
+                        }
                     }
                     mImageAvailable.close();
                 } else {
@@ -785,6 +801,7 @@ public class CameraTestUtils extends Assert {
         private final boolean mAcquireLatest;
         private ConditionVariable mImageAvailable = new ConditionVariable();
         private ImageReader mLastReader = null;
+        private final Object mLock = new Object();
     }
 
     public static class SimpleCaptureCallback extends CameraCaptureSession.CaptureCallback {
@@ -3813,33 +3830,6 @@ public class CameraTestUtils extends Assert {
         zoomRatios.add(zoomRatioRange.getUpper());
 
         return zoomRatios;
-    }
-
-    public static final int PERFORMANCE_CLASS_NOT_MET = 0;
-    public static final int PERFORMANCE_CLASS_R = Build.VERSION_CODES.R;
-    public static final int PERFORMANCE_CLASS_S = Build.VERSION_CODES.R + 1;
-    public static final int PERFORMANCE_CLASS_T = Build.VERSION_CODES.S + 2;
-    public static final int PERFORMANCE_CLASS_CURRENT = PERFORMANCE_CLASS_T;
-
-    /**
-     * Check whether this mobile device is R performance class as defined in CDD
-     */
-    public static boolean isRPerfClass() {
-        return Build.VERSION.MEDIA_PERFORMANCE_CLASS == PERFORMANCE_CLASS_R;
-    }
-
-    /**
-     * Check whether this mobile device is S performance class as defined in CDD
-     */
-    public static boolean isSPerfClass() {
-        return Build.VERSION.MEDIA_PERFORMANCE_CLASS == PERFORMANCE_CLASS_S;
-    }
-
-    /**
-     * Check whether this mobile device is T performance class as defined in CDD
-     */
-    public static boolean isTPerfClass() {
-        return Build.VERSION.MEDIA_PERFORMANCE_CLASS == PERFORMANCE_CLASS_T;
     }
 
     /**

@@ -25,6 +25,7 @@ import static org.junit.Assume.assumeFalse;
 import static org.testng.Assert.assertThrows;
 
 import android.app.admin.DevicePolicyManager;
+import android.util.Log;
 
 import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
@@ -55,6 +56,8 @@ public final class PermitInputMethodsTest {
     @Rule
     public static final DeviceState sDeviceState = new DeviceState();
 
+    private static final String TAG = PermitInputMethodsTest.class.getSimpleName();
+
     private static final DevicePolicyManager sLocalDevicePolicyManager = TestApis.context()
             .instrumentedContext().getSystemService(DevicePolicyManager.class);
 
@@ -65,13 +68,22 @@ public final class PermitInputMethodsTest {
                     .map(Package::packageName)
                     .collect(Collectors.toSet());
 
-    private static final String INPUT_METHOD_PACKAGE_NAME = "pkg";
-
+    private static final List<String> NON_SYSTEM_INPUT_METHOD_PACKAGES =
+            TestApis.inputMethods().installedInputMethods().stream()
+                    .map(InputMethod::pkg)
+                    .filter(p -> !p.hasSystemFlag())
+                    .map(Package::packageName)
+                    .collect(Collectors.toList());
 
     @After
     public void teardown() {
-        sDeviceState.dpc().devicePolicyManager().setPermittedInputMethods(
-                sDeviceState.dpc().componentName(), /* packageNames= */ null);
+        try {
+            sDeviceState.dpc().devicePolicyManager().setPermittedInputMethods(
+                    sDeviceState.dpc().componentName(), /* packageNames= */ null);
+        } catch (Exception e) {
+            // Required for tests with invalid admins.
+            Log.w(TAG, "Failed to clean up the permitted input methods", e);
+        }
     }
 
     @Postsubmit(reason = "New test")
@@ -105,7 +117,7 @@ public final class PermitInputMethodsTest {
         assumeFalse("A system input method is required",
                 SYSTEM_INPUT_METHODS_PACKAGES.isEmpty());
 
-        List<String> enabledNonSystemImes = List.of(INPUT_METHOD_PACKAGE_NAME);
+        List<String> enabledNonSystemImes = NON_SYSTEM_INPUT_METHOD_PACKAGES;
 
         assertThat(sDeviceState.dpc().devicePolicyManager().setPermittedInputMethods(
                 sDeviceState.dpc().componentName(), /* packageNames= */ enabledNonSystemImes)
@@ -125,7 +137,7 @@ public final class PermitInputMethodsTest {
         assumeFalse("A system input method is required",
                 SYSTEM_INPUT_METHODS_PACKAGES.isEmpty());
 
-        List<String> enabledNonSystemImes = List.of(INPUT_METHOD_PACKAGE_NAME);
+        List<String> enabledNonSystemImes = NON_SYSTEM_INPUT_METHOD_PACKAGES;
         Set<String> permittedPlusSystem = new HashSet<>();
         permittedPlusSystem.addAll(SYSTEM_INPUT_METHODS_PACKAGES);
         permittedPlusSystem.addAll(enabledNonSystemImes);

@@ -33,6 +33,8 @@ import androidx.test.filters.LargeTest;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import com.android.compatibility.common.util.NonMainlineTest;
+
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
@@ -363,18 +365,18 @@ public class MuxerTest {
     private static boolean[] muxSelector = new boolean[MUXER_OUTPUT_LAST + 1];
     private static HashMap<Integer, String> formatStringPair = new HashMap<>();
 
-    static final List<String> codecListforTypeMp4 =
+    static final List<String> CODECLIST_FOR_TYPE_MP4 =
             Arrays.asList(MediaFormat.MIMETYPE_VIDEO_MPEG4, MediaFormat.MIMETYPE_VIDEO_H263,
                     MediaFormat.MIMETYPE_VIDEO_AVC, MediaFormat.MIMETYPE_VIDEO_HEVC,
                     MediaFormat.MIMETYPE_AUDIO_AAC);
-    static final List<String> codecListforTypeWebm =
+    static final List<String> CODECLIST_FOR_TYPE_WEBM =
             Arrays.asList(MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9,
                     MediaFormat.MIMETYPE_AUDIO_VORBIS, MediaFormat.MIMETYPE_AUDIO_OPUS);
-    static final List<String> codecListforType3gp =
+    static final List<String> CODECLIST_FOR_TYPE_3GP =
             Arrays.asList(MediaFormat.MIMETYPE_VIDEO_MPEG4, MediaFormat.MIMETYPE_VIDEO_H263,
                     MediaFormat.MIMETYPE_VIDEO_AVC, MediaFormat.MIMETYPE_AUDIO_AAC,
                     MediaFormat.MIMETYPE_AUDIO_AMR_NB, MediaFormat.MIMETYPE_AUDIO_AMR_WB);
-    static final List<String> codecListforTypeOgg =
+    static final List<String> CODECLIST_FOR_TYPE_OGG =
             Arrays.asList(MediaFormat.MIMETYPE_AUDIO_OPUS);
 
     static {
@@ -403,13 +405,13 @@ public class MuxerTest {
     static boolean isCodecContainerPairValid(String mime, int format) {
         boolean result = false;
         if (format == MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-            result = codecListforTypeMp4.contains(mime) || mime.startsWith("application/");
+            result = CODECLIST_FOR_TYPE_MP4.contains(mime) || mime.startsWith("application/");
         else if (format == MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM) {
-            return codecListforTypeWebm.contains(mime);
+            return CODECLIST_FOR_TYPE_WEBM.contains(mime);
         } else if (format == MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP) {
-            result = codecListforType3gp.contains(mime);
+            result = CODECLIST_FOR_TYPE_3GP.contains(mime);
         } else if (format == MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG) {
-            result = codecListforTypeOgg.contains(mime);
+            result = CODECLIST_FOR_TYPE_OGG.contains(mime);
         }
         return result;
     }
@@ -419,7 +421,7 @@ public class MuxerTest {
      * setOrientationHint are dependent on the mime type and OutputFormat. Legality of these APIs
      * are tested in this class.
      */
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @SmallTest
     @RunWith(Parameterized.class)
     public static class TestApi {
@@ -428,10 +430,10 @@ public class MuxerTest {
         private String mInpPath;
         private String mOutPath;
         private int mTrackCount;
-        private static final float annapurnaLat = 28.59f;
-        private static final float annapurnaLong = 83.82f;
+        private static final float ANNAPURNA_LAT = 28.59f;
+        private static final float ANNAPURNA_LONG = 83.82f;
         private static final float TOLERANCE = 0.0002f;
-        private static final int currRotation = 180;
+        private static final int CURRENT_ROTATION = 180;
 
         static {
             System.loadLibrary("ctsmediav2muxer_jni");
@@ -508,9 +510,9 @@ public class MuxerTest {
             }
             float longitude = Float.parseFloat(loc.substring(index, lastIndex - 1));
             assertTrue("Incorrect latitude: " + latitude + " [" + loc + "]",
-                    Math.abs(latitude - annapurnaLat) <= TOLERANCE);
+                    Math.abs(latitude - ANNAPURNA_LAT) <= TOLERANCE);
             assertTrue("Incorrect longitude: " + longitude + " [" + loc + "]",
-                    Math.abs(longitude - annapurnaLong) <= TOLERANCE);
+                    Math.abs(longitude - ANNAPURNA_LONG) <= TOLERANCE);
             retriever.release();
         }
 
@@ -523,8 +525,8 @@ public class MuxerTest {
             String testDegrees = retriever.extractMetadata(
                     MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
             assertTrue(testDegrees != null);
-            assertEquals("Different degrees " + currRotation + " and " + testDegrees,
-                    currRotation, Integer.parseInt(testDegrees));
+            assertEquals("Different degrees " + CURRENT_ROTATION + " and " + testDegrees,
+                    CURRENT_ROTATION, Integer.parseInt(testDegrees));
             retriever.release();
         }
 
@@ -585,7 +587,7 @@ public class MuxerTest {
 
                 if (isGeoDataSupported) {
                     try {
-                        muxer.setLocation(annapurnaLat, annapurnaLong);
+                        muxer.setLocation(ANNAPURNA_LAT, ANNAPURNA_LONG);
                     } catch (IllegalArgumentException e) {
                         fail(e.getMessage());
                     }
@@ -608,7 +610,7 @@ public class MuxerTest {
                 muxer.stop();
                 // after stop
                 try {
-                    muxer.setLocation(annapurnaLat, annapurnaLong);
+                    muxer.setLocation(ANNAPURNA_LAT, ANNAPURNA_LONG);
                     fail("setLocation() succeeded after muxer.stop()");
                 } catch (IllegalStateException e) {
                     // expected
@@ -616,7 +618,7 @@ public class MuxerTest {
                 muxer.release();
                 // after release
                 try {
-                    muxer.setLocation(annapurnaLat, annapurnaLong);
+                    muxer.setLocation(ANNAPURNA_LAT, ANNAPURNA_LONG);
                     fail("setLocation() succeeded after muxer.release()");
                 } catch (IllegalStateException e) {
                     // expected
@@ -652,7 +654,7 @@ public class MuxerTest {
                 }
                 if (isOrientationSupported) {
                     try {
-                        muxer.setOrientationHint(currRotation);
+                        muxer.setOrientationHint(CURRENT_ROTATION);
                     } catch (IllegalArgumentException e) {
                         fail(e.getMessage());
                     }
@@ -675,7 +677,7 @@ public class MuxerTest {
                 muxer.stop();
                 // after stop
                 try {
-                    muxer.setOrientationHint(currRotation);
+                    muxer.setOrientationHint(CURRENT_ROTATION);
                     fail("setOrientationHint() succeeded after muxer.stop()");
                 } catch (IllegalStateException e) {
                     // expected
@@ -683,7 +685,7 @@ public class MuxerTest {
                 muxer.release();
                 // after release
                 try {
-                    muxer.setOrientationHint(currRotation);
+                    muxer.setOrientationHint(CURRENT_ROTATION);
                     fail("setOrientationHint() succeeded after muxer.release()");
                 } catch (IllegalStateException e) {
                     // expected
@@ -724,7 +726,7 @@ public class MuxerTest {
     /**
      * Tests muxing multiple Video/Audio Tracks
      */
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @LargeTest
     @RunWith(Parameterized.class)
     public static class TestMultiTrack {
@@ -863,7 +865,7 @@ public class MuxerTest {
      * Add an offset to the presentation time of samples of a track. Mux with the added offset,
      * validate by re-extracting the muxer output file and compare with original.
      */
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @LargeTest
     @RunWith(Parameterized.class)
     public static class TestOffsetPts {
@@ -1071,7 +1073,7 @@ public class MuxerTest {
      * This test takes the output of a codec and muxes it in to all possible container formats.
      * The results are checked for inconsistencies with the requirements of CDD.
      */
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @LargeTest
     @RunWith(Parameterized.class)
     public static class TestSimpleMux {
@@ -1225,7 +1227,7 @@ public class MuxerTest {
         }
     }
 
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @LargeTest
     @RunWith(Parameterized.class)
     public static class TestAddEmptyTracks {

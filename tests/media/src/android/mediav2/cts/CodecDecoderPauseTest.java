@@ -16,13 +16,15 @@
 
 package android.mediav2.cts;
 
-import static android.mediav2.cts.CodecTestBase.SupportClass.CODEC_ALL;
+import static android.mediav2.common.cts.CodecTestBase.SupportClass.CODEC_ALL;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
+import android.mediav2.common.cts.CodecDecoderTestBase;
+import android.mediav2.common.cts.OutputManager;
 
 import androidx.test.filters.LargeTest;
 
@@ -45,13 +47,15 @@ import java.util.List;
 @RunWith(Parameterized.class)
 public class CodecDecoderPauseTest extends CodecDecoderTestBase {
     private static final String LOG_TAG = CodecDecoderPauseTest.class.getSimpleName();
-    private final long PAUSE_TIME_MS = 10000;
-    private final int NUM_FRAMES = 8;
+    private static final long PAUSE_TIME_MS = 10000;
+    private static final int NUM_FRAMES = 8;
+    private static final String MEDIA_DIR = WorkDir.getMediaDirString();
+
     private final SupportClass mSupportRequirements;
 
     public CodecDecoderPauseTest(String decoder, String mime, String srcFile,
-            SupportClass supportRequirements) {
-        super(decoder, mime, srcFile);
+            SupportClass supportRequirements, String allTestParams) {
+        super(decoder, mime, MEDIA_DIR + srcFile, allTestParams);
         mSupportRequirements = supportRequirements;
     }
 
@@ -81,10 +85,10 @@ public class CodecDecoderPauseTest extends CodecDecoderTestBase {
      * output during normal run and the output during paused run are expected to be same.
      */
     @ApiTest(apis = {"android.media.MediaCodec.Callback#onInputBufferAvailable",
-                     "android.media.MediaCodec#queueInputBuffer",
-                     "android.media.MediaCodec.Callback#onOutputBufferAvailable",
-                     "android.media.MediaCodec#dequeueOutputBuffer",
-                     "android.media.MediaCodec#releaseOutputBuffer"})
+            "android.media.MediaCodec#queueInputBuffer",
+            "android.media.MediaCodec.Callback#onOutputBufferAvailable",
+            "android.media.MediaCodec#dequeueOutputBuffer",
+            "android.media.MediaCodec#releaseOutputBuffer"})
     @LargeTest
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testPause() throws IOException, InterruptedException {
@@ -96,16 +100,13 @@ public class CodecDecoderPauseTest extends CodecDecoderTestBase {
         MediaFormat format = setUpSource(mTestFile);
         {
             mCodec = MediaCodec.createByCodecName(mCodecName);
-            int loopCounter = 0;
-            boolean[] boolStates = {true, false};
+            boolean[] boolStates = {false, true};
             OutputManager ref = new OutputManager();
             OutputManager test = new OutputManager();
             for (boolean enablePause : boolStates) {
-                String log = String.format("decoder: %s, input file: %s, mode: %s:: ", mCodecName,
-                        mTestFile, (isAsync ? "async" : "sync"));
                 mExtractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
                 configureCodec(format, isAsync, false, false);
-                mOutputBuff = loopCounter == 0 ? ref : test;
+                mOutputBuff = enablePause ? test : ref;
                 mOutputBuff.reset();
                 mCodec.start();
                 if (enablePause) {
@@ -116,19 +117,10 @@ public class CodecDecoderPauseTest extends CodecDecoderTestBase {
                 queueEOS();
                 waitForAllOutputs();
                 mCodec.reset();
-                assertTrue(log + " unexpected error", !mAsyncHandle.hasSeenError());
-                if (loopCounter != 0) {
-                    assertTrue(log + "decoder output is flaky", ref.equals(test));
-                } else {
-                    if (mIsAudio) {
-                        assertTrue(log + " pts is not strictly increasing",
-                                ref.isPtsStrictlyIncreasing(mPrevOutputPts));
-                    } else {
-                        assertTrue(log + " input pts list and output pts list are not identical",
-                                ref.isOutPtsListIdenticalToInpPtsList(false));
-                    }
+                if (enablePause && !ref.equals(test)) {
+                    fail("Output received in paused run does not match with output received in "
+                            + "normal run \n" + mTestConfig + mTestEnv + test.getErrMsg());
                 }
-                loopCounter++;
             }
             mCodec.release();
         }

@@ -17,7 +17,7 @@
 package android.mediav2.cts;
 
 import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010;
-import static android.mediav2.cts.CodecTestBase.SupportClass.CODEC_OPTIONAL;
+import static android.mediav2.common.cts.CodecTestBase.SupportClass.CODEC_OPTIONAL;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -26,6 +26,9 @@ import static org.junit.Assert.assertTrue;
 import android.media.AudioFormat;
 import android.media.MediaCodec;
 import android.media.MediaFormat;
+import android.mediav2.common.cts.CodecDecoderTestBase;
+import android.mediav2.common.cts.CodecEncoderTestBase;
+import android.mediav2.common.cts.OutputManager;
 
 import androidx.test.filters.LargeTest;
 
@@ -50,33 +53,37 @@ import java.util.Map;
  * The test verifies encoders present in media codec list in bytebuffer mode. The test feeds raw
  * input data (audio/video) to the component and receives compressed bitstream from the component.
  * This is written to an output file using muxer.
- *
- * 1. For lossless audio codecs, this file is decoded and the decoded output is expected to be
- * bit-exact with encoder input.
- * 2. For lossy audio codecs, the output sample count (after stripping priming and padding
- * samples) should be input sample count else encoder-decoder-encoder loops results in audio time
- * shift. // TODO: This attribute is not strictly enforced in this test.
- * 3. For video codecs, the output file is decoded and PSNR is computed between encoder input and
- * decoded output and it has to be at least min tolerance value.
+ * <p>
+ * At the end of encoding process, the test enforces following checks :-
+ * <ul>
+ *     <li>For lossless audio codecs, this file is decoded and the decoded output is expected to
+ *     be bit-exact with encoder input.</li>
+ *     <li>For lossy audio codecs, the output sample count (after stripping priming and padding
+ *     samples) should be input sample count else encoder-decoder-encoder loops results in audio
+ *     time shift. This attribute is not strictly enforced in this test.</li>
+ *     <li>For video codecs, the output file is decoded and PSNR is computed between encoder
+ *     input and decoded output and it has to be at least min tolerance value.</li>
+ * </ul>
  */
 @RunWith(Parameterized.class)
 public class CodecEncoderValidationTest extends CodecEncoderTestBase {
     private final boolean mUseHBD;
     // Key: mediaType, Value: tolerance duration in ms
-    private static final Map<String, Integer> toleranceMap = new HashMap<>();
+    private static final Map<String, Integer> TOLERANCE_MAP = new HashMap<>();
 
     static {
-        toleranceMap.put(MediaFormat.MIMETYPE_AUDIO_AAC, 20);
-        toleranceMap.put(MediaFormat.MIMETYPE_AUDIO_OPUS, 10);
-        toleranceMap.put(MediaFormat.MIMETYPE_AUDIO_AMR_NB, 10);
-        toleranceMap.put(MediaFormat.MIMETYPE_AUDIO_AMR_WB, 20);
-        toleranceMap.put(MediaFormat.MIMETYPE_AUDIO_FLAC, 0);
+        TOLERANCE_MAP.put(MediaFormat.MIMETYPE_AUDIO_AAC, 20);
+        TOLERANCE_MAP.put(MediaFormat.MIMETYPE_AUDIO_OPUS, 10);
+        TOLERANCE_MAP.put(MediaFormat.MIMETYPE_AUDIO_AMR_NB, 10);
+        TOLERANCE_MAP.put(MediaFormat.MIMETYPE_AUDIO_AMR_WB, 20);
+        TOLERANCE_MAP.put(MediaFormat.MIMETYPE_AUDIO_FLAC, 0);
     }
 
     public CodecEncoderValidationTest(String encoder, String mediaType, int bitrate,
-            int encoderInfo1, int encoderInfo2, boolean useHBD) {
+            int encoderInfo1, int encoderInfo2, boolean useHBD, String allTestParams) {
         super(encoder, mediaType, new int[]{bitrate}, new int[]{encoderInfo1},
-                new int[]{encoderInfo2});
+                new int[]{encoderInfo2}, EncoderInput.getRawResource(mediaType, useHBD),
+                allTestParams);
         mUseHBD = useHBD;
     }
 
@@ -158,7 +165,7 @@ public class CodecEncoderValidationTest extends CodecEncoderTestBase {
     }
 
     void encodeAndValidate(String inputFile) throws IOException, InterruptedException {
-        if (!mIsAudio) {
+        if (mIsVideo) {
             int colorFormat = mFormats.get(0).getInteger(MediaFormat.KEY_COLOR_FORMAT);
             Assume.assumeTrue(hasSupportForColorFormat(mCodecName, mMime, colorFormat));
             if (mUseHBD) {
@@ -173,15 +180,6 @@ public class CodecEncoderValidationTest extends CodecEncoderTestBase {
             mCodec = MediaCodec.createByCodecName(mCodecName);
             mSaveToMem = true;
             for (MediaFormat inpFormat : mFormats) {
-                if (mIsAudio) {
-                    mSampleRate = inpFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
-                    mChannels = inpFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
-                } else {
-                    mWidth = inpFormat.getInteger(MediaFormat.KEY_WIDTH);
-                    mHeight = inpFormat.getInteger(MediaFormat.KEY_HEIGHT);
-                }
-                String log = String.format("format: %s \n codec: %s, file: %s :: ", inpFormat,
-                        mCodecName, inputFile);
                 mOutputBuff.reset();
                 mInfoList.clear();
                 configureCodec(inpFormat, false, true, true);
@@ -194,59 +192,40 @@ public class CodecEncoderValidationTest extends CodecEncoderTestBase {
                             mCodec.getOutputFormat().getInteger(MediaFormat.KEY_PCM_ENCODING));
                 }
                 mCodec.reset();
-                assertFalse(log + "unexpected error", mAsyncHandle.hasSeenError());
-                assertTrue(log + "no input sent", 0 != mInputCount);
-                assertTrue(log + "no output received", 0 != mOutputCount);
-                if (!mIsAudio) {
-                    assertEquals(log + "input count != output count, act/exp: " + mOutputCount +
-                            " / " + mInputCount, mInputCount, mOutputCount);
-                } else {
-                    assertTrue(log + " pts is not strictly increasing",
-                            mOutputBuff.isPtsStrictlyIncreasing(mPrevOutputPts));
-                }
                 ArrayList<MediaFormat> fmts = new ArrayList<>();
                 fmts.add(mOutFormat);
                 ArrayList<String> listOfDecoders = selectCodecs(mMime, fmts, null, false);
-                assertFalse("no suitable codecs found for mediaType: " + mMime,
-                        listOfDecoders.isEmpty());
-                CodecDecoderTestBase cdtb =
-                        new CodecDecoderTestBase(listOfDecoders.get(0), mMime, null);
-                cdtb.mOutputBuff = new OutputManager();
-                cdtb.mSaveToMem = true;
-                cdtb.mCodec = MediaCodec.createByCodecName(cdtb.mCodecName);
-                cdtb.configureCodec(mOutFormat, false, true, false);
-                cdtb.mCodec.start();
-                cdtb.doWork(mOutputBuff.getBuffer(), mInfoList);
-                cdtb.queueEOS();
-                cdtb.waitForAllOutputs();
+                assertFalse("no suitable codecs found for fmt: " + mOutFormat + "\n" + mTestConfig
+                        + mTestEnv, listOfDecoders.isEmpty());
+                CodecDecoderTestBase cdtb = new CodecDecoderTestBase(listOfDecoders.get(0), mMime,
+                        null, mAllTestParams);
+                cdtb.decodeToMemory(mOutputBuff.getBuffer(), mInfoList, mOutFormat,
+                        listOfDecoders.get(0));
                 if (mUseHBD && mIsAudio) {
                     assertEquals(AudioFormat.ENCODING_PCM_FLOAT,
-                            cdtb.mOutFormat.getInteger(MediaFormat.KEY_PCM_ENCODING));
+                            cdtb.getOutputFormat().getInteger(MediaFormat.KEY_PCM_ENCODING));
                 }
-                cdtb.mCodec.stop();
-                cdtb.mCodec.release();
-                ByteBuffer out = cdtb.mOutputBuff.getBuffer();
-                if (isCodecLossless(mMime)) {
+                ByteBuffer out = cdtb.getOutputManager().getBuffer();
+                if (isMediaTypeLossless(mMime)) {
                     if (mUseHBD && mMime.equals(MediaFormat.MIMETYPE_AUDIO_FLAC)) {
-                        CodecDecoderTest.verify(cdtb.mOutputBuff, inputFile, 3.446394f,
-                                AudioFormat.ENCODING_PCM_FLOAT, -1L);
+                        CodecDecoderTest.verify(cdtb.getOutputManager(), inputFile, 3.446394f,
+                                AudioFormat.ENCODING_PCM_FLOAT, -1L, mTestConfig + mTestEnv);
                     } else {
-                        assertEquals(log + "identity test failed", out,
-                                ByteBuffer.wrap(mInputData));
+                        assertEquals("Identity test failed for lossless codec \n " + mTestConfig
+                                + mTestEnv, out, ByteBuffer.wrap(mInputData));
                     }
                 }
-                if (!mIsAudio) {
-                    assertEquals(log + "input frames queued != output frames of decoder, " +
-                                    "act/exp: " + mInputCount + " / " + cdtb.mOutputCount,
-                            mInputCount, cdtb.mOutputCount);
-                    assertTrue(cdtb.mOutputBuff.isOutPtsListIdenticalToInpPtsList(true));
-                } else {
-                    int tolerance = toleranceMap.get(mMime) * mSampleRate * mChannels *
-                            mBytesPerSample / 1000;
-                    assertTrue(log + "out bytes + tolerance < input bytes, act/exp: " +
-                                    out.limit() + " + " + tolerance + " > " + mInputData.length,
+                if (mIsAudio) {
+                    int tolerance = TOLERANCE_MAP.get(mMime) * mSampleRate * mChannels
+                            * mBytesPerSample / 1000;
+                    String errMsg = "################    Error Details   #################\n";
+                    errMsg += String.format("Input sample count is %d, output sample count is %d",
+                            mInputData.length, out.limit());
+                    assertTrue("In the process {[i/p] -> Encode -> Decode [o/p]}, the "
+                            + "output sample count is less than input sample count. "
+                            + "Repetitive encode -> decode cycles will eventually result"
+                            + " in mute \n" + mTestConfig + mTestEnv + errMsg,
                             mInputData.length <= out.limit() + tolerance);
-                    assertTrue(cdtb.mOutputBuff.isPtsStrictlyIncreasing(mPrevOutputPts));
                 }
             }
             mCodec.release();
@@ -254,32 +233,27 @@ public class CodecEncoderValidationTest extends CodecEncoderTestBase {
     }
 
     /**
-     * @see CodecEncoderValidationTest
+     * Check description of class {@link CodecEncoderValidationTest}
      */
     @ApiTest(apis = {"MediaCodecInfo.CodecCapabilities#COLOR_FormatYUV420Flexible",
-                     "MediaCodecInfo.CodecCapabilities#COLOR_FormatYUVP010",
-                     "android.media.AudioFormat#ENCODING_PCM_16BIT"})
+            "MediaCodecInfo.CodecCapabilities#COLOR_FormatYUVP010",
+            "android.media.AudioFormat#ENCODING_PCM_16BIT"})
     @CddTest(requirements = "5.1.1")
     @LargeTest
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testEncodeAndValidate() throws IOException, InterruptedException {
         setUpParams(Integer.MAX_VALUE);
-        String inputFile = mInputFile;
         if (mUseHBD) {
             if (mIsAudio) {
                 for (MediaFormat format : mFormats) {
                     format.setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_FLOAT);
                 }
-                mBytesPerSample = 4;
-                inputFile = INPUT_AUDIO_FILE_HBD;
             } else {
                 for (MediaFormat format : mFormats) {
                     format.setInteger(MediaFormat.KEY_COLOR_FORMAT, COLOR_FormatYUVP010);
                 }
-                mBytesPerSample = 2;
-                inputFile = INPUT_VIDEO_FILE_HBD;
             }
         }
-        encodeAndValidate(inputFile);
+        encodeAndValidate(mActiveRawRes.mFileName);
     }
 }

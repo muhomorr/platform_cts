@@ -35,7 +35,7 @@ _ARDUINO_SERVO_SPEED = 10
 _IMG_FORMAT = 'png'
 _MIN_PHONE_MOVEMENT_ANGLE = 5  # degrees
 _NAME = os.path.splitext(os.path.basename(__file__))[0]
-_NUM_ROTATIONS = 12
+_NUM_ROTATIONS = 24
 _RADS_TO_DEGS = 180/math.pi
 _SEC_TO_NSEC = 1E9
 _START_FRAME = 30  # give 3A 1s to warm up
@@ -129,7 +129,7 @@ class VideoStabilizationTest(its_base_test.ItsBaseTest):
   in gyroscope movement. Test is a PASS if rotation is reduced in video.
   """
 
-  def test_video_stability(self):
+  def test_video_stabilization(self):
     rot_rig = {}
     log_path = self.log_path
 
@@ -139,13 +139,17 @@ class VideoStabilizationTest(its_base_test.ItsBaseTest):
         hidden_physical_id=self.hidden_physical_id) as cam:
       props = cam.get_camera_properties()
       props = cam.override_with_hidden_physical_camera_props(props)
-      first_api_level = its_session_utils.get_first_api_level(self.dut.serial)
+      vendor_api_level = its_session_utils.get_vendor_api_level(self.dut.serial)
       supported_stabilization_modes = props[
           'android.control.availableVideoStabilizationModes']
 
       camera_properties_utils.skip_unless(
-          first_api_level >= its_session_utils.ANDROID13_API_LEVEL and
+          vendor_api_level >= its_session_utils.ANDROID13_API_LEVEL and
           _VIDEO_STABILIZATION_MODE in supported_stabilization_modes)
+
+      # Get ffmpeg version being used.
+      ffmpeg_version = video_processing_utils.get_ffmpeg_version()
+      logging.debug('ffmpeg_version: %s', ffmpeg_version)
 
       # Raise error if not FRONT or REAR facing camera
       facing = props['android.lens.facing']
@@ -210,7 +214,7 @@ class VideoStabilizationTest(its_base_test.ItsBaseTest):
         file_name_stem = f'{os.path.join(log_path, _NAME)}_{video_quality}'
         cam_rots = sensor_fusion_utils.get_cam_rotations(
             frames[_START_FRAME:len(frames)], facing, img_h,
-            file_name_stem, _START_FRAME)
+            file_name_stem, _START_FRAME, stabilized_video=True)
         sensor_fusion_utils.plot_camera_rotations(
             cam_rots, _START_FRAME, video_quality, file_name_stem)
         max_camera_angles.append(sensor_fusion_utils.calc_max_rotation_angle(
@@ -241,7 +245,7 @@ class VideoStabilizationTest(its_base_test.ItsBaseTest):
               f'{tested_video_qualities[i]} video not stabilized enough! '
               f'Max video angle: {max_camera_angle:.3f}, '
               f'Max gyro angle: {max_gyro_angles[i]:.3f}, '
-              f'ratio: {max_camera_angle}/{max_gyro_angles[-1]:.3f}, '
+              f'ratio: {max_camera_angle/max_gyro_angles[i]:.3f} '
               f'THRESH: {_VIDEO_STABILIZATION_FACTOR}.')
       if test_failures:
         raise AssertionError(test_failures)

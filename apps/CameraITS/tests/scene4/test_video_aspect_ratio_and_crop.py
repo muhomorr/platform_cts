@@ -15,16 +15,18 @@
 
 import logging
 import os.path
+
 from mobly import test_runner
 
 import its_base_test
 import camera_properties_utils
-import its_session_utils
-import video_processing_utils
 import capture_request_utils
-import image_processing_utils
-import opencv_processing_utils
 import image_fov_utils
+import image_processing_utils
+import its_session_utils
+import opencv_processing_utils
+import video_processing_utils
+
 
 _NAME = os.path.splitext(os.path.basename(__file__))[0]
 _VIDEO_RECORDING_DURATION_SECONDS = 3
@@ -76,8 +78,8 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
   When RAW capture is available, set the height vs. width ratio of the circle in
   the full-frame RAW as ground truth. In an ideal setup such ratio should be
   very close to 1.0, but here we just use the value derived from full resolution
-  RAW as ground truth to account for the possibility that the chart is not well
-  positioned to be precisely parallel to image sensor plane.
+  RAW as ground truth to account for the possibility that the chart is not
+  well positioned to be precisely parallel to image sensor plane.
   The test then compares the ground truth ratio with the same ratio measured
   on videos captued using different formats.
 
@@ -137,13 +139,13 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
       logging.debug('physical available focal lengths: %s', str(fls_physical))
 
       # Check SKIP conditions.
-      first_api_level = its_session_utils.get_first_api_level(self.dut.serial)
+      vendor_api_level = its_session_utils.get_vendor_api_level(self.dut.serial)
       camera_properties_utils.skip_unless(
-          first_api_level >= its_session_utils.ANDROID13_API_LEVEL)
+          vendor_api_level >= its_session_utils.ANDROID13_API_LEVEL)
 
       # Load scene.
       its_session_utils.load_scene(cam, props, self.scene,
-                                   self.tablet, chart_distance=0)
+                                   self.tablet, self.chart_distance)
 
       # Determine camera capabilities.
       supported_video_qualities = cam.get_supported_video_qualities(
@@ -151,7 +153,10 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
       logging.debug('Supported video qualities: %s', supported_video_qualities)
       full_or_better = camera_properties_utils.full_or_better(props)
       raw_avlb = camera_properties_utils.raw16(props)
+      debug = self.debug_mode
 
+      # Converge 3A.
+      cam.do_3a()
       req = capture_request_utils.auto_capture_request()
       ref_img_name_stem = f'{os.path.join(self.log_path, _NAME)}'
 
@@ -165,6 +170,10 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
           cam, req, props, raw_bool, ref_img_name_stem)
 
       run_crop_test = full_or_better and raw_avlb
+
+      # Get ffmpeg version being used.
+      ffmpeg_version = video_processing_utils.get_ffmpeg_version()
+      logging.debug('ffmpeg_version: %s', ffmpeg_version)
 
       for quality_profile_id_pair in supported_video_qualities:
         quality = quality_profile_id_pair.split(':')[0]
@@ -217,9 +226,15 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
             logging.debug('numpy image shape: %s', np_image.shape)
 
             # Check fov
+            ref_img_name = '%s_%s_w%d_h%d_circle.png' % (
+                os.path.join(self.log_path, _NAME), quality, width, height)
             circle = opencv_processing_utils.find_circle(
-                np_image, ref_img_name_stem, image_fov_utils.CIRCLE_MIN_AREA,
+                np_image, ref_img_name, image_fov_utils.CIRCLE_MIN_AREA,
                 image_fov_utils.CIRCLE_COLOR)
+
+            if debug:
+              opencv_processing_utils.append_circle_center_to_img(
+                  circle, np_image, ref_img_name)
 
             max_img_value = _MAX_8BIT_IMGS
             if hlg10_param:
@@ -260,8 +275,6 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
               if crop_chk_msg:
                 crop_img_name = '%s_%s_w%d_h%d_crop.png' % (
                     os.path.join(self.log_path, _NAME), quality, width, height)
-                opencv_processing_utils.append_circle_center_to_img(
-                    circle, np_image*max_img_value, crop_img_name)
                 failed_crop.append(crop_chk_msg)
                 image_processing_utils.write_image(np_image/max_img_value,
                                                    crop_img_name, True)

@@ -49,12 +49,12 @@ import com.android.bedstead.deviceadminapp.DeviceAdminApp;
 import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
 import com.android.bedstead.harrier.annotations.EnsureDoesNotHavePermission;
-import com.android.bedstead.harrier.annotations.EnsureHasNoSecondaryUser;
-import com.android.bedstead.harrier.annotations.EnsureHasNoWorkProfile;
 import com.android.bedstead.harrier.annotations.EnsureHasPermission;
 import com.android.bedstead.harrier.annotations.Postsubmit;
 import com.android.bedstead.harrier.annotations.RequireFeature;
-import com.android.bedstead.harrier.annotations.RequireRunOnPrimaryUser;
+import com.android.bedstead.harrier.annotations.RequireMultiUserSupport;
+import com.android.bedstead.harrier.annotations.RequireRunOnInitialUser;
+import com.android.bedstead.harrier.annotations.RequireRunOnSystemUser;
 import com.android.bedstead.harrier.annotations.enterprise.EnsureHasDeviceOwner;
 import com.android.bedstead.harrier.annotations.enterprise.EnsureHasNoDpc;
 import com.android.bedstead.nene.TestApis;
@@ -65,8 +65,10 @@ import com.android.bedstead.nene.utils.Poll;
 import com.android.bedstead.remotedpc.RemoteDpc;
 import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppInstance;
+import com.android.compatibility.common.util.CddTest;
 import com.android.eventlib.truth.EventLogsSubject;
-import com.android.queryable.queries.ActivityQuery;
+import com.android.queryable.info.ActivityInfo;
+import com.android.queryable.queries.Query;
 
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -95,24 +97,24 @@ public class DevicePolicyManagementRoleHolderTest {
 
     private static final DevicePolicyManager sDevicePolicyManager =
             sContext.getSystemService(DevicePolicyManager.class);
-    private static final ActivityQuery<?> sQueryForRoleHolderTrustedSourceAction =
-            (ActivityQuery<?>)
-            activity().intentFilters().contains(
-                intentFilter().actions().contains(
-                        ACTION_ROLE_HOLDER_PROVISION_MANAGED_DEVICE_FROM_TRUSTED_SOURCE))
-                    .permission().isEqualTo(LAUNCH_DEVICE_MANAGER_SETUP);
-    private static final ActivityQuery<?> sQueryForRoleHolderManagedProfileAction =
-            (ActivityQuery<?>)
-            activity().intentFilters().contains(
-                intentFilter().actions().contains(
-                        ACTION_ROLE_HOLDER_PROVISION_MANAGED_PROFILE))
-                    .permission().isEqualTo(LAUNCH_DEVICE_MANAGER_SETUP);
-    private static final ActivityQuery<?> sQueryForRoleHolderFinalizationAction =
-            (ActivityQuery<?>)
-            activity().intentFilters().contains(
-                intentFilter().actions().contains(
-                        ACTION_ROLE_HOLDER_PROVISION_FINALIZATION))
-                    .permission().isEqualTo(LAUNCH_DEVICE_MANAGER_SETUP);
+    private static final Query<ActivityInfo> sQueryForRoleHolderTrustedSourceAction =
+            activity()
+                    .where().intentFilters().contains(
+                            intentFilter().where().actions().contains(
+                                    ACTION_ROLE_HOLDER_PROVISION_MANAGED_DEVICE_FROM_TRUSTED_SOURCE)
+                    ).where().permission().isEqualTo(LAUNCH_DEVICE_MANAGER_SETUP);
+    private static final Query<ActivityInfo> sQueryForRoleHolderManagedProfileAction =
+            activity()
+                    .where().intentFilters().contains(
+                            intentFilter().where().actions().contains(
+                                    ACTION_ROLE_HOLDER_PROVISION_MANAGED_PROFILE)
+                    ).where().permission().isEqualTo(LAUNCH_DEVICE_MANAGER_SETUP);
+    private static final Query<ActivityInfo> sQueryForRoleHolderFinalizationAction =
+            activity()
+                    .where().intentFilters().contains(
+                            intentFilter().where().actions().contains(
+                                    ACTION_ROLE_HOLDER_PROVISION_FINALIZATION)
+                    ).where().permission().isEqualTo(LAUNCH_DEVICE_MANAGER_SETUP);
     private static final TestApp sRoleHolderApp = sDeviceState.testApps()
             .query()
             .whereActivities()
@@ -128,7 +130,7 @@ public class DevicePolicyManagementRoleHolderTest {
             // TODO(b/198417584): Support Querying XML resources in TestApp.
             // TODO(b/198590265) Filter for the correct account type.
             .whereServices().contains(
-                    service().serviceClass().className()
+                    service().where().serviceClass().className()
                             .isEqualTo("com.android.bedstead.testapp.AccountManagementApp"
                                     + ".TestAppAccountAuthenticatorService"))
             .get();
@@ -136,10 +138,10 @@ public class DevicePolicyManagementRoleHolderTest {
     @Postsubmit(reason = "new test")
     @RequireFeature(FEATURE_MANAGED_USERS)
     @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
-    @RequireRunOnPrimaryUser
+    @RequireRunOnInitialUser
     @EnsureHasNoDpc
-    @EnsureHasNoSecondaryUser
     @Test
+    @CddTest(requirements = {"3.9.4/C-3-1"})
     public void createAndProvisionManagedProfile_roleHolderIsInWorkProfile()
             throws ProvisioningException, InterruptedException {
         UserHandle profile = null;
@@ -170,9 +172,10 @@ public class DevicePolicyManagementRoleHolderTest {
     @Postsubmit(reason = "new test")
     @RequireFeature(FEATURE_MANAGED_USERS)
     @EnsureHasDeviceOwner
-    @RequireRunOnPrimaryUser
-    @EnsureHasNoSecondaryUser
+    @RequireRunOnSystemUser
+    @RequireMultiUserSupport
     @Test
+    @CddTest(requirements = {"3.9.4/C-3-1"})
     public void createAndManageUser_roleHolderIsInManagedUser() throws InterruptedException {
         UserHandle managedUser = null;
         String roleHolderPackageName = null;
@@ -206,9 +209,8 @@ public class DevicePolicyManagementRoleHolderTest {
     @Postsubmit(reason = "new test")
     @RequireFeature(FEATURE_MANAGED_USERS)
     @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
-    @RequireRunOnPrimaryUser
+    @RequireRunOnInitialUser
     @EnsureHasNoDpc
-    @EnsureHasNoSecondaryUser
     @Test
     public void profileRemoved_roleHolderReceivesBroadcast() throws Exception {
         String roleHolderPackageName = null;
@@ -234,11 +236,10 @@ public class DevicePolicyManagementRoleHolderTest {
     @Postsubmit(reason = "new test")
     @RequireFeature(FEATURE_MANAGED_USERS)
     @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
-    @RequireRunOnPrimaryUser
+    @RequireRunOnInitialUser
     @EnsureHasNoDpc
-    @EnsureHasNoSecondaryUser
     @Test
-    public void profilePaused_roleHolderReceivesBroadcast() throws Exception {
+    public void profileEntersQuietMode_roleHolderReceivesBroadcast() throws Exception {
         String roleHolderPackageName = null;
         try (TestAppInstance roleHolderApp = sRoleHolderApp.install()) {
             roleHolderPackageName = roleHolderApp.packageName();
@@ -262,9 +263,8 @@ public class DevicePolicyManagementRoleHolderTest {
     @Postsubmit(reason = "new test")
     @RequireFeature(FEATURE_MANAGED_USERS)
     @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
-    @RequireRunOnPrimaryUser
+    @RequireRunOnInitialUser
     @EnsureHasNoDpc
-    @EnsureHasNoSecondaryUser
     @Test
     public void profileStarted_roleHolderReceivesBroadcast() throws Exception {
         String roleHolderPackageName = null;
@@ -291,9 +291,7 @@ public class DevicePolicyManagementRoleHolderTest {
     @Postsubmit(reason = "New test")
     @Test
     @EnsureHasPermission(MANAGE_ROLE_HOLDERS)
-    @EnsureHasNoSecondaryUser
-    @EnsureHasNoWorkProfile
-    @RequireRunOnPrimaryUser
+    @RequireRunOnInitialUser
     @EnsureHasNoDpc
     public void shouldAllowBypassingDevicePolicyManagementRoleQualification_noUsersAndAccounts_returnsTrue()
             throws Exception {
@@ -309,10 +307,9 @@ public class DevicePolicyManagementRoleHolderTest {
     @Postsubmit(reason = "New test")
     @Test
     @EnsureHasPermission(MANAGE_ROLE_HOLDERS)
-    @EnsureHasNoSecondaryUser
-    @EnsureHasNoWorkProfile
-    @RequireRunOnPrimaryUser
+    @RequireRunOnInitialUser
     @EnsureHasNoDpc
+    @RequireMultiUserSupport
     public void shouldAllowBypassingDevicePolicyManagementRoleQualification_withUsers_returnsFalse()
             throws Exception {
         resetInternalShouldAllowBypassingState();
@@ -334,9 +331,7 @@ public class DevicePolicyManagementRoleHolderTest {
     @RequireFeature(FEATURE_MANAGED_USERS)
     @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
     @EnsureHasPermission(MANAGE_ROLE_HOLDERS)
-    @EnsureHasNoSecondaryUser
-    @EnsureHasNoWorkProfile
-    @RequireRunOnPrimaryUser
+    @RequireRunOnInitialUser
     @EnsureHasNoDpc
     public void shouldAllowBypassingDevicePolicyManagementRoleQualification_withProfile_returnsFalse()
             throws Exception {
@@ -355,9 +350,7 @@ public class DevicePolicyManagementRoleHolderTest {
     @Postsubmit(reason = "New test")
     @Test
     @EnsureHasPermission(MANAGE_ROLE_HOLDERS)
-    @EnsureHasNoSecondaryUser
-    @EnsureHasNoWorkProfile
-    @RequireRunOnPrimaryUser
+    @RequireRunOnInitialUser
     @EnsureHasNoDpc
     public void shouldAllowBypassingDevicePolicyManagementRoleQualification_withAccounts_returnsFalse()
             throws Exception {

@@ -56,7 +56,7 @@ public class USBAudioPeripheralButtonsActivity extends USBAudioPeripheralActivit
                 new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
         builder.setTitle(getResources().getString(R.string.uapButtonsDisableAssistantTitle));
         builder.setMessage(getResources().getString(R.string.uapButtonsDisableAssistant));
-        builder.setPositiveButton(android.R.string.yes,
+        builder.setPositiveButton(android.R.string.ok,
             new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface dialog, int which) {}
          });
@@ -108,7 +108,14 @@ public class USBAudioPeripheralButtonsActivity extends USBAudioPeripheralActivit
 
     private void calculateMatch() {
         if (mIsPeripheralAttached) {
-            boolean match = mHasBtnA && mHasBtnB && mHasBtnC;
+            boolean match;
+            boolean interceptedVolume = getResources().getBoolean(Resources.getSystem()
+                .getIdentifier("config_handleVolumeKeysInWindowManager", "bool", "android"));
+            if (interceptedVolume) {
+                match = mHasBtnA;
+            } else {
+                match = mHasBtnA && mHasBtnB && mHasBtnC;
+            }
             Log.i(TAG, "match:" + match);
             getPassButton().setEnabled(match);
         } else {

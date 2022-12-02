@@ -43,7 +43,6 @@ import android.media.TimedText;
 import android.media.audiofx.AudioEffect;
 import android.media.audiofx.Visualizer;
 import android.media.cts.MediaPlayerTestBase;
-import android.media.cts.NonMediaMainlineTest;
 import android.media.cts.Preconditions;
 import android.media.cts.TestMediaDataSource;
 import android.media.cts.TestUtils.Monitor;
@@ -64,6 +63,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.compatibility.common.util.MediaUtils;
+import com.android.compatibility.common.util.NonMainlineTest;
 
 import junit.framework.AssertionFailedError;
 
@@ -101,7 +101,7 @@ import java.util.stream.Stream;
  */
 @SmallTest
 @RequiresDevice
-@NonMediaMainlineTest
+@NonMainlineTest
 @AppModeFull(reason = "TODO: evaluate and port to instant")
 @RunWith(AndroidJUnit4.class)
 public class MediaPlayerTest extends MediaPlayerTestBase {
@@ -406,9 +406,10 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     }
 
     @Test
-    public void testConcurentPlayAudio() throws Exception {
+    public void testConcurrentPlayAudio() throws Exception {
         final String res = "test1m1s.mp3"; // MP3 longer than 1m are usualy offloaded
-        final int tolerance = 70;
+        final int recommendedTolerance = 70;
+        final List<Integer> offsets = new ArrayList<>();
 
         Preconditions.assertTestFileExists(mInpPrefix + res);
         List<MediaPlayer> mps = Stream.generate(
@@ -431,13 +432,25 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
                 int pos = mp.getCurrentPosition();
                 assertTrue(pos >= 0);
 
-                Thread.sleep(SLEEP_TIME); // Delay each track to be able to ear them
+                Thread.sleep(SLEEP_TIME); // Delay each track to be able to hear them
             }
+
             // Check that all mp3 are playing concurrently here
+            // Record the offsets between streams, but don't enforce them
             for (MediaPlayer mp : mps) {
                 int pos = mp.getCurrentPosition();
                 Thread.sleep(SLEEP_TIME);
-                assertEquals(pos + SLEEP_TIME, mp.getCurrentPosition(), tolerance);
+                offsets.add(Math.abs(pos + SLEEP_TIME - mp.getCurrentPosition()));
+            }
+
+            if (offsets.stream().anyMatch(offset -> offset > recommendedTolerance)) {
+                Log.w(LOG_TAG, "testConcurrentPlayAudio: some concurrent playing offsets "
+                        + offsets + " are above the recommended tolerance of "
+                        + recommendedTolerance + "ms.");
+            } else {
+                Log.i(LOG_TAG, "testConcurrentPlayAudio: all concurrent playing offsets "
+                        + offsets + " are under the recommended tolerance of "
+                        + recommendedTolerance + "ms.");
             }
         } finally {
             mps.forEach(MediaPlayer::release);
@@ -699,7 +712,10 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
             player.reset();
             player.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
             player.prepare();
-            player.seekTo(56000);
+            // Test needs the mediaplayer to playback at least about 5 seconds of content.
+            // Clip used here has a duration of 61 seconds, so seek to 50 seconds in the media file.
+            // This leaves enough remaining time, with gapless enabled or disabled,
+            player.seekTo(50000);
         }
     }
 

@@ -17,18 +17,13 @@
 package android.media.muxer.cts;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import android.content.res.AssetFileDescriptor;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaPlayer;
 import android.media.cts.MediaTestBase;
-import android.media.cts.NonMediaMainlineTest;
-import android.media.cts.Preconditions;
 import android.net.Uri;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
@@ -42,6 +37,8 @@ import androidx.test.filters.SmallTest;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.MediaUtils;
+import com.android.compatibility.common.util.NonMainlineTest;
+import com.android.compatibility.common.util.Preconditions;
 
 import org.junit.After;
 import org.junit.Before;
@@ -50,9 +47,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.File;
-import java.io.FileDescriptor;
 import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Set;
 
@@ -97,48 +92,48 @@ public class NativeMuxerTest extends MediaTestBase {
 
     // check that native extractor behavior matches java extractor
     @Presubmit
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @Test
     public void testMuxerAvc() throws Exception {
         // IMPORTANT: this file must not have B-frames
         testMuxer("video_1280x720_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4", false);
     }
 
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @Test
     public void testMuxerH263() throws Exception {
         // IMPORTANT: this file must not have B-frames
         testMuxer("video_176x144_3gp_h263_300kbps_25fps_aac_stereo_128kbps_11025hz.3gp", false);
     }
 
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @Test
     public void testMuxerHevc() throws Exception {
         // IMPORTANT: this file must not have B-frames
         testMuxer("video_640x360_mp4_hevc_450kbps_no_b.mp4", false);
     }
 
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @Test
     public void testMuxerVp8() throws Exception {
         testMuxer("bbb_s1_640x360_webm_vp8_2mbps_30fps_vorbis_5ch_320kbps_48000hz.webm", true);
     }
 
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @Test
     public void testMuxerVp9() throws Exception {
         testMuxer("video_1280x720_webm_vp9_csd_309kbps_25fps_vorbis_stereo_128kbps_48000hz.webm",
                 true);
     }
 
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @Test
     public void testMuxerVp9NoCsd() throws Exception {
         testMuxer("bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm",
                 true);
     }
 
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @Test
     public void testMuxerVp9Hdr() throws Exception {
         testMuxer("video_256x144_webm_vp9_hdr_83kbps_24fps.webm", true);
@@ -152,7 +147,7 @@ public class NativeMuxerTest extends MediaTestBase {
         testMuxer("video_176x144_mp4_mpeg2_105kbps_25fps_aac_stereo_128kbps_44100hz.mp4", false);
     }
 
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @Test
     public void testMuxerMpeg4() throws Exception {
         // IMPORTANT: this file must not have B-frames

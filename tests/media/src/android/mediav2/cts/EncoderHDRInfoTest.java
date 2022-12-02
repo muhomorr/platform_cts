@@ -17,6 +17,7 @@
 package android.mediav2.cts;
 
 import android.media.MediaFormat;
+import android.mediav2.common.cts.HDREncoderTestBase;
 import android.os.Build;
 
 import androidx.test.filters.SdkSuppress;
@@ -35,15 +36,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Test to validate hdr static and dynamic metadata in encoders
+ * Test to validate hdr static and dynamic metadata in encoders.
  * HDR Metadata is an aid for a display device to show the content in an optimal manner. It
  * contains the HDR content and mastering device properties that are used by the display device
  * to map the content according to its own color gamut and peak brightness. This information can
  * be part of container and/or elementary stream. If the encoder is configured with hdr metadata,
- * then it is expected to place this information in the elementary stream as-is. The same
- * goes for container as well. This test validates the same.
- *
- * Restrict hdr metadata test for Android T and above
+ * then it is expected to place this information in the elementary stream as-is. If a muxer is
+ * configured with hdr metadata then it is expected to place this information in container as-is.
+ * This test validates these requirements.
  */
 @RunWith(Parameterized.class)
 // P010 support was added in Android T, hence limit the following tests to Android T and above
@@ -51,15 +51,16 @@ import java.util.Map;
 public class EncoderHDRInfoTest extends HDREncoderTestBase {
     private static final String LOG_TAG = EncoderHDRInfoTest.class.getSimpleName();
 
-    private String mHDRStaticInfo;
-    private Map<Integer, String> mHDRDynamicInfo;
+    private final String mHDRStaticInfo;
+    private final Map<Integer, String> mHDRDynamicInfo;
 
     public EncoderHDRInfoTest(String encoderName, String mediaType, int bitrate,
-                              int width, int height, String HDRStaticInfo,
-                              Map<Integer, String> HDRDynamicInfo) {
-        super(encoderName, mediaType, bitrate, width, height);
-        mHDRStaticInfo = HDRStaticInfo;
-        mHDRDynamicInfo = HDRDynamicInfo;
+            int width, int height, String hdrStaticInfo, Map<Integer, String> hdrDynamicInfo,
+            String allTestParams) {
+        super(encoderName, mediaType, bitrate, width, height,
+                EncoderInput.getRawResource(mediaType, /* isHighBitDepth */ true), allTestParams);
+        mHDRStaticInfo = hdrStaticInfo;
+        mHDRDynamicInfo = hdrDynamicInfo;
     }
 
     @Parameterized.Parameters(name = "{index}({0}_{1})")
@@ -85,7 +86,7 @@ public class EncoderHDRInfoTest extends HDREncoderTestBase {
     }
 
     /**
-     * @see EncoderHDRInfoTest
+     * Check description of class {@link EncoderHDRInfoTest}
      */
     @SmallTest
     @Test(timeout = PER_TEST_TIMEOUT_SMALL_TEST_MS)
