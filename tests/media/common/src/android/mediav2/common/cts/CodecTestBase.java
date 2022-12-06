@@ -269,9 +269,6 @@ public abstract class CodecTestBase {
 
     protected MediaCodec mCodec;
     protected Surface mSurface;
-    // NOTE: mSurface is a place holder of current Surface used by the CodecTestBase.
-    // This doesn't own the handle. The ownership with instances that manage
-    // SurfaceView or TextureView, ... They hold the responsibility of calling release().
     protected CodecTestActivity mActivity;
 
     private static final MediaCodecList MEDIA_CODEC_LIST_ALL;
@@ -612,14 +609,6 @@ public abstract class CodecTestBase {
                 }
                 paramStr.delete(paramStr.length() - 2, paramStr.length())
                         .append(length == map.size() ? "}, " : ", ... }, ");
-            } else if (o instanceof EncoderConfigParams[]) {
-                int length = Math.min(((EncoderConfigParams[]) o).length, 3);
-                paramStr.append("{");
-                for (int i = 0; i < ((EncoderConfigParams[]) o).length; i++) {
-                    paramStr.append(((EncoderConfigParams[]) o)[i]).append(", ");
-                }
-                paramStr.delete(paramStr.length() - 2, paramStr.length())
-                        .append(length == ((EncoderConfigParams[]) o).length ? "}, " : ", ... }, ");
             } else paramStr.append(o).append(", ");
         }
         paramStr.delete(paramStr.length() - 2, paramStr.length()).append("  ]");
@@ -908,19 +897,6 @@ public abstract class CodecTestBase {
         mTestConfig += "Test Parameters :- " + mAllTestParams + "\n";
         if (mCodecName != null && mCodecName.startsWith(INVALID_CODEC)) {
             fail("no valid component available for current test \n" + mTestConfig);
-        }
-    }
-
-    @After
-    public void tearDownCodecTestBase() {
-        mSurface = null;
-        if (mActivity != null) {
-            mActivity.finish();
-            mActivity = null;
-        }
-        if (mCodec != null) {
-            mCodec.release();
-            mCodec = null;
         }
     }
 
@@ -1215,5 +1191,20 @@ public abstract class CodecTestBase {
         mSurface = activity.getSurface();
         assertNotNull("Surface created is null \n" + mTestConfig + mTestEnv, mSurface);
         assertTrue("Surface created is invalid \n" + mTestConfig + mTestEnv, mSurface.isValid());
+    }
+
+    protected void tearDownSurface() {
+        if (mSurface != null) {
+            mSurface.release();
+            mSurface = null;
+        }
+    }
+
+    @After
+    public void tearDown() {
+        if (mCodec != null) {
+            mCodec.release();
+            mCodec = null;
+        }
     }
 }

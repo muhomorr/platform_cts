@@ -27,7 +27,9 @@ import android.media.MediaSync;
 import android.media.MediaTimestamp;
 import android.media.PlaybackParams;
 import android.media.SyncParams;
+import android.media.cts.NonMediaMainlineTest;
 import android.media.cts.MediaStubActivity;
+import android.media.cts.Preconditions;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.platform.test.annotations.AppModeFull;
@@ -39,10 +41,10 @@ import android.view.Surface;
 import androidx.test.filters.SmallTest;
 
 import com.android.compatibility.common.util.MediaUtils;
-import com.android.compatibility.common.util.NonMainlineTest;
-import com.android.compatibility.common.util.Preconditions;
 
 import java.io.IOException;
+import java.lang.Long;
+import java.lang.Math;
 import java.nio.ByteBuffer;
 import java.util.LinkedList;
 import java.util.List;
@@ -55,7 +57,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Blender Foundation / www.bigbuckbunny.org, and are licensed under the Creative Commons
  * Attribution 3.0 License at http://creativecommons.org/licenses/by/3.0/us/.
  */
-@NonMainlineTest
+@NonMediaMainlineTest
 @SmallTest
 @RequiresDevice
 @AppModeFull(reason = "TODO: evaluate and port to instant")

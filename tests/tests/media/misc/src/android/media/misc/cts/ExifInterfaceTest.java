@@ -30,6 +30,8 @@ import android.content.res.TypedArray;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.media.ExifInterface;
+import android.media.cts.NonMediaMainlineTest;
+import android.media.cts.Preconditions;
 import android.os.FileUtils;
 import android.os.StrictMode;
 import android.platform.test.annotations.AppModeFull;
@@ -40,9 +42,6 @@ import android.util.Log;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
-
-import com.android.compatibility.common.util.NonMainlineTest;
-import com.android.compatibility.common.util.Preconditions;
 
 import libcore.io.IoUtils;
 
@@ -61,7 +60,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-@NonMainlineTest
+@NonMediaMainlineTest
 @AppModeFull(reason = "Instant apps cannot access the SD card")
 @RunWith(AndroidJUnit4.class)
 public class ExifInterfaceTest {

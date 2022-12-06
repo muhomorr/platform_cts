@@ -114,10 +114,8 @@ public class ApkPackageNameCheck {
                     } else if (prep instanceof PushFilePreparer) {
                         for (File f : ((PushFilePreparer) prep).getPushSpecs(null).values()) {
                             String path = f.getPath();
-                            // Use findFiles to also match top-level dir, which is a valid push spec
-                            Set<String> toBePushed = FileUtil.findFiles(config.getParentFile(),
-                                                                        path);
-                            if (toBePushed.isEmpty()) {
+                            File toBePushed = FileUtil.findFile(config.getParentFile(), path);
+                            if (toBePushed == null) {
                                 // TODO: Enforce should abort on failure is True in CTS
                                 if (((PushFilePreparer) prep).shouldAbortOnFailure()) {
                                     errors.add(

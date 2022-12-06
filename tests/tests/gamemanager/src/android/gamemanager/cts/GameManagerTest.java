@@ -30,7 +30,6 @@ import android.app.GameModeInfo;
 import android.app.GameState;
 import android.app.Instrumentation;
 import android.content.Context;
-import android.platform.test.annotations.AppModeFull;
 import android.support.test.uiautomator.UiDevice;
 
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
@@ -416,8 +415,7 @@ public class GameManagerTest {
     }
 
     @Test
-    @AppModeFull
-    public void testCustomGameMode() throws Exception {
+    public void testCustomGameMode() throws InterruptedException {
         final String packageName = GAME_TEST_APP_PACKAGE_NAME;
         TestUtil.installPackage(GAME_TEST_APP_APK_PATH);
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mGameManager,
@@ -432,14 +430,16 @@ public class GameManagerTest {
 
         runShellCommand("am start -n " + GAME_TEST_APP_PACKAGE_NAME
                 + "/" + GAME_TEST_APP_ACTIVITY_NAME);
+        Thread.sleep(5000);
+        assertTrue("No game mode broadcast received from package "
+                        + GAME_TEST_APP_PACKAGE_NAME,
+                mActivity.hasReceivedGameMode(GAME_TEST_APP_PACKAGE_NAME));
         assertEquals(GameManager.GAME_MODE_CUSTOM,
-                mActivity.getLastReceivedGameMode(GAME_TEST_APP_PACKAGE_NAME,
-                        10000 /* timeoutMillis */));
+                mActivity.getLastReceivedGameMode(GAME_TEST_APP_PACKAGE_NAME));
     }
 
     @Test
-    @AppModeFull
-    public void testCustomGameModeBackwardCompatibility() throws Exception {
+    public void testCustomGameModeBackwardCompatibility() throws InterruptedException {
         final String packageName = GAME_TEST_APP_WITH_TIRAMISU_TARGET_PACKAGE_NAME;
         TestUtil.installPackage(GAME_TEST_APP_WITH_TIRAMISU_TARGET_APK_PATH);
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mGameManager,
@@ -454,8 +454,11 @@ public class GameManagerTest {
 
         runShellCommand("am start -n " + GAME_TEST_APP_WITH_TIRAMISU_TARGET_PACKAGE_NAME
                 + "/" + GAME_TEST_APP_ACTIVITY_NAME);
+        Thread.sleep(5000);
+        assertTrue("No game mode broadcast received from package "
+                        + GAME_TEST_APP_WITH_TIRAMISU_TARGET_PACKAGE_NAME,
+                mActivity.hasReceivedGameMode(GAME_TEST_APP_WITH_TIRAMISU_TARGET_PACKAGE_NAME));
         assertEquals(GameManager.GAME_MODE_STANDARD,
-                mActivity.getLastReceivedGameMode(GAME_TEST_APP_WITH_TIRAMISU_TARGET_PACKAGE_NAME,
-                        10000 /* timeoutMillis */));
+                mActivity.getLastReceivedGameMode(GAME_TEST_APP_WITH_TIRAMISU_TARGET_PACKAGE_NAME));
     }
 }

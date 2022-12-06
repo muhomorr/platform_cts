@@ -101,9 +101,7 @@ public final class Automator {
                 try (ParcelFileDescriptor remoteFile = mContext.createContextAsUser(
                         systemUser.userHandle(), /* flags= */0)
                         .getContentResolver()
-                        .openFile(Uri.parse("content://"
-                                        + mContext.getPackageName()
-                                        + ".interactive.automation"), "r",
+                        .openFile(Uri.parse("content://com.android.interactive.automation"), "r",
                         new CancellationSignal());
                      InputStream fileStream = new FileInputStream(remoteFile.getFileDescriptor());
                      OutputStream outputStream = new FileOutputStream(mAutomationFile)) {

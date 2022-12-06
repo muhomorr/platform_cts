@@ -48,7 +48,6 @@ public class VideoErrorManager {
     private final double[] mMinimumMSE;
     private final double[] mGlobalPSNR;
     private final double[] mMinimumPSNR;
-    private final double[] mAvgPSNR;
     private final ArrayList<double[]> mFramesPSNR;
 
     public VideoErrorManager(RawResource refYuv, RawResource testYuv, boolean allowLoopBack) {
@@ -79,8 +78,6 @@ public class VideoErrorManager {
         Arrays.fill(mGlobalMSE, 0.0);
         mGlobalPSNR = new double[3];
         mMinimumPSNR = new double[3];
-        mAvgPSNR = new double[3];
-        Arrays.fill(mAvgPSNR, 0.0);
         mFramesPSNR = new ArrayList<>();
     }
 
@@ -159,13 +156,8 @@ public class VideoErrorManager {
                 mGlobalMSE[2] += curVMSE;
                 mMinimumMSE[2] = Math.min(mMinimumMSE[2], curVMSE);
 
-                double yFramePSNR = computePSNR(curYMSE);
-                double uFramePSNR = computePSNR(curUMSE);
-                double vFramePSNR = computePSNR(curVMSE);
-                mAvgPSNR[0] += yFramePSNR;
-                mAvgPSNR[1] += uFramePSNR;
-                mAvgPSNR[2] += vFramePSNR;
-                mFramesPSNR.add(new double[]{yFramePSNR, uFramePSNR, vFramePSNR});
+                mFramesPSNR.add(new double[]{computePSNR(curYMSE), computePSNR(curUMSE),
+                        computePSNR(curVMSE)});
 
                 if (ENABLE_LOGS) {
                     String msg = String.format(
@@ -181,15 +173,13 @@ public class VideoErrorManager {
                 mGlobalMSE[i] /= frames;
                 mGlobalPSNR[i] = computePSNR(mGlobalMSE[i]);
                 mMinimumPSNR[i] = computePSNR(mMinimumMSE[i]);
-                mAvgPSNR[i] /= frames;
             }
             if (ENABLE_LOGS) {
                 String msg = String.format(
-                        "global_psnr_y:%.2f, global_psnr_u:%.2f, global_psnr_v:%.2f, min_psnr_y:%"
-                                + ".2f, min_psnr_u:%.2f, min_psnr_v:%.2f avg_psnr_y:%.2f, "
-                                + "avg_psnr_u:%.2f, avg_psnr_v:%.2f",
+                        "psnr_y:%,.2f psnr_u:%,.2f psnr_v:%,.2f min_psnr_y:%,.2f min_psnr_u:%,.2f "
+                                + "min_psnr_v:%,.2f",
                         mGlobalPSNR[0], mGlobalPSNR[1], mGlobalPSNR[2], mMinimumPSNR[0],
-                        mMinimumPSNR[1], mMinimumPSNR[2], mAvgPSNR[0], mAvgPSNR[1], mAvgPSNR[2]);
+                        mMinimumPSNR[1], mMinimumPSNR[2]);
                 Log.v(LOG_TAG, msg);
             }
         }
@@ -232,17 +222,5 @@ public class VideoErrorManager {
             mGenerateStats = true;
         }
         return mFramesPSNR;
-    }
-
-    /**
-     * Returns Avg(Ypsnr of all frames), Avg(Upsnr of all frames), Avg(Vpsnr of all frames) as an
-     * array at subscripts 0, 1, 2 respectively
-     */
-    public double[] getAvgPSNR() throws IOException {
-        if (!mGenerateStats) {
-            generateErrorStats();
-            mGenerateStats = true;
-        }
-        return mAvgPSNR;
     }
 }

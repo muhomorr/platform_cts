@@ -21,7 +21,6 @@ import static com.google.common.truth.Truth.assertThat;
 import android.car.Car;
 import android.car.VehicleAreaType;
 import android.car.VehiclePropertyType;
-import android.car.cts.utils.ShellPermissionUtils;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.property.CarPropertyManager;
 import android.car.test.ApiCheckerRule.Builder;
@@ -50,6 +49,7 @@ public final class CarPropertyConfigTest extends AbstractCarTestCase {
     private static final String TAG = CarPropertyConfigTest.class.getSimpleName();
     private static final float EPSILON = 0.00001f;
 
+    private CarPropertyManager mCarPropertyManager;
     private List<CarPropertyConfig> mConfigs;
 
     // TODO(b/242350638): add missing annotations, remove (on child bug of 242350638)
@@ -61,11 +61,8 @@ public final class CarPropertyConfigTest extends AbstractCarTestCase {
 
     @Before
     public void setUp() throws Exception {
-        CarPropertyManager carPropertyManager = (CarPropertyManager) getCar().getCarManager(
-                Car.PROPERTY_SERVICE);
-        ShellPermissionUtils.runWithShellPermissionIdentity(
-                () -> mConfigs = carPropertyManager.getPropertyList());
-        assertThat(mConfigs.size()).isAtLeast(4);
+        mCarPropertyManager = (CarPropertyManager) getCar().getCarManager(Car.PROPERTY_SERVICE);
+        mConfigs = mCarPropertyManager.getPropertyList();
     }
 
     @Test
@@ -187,8 +184,9 @@ public final class CarPropertyConfigTest extends AbstractCarTestCase {
         for (CarPropertyConfig cfg : mConfigs) {
             int[] areaIds = cfg.getAreaIds();
             Assert.assertNotNull(areaIds);
-            assertThat(areaIds.length).isAtLeast(1);
-            Assert.assertTrue(areaIdCheck(areaIds));
+            if (areaIds.length > 0) {
+                Assert.assertTrue(areaIdCheck(areaIds));
+            }
         }
     }
 
@@ -212,8 +210,8 @@ public final class CarPropertyConfigTest extends AbstractCarTestCase {
      * @return
      */
     private boolean areaIdCheck(int[] areaIds) {
-        for (int i = 0; i < areaIds.length - 1; i++) {
-            for (int j = i + 1; j < areaIds.length; j++) {
+        for (int i = 0; i < areaIds.length-1; i++) {
+            for (int j = i+1; j < areaIds.length; i++) {
                 if ((areaIds[i] & areaIds[j]) != 0) {
                     return false;
                 }

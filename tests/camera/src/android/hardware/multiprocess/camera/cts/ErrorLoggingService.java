@@ -84,7 +84,6 @@ public class ErrorLoggingService extends Service {
     private static final int DO_EVENT_FILTER = 1;
     private static final String LOG_EVENT = "log_event";
     private static final String LOG_EVENT_ARRAY = "log_event_array";
-    private static final long CONNECT_WAIT_MS = 5000;
 
 
     /**
@@ -419,7 +418,7 @@ public class ErrorLoggingService extends Service {
             }
         };
 
-        private Messenger blockingGetBoundService() throws TimeoutException {
+        private Messenger blockingGetBoundService() {
             synchronized (mLock) {
                 if (!mBind) {
                     mContext.bindService(new Intent(mContext, ErrorLoggingService.class), mConnection,
@@ -427,16 +426,8 @@ public class ErrorLoggingService extends Service {
                     mBind = true;
                 }
                 try {
-                    long start = System.currentTimeMillis();
                     while (mService == null && mBind) {
-                        long now = System.currentTimeMillis();
-                        long elapsed = now - start;
-                        if (elapsed < CONNECT_WAIT_MS) {
-                            mLock.wait(CONNECT_WAIT_MS - elapsed);
-                        } else {
-                            throw new TimeoutException(
-                                    "Timed out connecting to ErrorLoggingService.");
-                        }
+                        mLock.wait();
                     }
                 } catch (InterruptedException e) {
                     Log.e(TAG, "Waiting for error service interrupted: " + e);
@@ -503,10 +494,8 @@ public class ErrorLoggingService extends Service {
          *
          * @param id an int indicating the ID of this event.
          * @param msg a {@link String} message to send.
-         *
-         * @throws TimeoutException if the ErrorLoggingService didn't connect.
          */
-        public void log(final int id, final String msg) throws TimeoutException {
+        public void log(final int id, final String msg) {
             Messenger service = blockingGetBoundService();
             Message m = Message.obtain(null, MSG_LOG_EVENT);
             m.getData().putParcelable(LOG_EVENT, new LogEvent(id, msg));
@@ -530,11 +519,7 @@ public class ErrorLoggingService extends Service {
             AsyncTask.SERIAL_EXECUTOR.execute(new Runnable() {
                 @Override
                 public void run() {
-                    try {
-                        log(id, msg);
-                    } catch (TimeoutException e) {
-                        Log.e(TAG, "Received TimeoutException while logging error: " + e);
-                    }
+                    log(id, msg);
                 }
             });
         }

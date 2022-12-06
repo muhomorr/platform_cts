@@ -184,11 +184,4 @@ public class CompareStreams {
     public ArrayList<double[]> getFramesPSNR() throws IOException {
         return mStatistics.getFramesPSNR();
     }
-
-    /**
-     * @see VideoErrorManager#getAvgPSNR()
-     */
-    public double[] getAvgPSNR() throws IOException {
-        return mStatistics.getAvgPSNR();
-    }
 }

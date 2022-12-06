@@ -25,7 +25,6 @@ final class AutomatingFailedStep extends Step<Integer> {
     public static final int RETRY = 2;
     public static final int RESTART_MANUALLY = 3;
     public static final int FAIL = 4;
-    public static final int RESTART = 5;
 
     private final String mInstruction;
 
@@ -39,11 +38,6 @@ final class AutomatingFailedStep extends Step<Integer> {
 
         addButton("Retry", () -> {
             pass(RETRY);
-            close();
-        });
-
-        addButton("Restart", () -> {
-            pass(RESTART);
             close();
         });
 

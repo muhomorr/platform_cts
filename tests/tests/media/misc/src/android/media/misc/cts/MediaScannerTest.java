@@ -25,6 +25,8 @@ import android.database.Cursor;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaScannerConnection;
 import android.media.MediaScannerConnection.MediaScannerConnectionClient;
+import android.media.cts.NonMediaMainlineTest;
+import android.media.cts.Preconditions;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -44,9 +46,7 @@ import androidx.test.filters.SmallTest;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.FileCopyHelper;
-import com.android.compatibility.common.util.NonMainlineTest;
 import com.android.compatibility.common.util.PollingCheck;
-import com.android.compatibility.common.util.Preconditions;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -59,7 +59,7 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 
 @Presubmit
-@NonMainlineTest
+@NonMediaMainlineTest
 @SmallTest
 @RequiresDevice
 @AppModeFull(reason = "TODO: evaluate and port to instant")

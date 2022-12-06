@@ -61,7 +61,6 @@ import org.junit.runner.RunWith;
 @Presubmit
 public class AccessibilityViewTreeReportingTest {
     private static final int TIMEOUT_ASYNC_PROCESSING = 5000;
-    private static final long TIMEOUT_ACCESSIBILITY_STATE_IDLE = 200;
 
     private static Instrumentation sInstrumentation;
     private static UiAutomation sUiAutomation;
@@ -343,9 +342,6 @@ public class AccessibilityViewTreeReportingTest {
 
     private void receiveSubtreeEventWhenViewChangesVisibility(View view, View sendA11yEventParent,
             int visibility) throws Throwable {
-        // This wait prevents the expected event being merged with other events by throttling.
-        sUiAutomation.waitForIdle(TIMEOUT_ACCESSIBILITY_STATE_IDLE, TIMEOUT_ASYNC_PROCESSING);
-
         AccessibilityEvent awaitedEvent =
                 sUiAutomation.executeAndWaitForEvent(
                         () -> {

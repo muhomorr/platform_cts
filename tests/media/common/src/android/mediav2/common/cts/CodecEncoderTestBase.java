@@ -17,7 +17,6 @@
 package android.mediav2.common.cts;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -41,13 +40,7 @@ import java.util.ArrayList;
 
 /**
  * Wrapper class for trying and testing encoder components.
- * @deprecated This class is marked for future removal. Use {@link EncoderTestBase} instead.
- * {@link EncoderTestBase} offers same functionality as the current class. Besides that, it has
- * utility functions for muxing, offers better control over configuration params, utility
- * functions for better test labelling.
- * TODO (b/260533828) remove this once all encoders are update to use {@link EncoderConfigParams}
  */
-@Deprecated(forRemoval = true)
 public class CodecEncoderTestBase extends CodecTestBase {
     private static final String LOG_TAG = CodecEncoderTestBase.class.getSimpleName();
 
@@ -298,9 +291,15 @@ public class CodecEncoderTestBase extends CodecTestBase {
                     fail("received partial frame to encode \n" + mTestConfig + mTestEnv);
                 } else {
                     Image img = mCodec.getInputImage(bufferIndex);
-                    assertNotNull("getInputImage() expected to return non-null for video \n"
-                            + mTestConfig + mTestEnv, img);
-                    fillImage(img);
+                    if (img != null) {
+                        fillImage(img);
+                    } else {
+                        if (mWidth == mActiveRawRes.mWidth && mHeight == mActiveRawRes.mHeight) {
+                            inputBuffer.put(mInputData, mNumBytesSubmitted, size);
+                        } else {
+                            fillByteBuffer(inputBuffer);
+                        }
+                    }
                 }
                 if (mSignalEOSWithLastFrame) {
                     if (mIsLoopBack ? (mInputCount + 1 >= mLoopBackFrameLimit) :

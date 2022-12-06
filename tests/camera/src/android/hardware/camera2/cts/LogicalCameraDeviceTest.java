@@ -187,7 +187,7 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
      */
     @Test
     public void testBasicPhysicalStreaming() throws Exception {
-        Set<Pair<String, String>> unavailablePhysicalCameras = getUnavailablePhysicalCameras();
+
         for (String id : mCameraIdsUnderTest) {
             try {
                 Log.i(TAG, "Testing Camera " + id);
@@ -209,8 +209,7 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
 
                 // Figure out preview size and physical cameras to use.
                 ArrayList<String> dualPhysicalCameraIds = new ArrayList<String>();
-                Size previewSize = findCommonPreviewSize(id, dualPhysicalCameraIds,
-                        unavailablePhysicalCameras);
+                Size previewSize= findCommonPreviewSize(id, dualPhysicalCameraIds);
                 if (previewSize == null) {
                     Log.i(TAG, "Camera " + id + ": No matching physical preview streams, skipping");
                     continue;
@@ -230,7 +229,7 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
      */
     @Test
     public void testBasicLogicalPhysicalStreamCombination() throws Exception {
-        Set<Pair<String, String>> unavailablePhysicalCameras = getUnavailablePhysicalCameras();
+
         for (String id : mCameraIdsUnderTest) {
             try {
                 Log.i(TAG, "Testing Camera " + id);
@@ -252,8 +251,7 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
 
                 // Figure out yuv size and physical cameras to use.
                 List<String> dualPhysicalCameraIds = new ArrayList<String>();
-                Size yuvSize = findCommonPreviewSize(id, dualPhysicalCameraIds,
-                        unavailablePhysicalCameras);
+                Size yuvSize= findCommonPreviewSize(id, dualPhysicalCameraIds);
                 if (yuvSize == null) {
                     Log.i(TAG, "Camera " + id + ": No matching physical YUV streams, skipping");
                     continue;
@@ -359,7 +357,7 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
      */
     @Test
     public void testBasicPhysicalRequests() throws Exception {
-        Set<Pair<String, String>> unavailablePhysicalCameras = getUnavailablePhysicalCameras();
+
         for (String id : mCameraIdsUnderTest) {
             try {
                 Log.i(TAG, "Testing Camera " + id);
@@ -381,8 +379,7 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
 
                 // Figure out yuv size and physical cameras to use.
                 List<String> dualPhysicalCameraIds = new ArrayList<String>();
-                Size yuvSize = findCommonPreviewSize(id, dualPhysicalCameraIds,
-                        unavailablePhysicalCameras);
+                Size yuvSize= findCommonPreviewSize(id, dualPhysicalCameraIds);
                 if (yuvSize == null) {
                     Log.i(TAG, "Camera " + id + ": No matching physical YUV streams, skipping");
                     continue;
@@ -497,7 +494,7 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
      */
     @Test
     public void testInvalidPhysicalCameraRequests() throws Exception {
-        Set<Pair<String, String>> unavailablePhysicalCameras = getUnavailablePhysicalCameras();
+
         for (String id : mCameraIdsUnderTest) {
             try {
                 Log.i(TAG, "Testing Camera " + id);
@@ -563,8 +560,7 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
                 if (mStaticInfo.isLogicalMultiCamera()) {
                     // Figure out yuv size to use.
                     List<String> dualPhysicalCameraIds = new ArrayList<String>();
-                    Size sharedSize = findCommonPreviewSize(id, dualPhysicalCameraIds,
-                            unavailablePhysicalCameras);
+                    Size sharedSize= findCommonPreviewSize(id, dualPhysicalCameraIds);
                     if (sharedSize == null) {
                         Log.i(TAG, "Camera " + id + ": No matching physical YUV streams, skipping");
                         continue;
@@ -739,7 +735,12 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
         }
     }
 
-    private Set<Pair<String, String>> getUnavailablePhysicalCameras() throws Exception {
+    /**
+     * Test that for logical multi-camera, the activePhysicalId is valid, and is the same
+     * for all capture templates.
+     */
+    @Test
+    public void testActivePhysicalId() throws Exception {
         final int AVAILABILITY_TIMEOUT_MS = 10;
         final LinkedBlockingQueue<Pair<String, String>> unavailablePhysicalCamEventQueue =
                 new LinkedBlockingQueue<>();
@@ -762,17 +763,6 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
                 java.util.concurrent.TimeUnit.MILLISECONDS);
         }
         mCameraManager.unregisterAvailabilityCallback(ac);
-
-        return unavailablePhysicalCameras;
-    }
-
-    /**
-     * Test that for logical multi-camera, the activePhysicalId is valid, and is the same
-     * for all capture templates.
-     */
-    @Test
-    public void testActivePhysicalId() throws Exception {
-        Set<Pair<String, String>> unavailablePhysicalCameras = getUnavailablePhysicalCameras();
 
         for (String id : mCameraIdsUnderTest) {
             try {
@@ -942,8 +932,8 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
      * two of the underlying physical cameras.
      */
     private Size findCommonPreviewSize(String cameraId,
-            List<String> dualPhysicalCameraIds,
-            Set<Pair<String, String>> unavailablePhysicalCameras) throws Exception {
+            List<String> dualPhysicalCameraIds) throws Exception {
+
         Set<String> physicalCameraIds =
                 mStaticInfo.getCharacteristics().getPhysicalCameraIds();
         assertTrue("Logical camera must contain at least 2 physical camera ids",
@@ -954,9 +944,6 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
         HashMap<String, List<Size>> physicalPreviewSizesMap = new HashMap<String, List<Size>>();
         HashMap<String, StreamConfigurationMap> physicalConfigs = new HashMap<>();
         for (String physicalCameraId : physicalCameraIds) {
-            if (unavailablePhysicalCameras.contains(new Pair<>(cameraId, physicalCameraId))) {
-                continue;
-            }
             CameraCharacteristics properties =
                     mCameraManager.getCameraCharacteristics(physicalCameraId);
             assertNotNull("Can't get camera characteristics!", properties);

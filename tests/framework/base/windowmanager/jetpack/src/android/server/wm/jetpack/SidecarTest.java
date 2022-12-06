@@ -174,7 +174,8 @@ public class SidecarTest extends WindowManagerJetpackTestBase {
 
         // The value is verified inside TestGetWindowLayoutInfoActivity
         TestGetWindowLayoutInfoActivity.resetResumeCounter();
-        TestGetWindowLayoutInfoActivity testGetWindowLayoutInfoActivity = startActivityNewTask(
+        TestGetWindowLayoutInfoActivity testGetWindowLayoutInfoActivity
+                = (TestGetWindowLayoutInfoActivity) startActivityNewTask(
                         TestGetWindowLayoutInfoActivity.class);
 
         // Make sure the activity has gone through all states.
@@ -186,7 +187,8 @@ public class SidecarTest extends WindowManagerJetpackTestBase {
     public void testGetWindowLayoutInfo_configChanged_windowLayoutUpdates() {
         assumeHasDisplayFeatures(mSidecarInterface, mWindowToken);
 
-        TestConfigChangeHandlingActivity configHandlingActivity = startActivityNewTask(
+        TestConfigChangeHandlingActivity configHandlingActivity
+                = (TestConfigChangeHandlingActivity) startActivityNewTask(
                 TestConfigChangeHandlingActivity.class);
         SidecarInterface sidecar = getSidecarInterface(configHandlingActivity);
         assertThat(sidecar).isNotNull();

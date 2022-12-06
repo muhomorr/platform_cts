@@ -110,7 +110,7 @@ public class ExtensionWindowLayoutComponentTest extends WindowManagerJetpackTest
         mWindowLayoutComponent =
                 (WindowLayoutComponent) mWindowExtensionTestRule.getExtensionComponent();
         assumeNotNull(mWindowLayoutComponent);
-        mActivity = startActivityNewTask(TestActivity.class);
+        mActivity = (TestActivity) startActivityNewTask(TestActivity.class);
     }
 
     private Context createContextWithNonActivityWindow() {
@@ -251,7 +251,8 @@ public class ExtensionWindowLayoutComponentTest extends WindowManagerJetpackTest
 
         WindowLayoutInfo windowLayoutInfoFromContext = getExtensionWindowLayoutInfo(windowContext);
 
-        TestConfigChangeHandlingActivity configHandlingActivity = startFullScreenActivityNewTask(
+        TestConfigChangeHandlingActivity configHandlingActivity =
+                (TestConfigChangeHandlingActivity) startFullScreenActivityNewTask(
                         TestConfigChangeHandlingActivity.class, null);
         WindowLayoutInfo windowLayoutInfoFromActivity = getExtensionWindowLayoutInfo(
                 configHandlingActivity);
@@ -267,7 +268,8 @@ public class ExtensionWindowLayoutComponentTest extends WindowManagerJetpackTest
         mWindowLayoutInfo = getExtensionWindowLayoutInfo(mActivity);
         assumeHasDisplayFeatures(mWindowLayoutInfo);
 
-        TestConfigChangeHandlingActivity configHandlingActivity = startFullScreenActivityNewTask(
+        TestConfigChangeHandlingActivity configHandlingActivity =
+                (TestConfigChangeHandlingActivity) startFullScreenActivityNewTask(
                         TestConfigChangeHandlingActivity.class, null);
 
         setActivityOrientationActivityHandlesOrientationChanges(configHandlingActivity,
@@ -290,28 +292,6 @@ public class ExtensionWindowLayoutComponentTest extends WindowManagerJetpackTest
                 portraitBounds, landscapeBounds, doesDisplayRotateForOrientation);
     }
 
-    @ApiTest(apis = {"androidx.window.extensions.layout.WindowLayoutInfo#getDisplayFeatures"})
-    @Test
-    public void testGetWindowLayoutInfo_enterExitPip_windowLayoutInfoMatches()
-            throws InterruptedException {
-        mWindowLayoutInfo = getExtensionWindowLayoutInfo(mActivity);
-        assumeHasDisplayFeatures(mWindowLayoutInfo);
-
-        TestConfigChangeHandlingActivity configHandlingActivity = startActivityNewTask(
-                        TestConfigChangeHandlingActivity.class, null);
-
-        final WindowLayoutInfo initialInfo = getExtensionWindowLayoutInfo(
-                configHandlingActivity);
-
-        enterPipActivityHandlesConfigChanges(configHandlingActivity);
-        exitPipActivityHandlesConfigChanges(configHandlingActivity);
-
-        final WindowLayoutInfo updatedInfo = getExtensionWindowLayoutInfo(
-                configHandlingActivity);
-
-        assertEquals(initialInfo, updatedInfo);
-    }
-
     /*
      * Similar to #testGetWindowLayoutInfo_configChanged_windowLayoutUpdates, here we trigger
      * rotations with a full screen activity on one Display Area, verify that WindowLayoutInfo
@@ -330,7 +310,8 @@ public class ExtensionWindowLayoutComponentTest extends WindowManagerJetpackTest
 
         Context windowContext = createContextWithNonActivityWindow();
 
-        TestConfigChangeHandlingActivity configHandlingActivity = startFullScreenActivityNewTask(
+        TestConfigChangeHandlingActivity configHandlingActivity =
+                (TestConfigChangeHandlingActivity) startFullScreenActivityNewTask(
                         TestConfigChangeHandlingActivity.class, null);
 
         setActivityOrientationActivityHandlesOrientationChanges(configHandlingActivity,

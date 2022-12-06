@@ -47,166 +47,85 @@ public class FrameRateOverrideHostTest extends CompatChangeGatingTestCase {
         uninstallPackage(TEST_PKG, true);
     }
 
-    public void testAppBackpressureDisplayModeReturnsPhysicalRefreshRateEnabled()
+    public void testBackpressureDisplayModeReturnsPhysicalRefreshRateEnabled()
             throws Exception {
         runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testAppBackpressure",
+                "testBackpressure",
                 /*enabledChanges*/
                 ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID),
                 /*disabledChanges*/
                 ImmutableSet.of());
     }
 
-    public void testAppBackpressureDisplayModeReturnsPhysicalRefreshRateDisabled()
+    public void testBackpressureDisplayModeReturnsPhysicalRefreshRateDisabled()
             throws Exception {
         runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testAppBackpressure",
+                "testBackpressure",
                 /*enabledChanges*/
                 ImmutableSet.of(),
                 /*disabledChanges*/
                 ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID));
     }
 
-    public void testAppChoreographerDisplayModeReturnsPhysicalRefreshRateEnabled()
+    public void testChoreographerDisplayModeReturnsPhysicalRefreshRateEnabled()
             throws Exception {
         runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testAppChoreographer",
+                "testChoreographer",
                 /*enabledChanges*/
                 ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID),
                 /*disabledChanges*/
                 ImmutableSet.of());
     }
 
-    public void testAppChoreographerDisplayModeReturnsPhysicalRefreshRateDisabled()
+    public void testChoreographerDisplayModeReturnsPhysicalRefreshRateDisabled()
             throws Exception {
         runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testAppChoreographer",
+                "testChoreographer",
                 /*enabledChanges*/
                 ImmutableSet.of(),
                 /*disabledChanges*/
                 ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID));
     }
 
-    public void testAppDisplayGetRefreshRateDisplayModeReturnsPhysicalRefreshRateEnabled()
+    public void testDisplayGetRefreshRateDisplayModeReturnsPhysicalRefreshRateEnabled()
             throws Exception {
         runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testAppDisplayGetRefreshRate",
+                "testDisplayGetRefreshRate",
                 /*enabledChanges*/
                 ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID),
                 /*disabledChanges*/
                 ImmutableSet.of());
     }
 
-    public void testAppDisplayGetRefreshRateDisplayModeReturnsPhysicalRefreshRateDisabled()
+    public void testDisplayGetRefreshRateDisplayModeReturnsPhysicalRefreshRateDisabled()
             throws Exception {
         runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testAppDisplayGetRefreshRate",
+                "testDisplayGetRefreshRate",
                 /*enabledChanges*/
                 ImmutableSet.of(),
                 /*disabledChanges*/
                 ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID));
     }
 
-    public void testAppDisplayModeGetRefreshRateDisplayModeReturnsPhysicalRefreshRateEnabled()
+    public void testDisplayModeGetRefreshRateDisplayModeReturnsPhysicalRefreshRateEnabled()
             throws Exception {
         runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testAppDisplayModeGetRefreshRateDisplayModeReturnsPhysicalRefreshRateEnabled",
+                "testDisplayModeGetRefreshRateDisplayModeReturnsPhysicalRefreshRateEnabled",
                 /*enabledChanges*/
                 ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID),
                 /*disabledChanges*/
                 ImmutableSet.of());
     }
 
-    public void testAppDisplayModeGetRefreshRateDisplayModeReturnsPhysicalRefreshRateDisabled()
+    public void testDisplayModeGetRefreshRateDisplayModeReturnsPhysicalRefreshRateDisabled()
             throws Exception {
         runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testAppDisplayModeGetRefreshRateDisplayModeReturnsPhysicalRefreshRateDisabled",
+                "testDisplayModeGetRefreshRateDisplayModeReturnsPhysicalRefreshRateDisabled",
                 /*enabledChanges*/
                 ImmutableSet.of(),
                 /*disabledChanges*/
                 ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID));
     }
-
-    public void testGlobalBackpressureDisplayModeReturnsPhysicalRefreshRateEnabled()
-            throws Exception {
-        runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testGlobalBackpressure",
-                /*enabledChanges*/
-                ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID),
-                /*disabledChanges*/
-                ImmutableSet.of());
-    }
-
-    public void testGlobalBackpressureDisplayModeReturnsPhysicalRefreshRateDisabled()
-            throws Exception {
-        runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testGlobalBackpressure",
-                /*enabledChanges*/
-                ImmutableSet.of(),
-                /*disabledChanges*/
-                ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID));
-    }
-
-    public void testGlobalChoreographerDisplayModeReturnsPhysicalRefreshRateEnabled()
-            throws Exception {
-        runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testGlobalChoreographer",
-                /*enabledChanges*/
-                ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID),
-                /*disabledChanges*/
-                ImmutableSet.of());
-    }
-
-    public void testGlobalChoreographerDisplayModeReturnsPhysicalRefreshRateDisabled()
-            throws Exception {
-        runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testGlobalChoreographer",
-                /*enabledChanges*/
-                ImmutableSet.of(),
-                /*disabledChanges*/
-                ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID));
-    }
-
-    public void testGlobalDisplayGetRefreshRateDisplayModeReturnsPhysicalRefreshRateEnabled()
-            throws Exception {
-        runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testGlobalDisplayGetRefreshRate",
-                /*enabledChanges*/
-                ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID),
-                /*disabledChanges*/
-                ImmutableSet.of());
-    }
-
-    public void testGlobalDisplayGetRefreshRateDisplayModeReturnsPhysicalRefreshRateDisabled()
-            throws Exception {
-        runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testGlobalDisplayGetRefreshRate",
-                /*enabledChanges*/
-                ImmutableSet.of(),
-                /*disabledChanges*/
-                ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID));
-    }
-
-    public void testGlobalDisplayModeGetRefreshRateDisplayModeReturnsPhysicalRefreshRateEnabled()
-            throws Exception {
-        runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testGlobalDisplayModeGetRefreshRateDisplayModeReturnsPhysicalRefreshRateEnabled",
-                /*enabledChanges*/
-                ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID),
-                /*disabledChanges*/
-                ImmutableSet.of());
-    }
-
-    public void testGlobalDisplayModeGetRefreshRateDisplayModeReturnsPhysicalRefreshRateDisabled()
-            throws Exception {
-        runDeviceCompatTest(TEST_PKG, ".FrameRateOverrideTest",
-                "testGlobalDisplayModeGetRefreshRateDisplayModeReturnsPhysicalRefreshRateDisabled",
-                /*enabledChanges*/
-                ImmutableSet.of(),
-                /*disabledChanges*/
-                ImmutableSet.of(DISPLAY_MODE_RETURNS_PHYSICAL_REFRESH_RATE_CHANGEID));
-    }
-
 
     public void testGameModeBackpressureDisplayModeReturnsPhysicalRefreshRateEnabled()
             throws Exception {

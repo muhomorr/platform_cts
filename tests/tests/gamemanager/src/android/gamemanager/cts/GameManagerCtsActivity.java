@@ -26,11 +26,7 @@ import android.os.Bundle;
 import android.util.ArrayMap;
 import android.util.Log;
 
-import com.android.internal.annotations.GuardedBy;
-
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 
 public class GameManagerCtsActivity extends Activity {
 
@@ -39,9 +35,7 @@ public class GameManagerCtsActivity extends Activity {
     Context mContext;
     GameManager mGameManager;
     GameModeReceiver mGameModeReceiver;
-    private final Object mGameModeLock = new Object();
-    @GuardedBy("mGameModeLock")
-    private Map<String, CompletableFuture<Integer>> mReceivedGameModes = new ArrayMap<>();
+    Map<String, Integer> mReceivedGameModes = new ArrayMap<>();
 
     public class GameModeReceiver extends BroadcastReceiver {
         @Override
@@ -53,10 +47,7 @@ public class GameManagerCtsActivity extends Activity {
                 Log.w(TAG, "Received game mode broadcast without sender package");
                 return;
             }
-            synchronized (mGameModeLock) {
-                mReceivedGameModes.putIfAbsent(senderPackage, new CompletableFuture<>());
-                mReceivedGameModes.get(senderPackage).complete(gameMode);
-            }
+            mReceivedGameModes.put(senderPackage, gameMode);
         }
     }
 
@@ -83,13 +74,12 @@ public class GameManagerCtsActivity extends Activity {
         return mContext.getPackageName();
     }
 
-    public int getLastReceivedGameMode(String packageName, long timeoutMillis) throws Exception {
-        final CompletableFuture<Integer> gameModeFuture;
-        synchronized (mGameModeLock) {
-            mReceivedGameModes.putIfAbsent(packageName, new CompletableFuture<>());
-            gameModeFuture = mReceivedGameModes.get(packageName);
-        }
-        return gameModeFuture.get(timeoutMillis, TimeUnit.SECONDS);
+    public boolean hasReceivedGameMode(String packageName) {
+        return mReceivedGameModes.containsKey(packageName);
+    }
+
+    public int getLastReceivedGameMode(String packageName) {
+        return mReceivedGameModes.getOrDefault(packageName, -1);
     }
 
     public int getGameMode() {

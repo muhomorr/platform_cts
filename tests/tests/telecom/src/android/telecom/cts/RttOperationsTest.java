@@ -234,29 +234,14 @@ public class RttOperationsTest extends BaseTelecomTestWithMockServices {
         assertNotNull(inCallSideRtt);
 
         verifyRttPipeIntegrity(inCallSideRtt, connectionSideRtt);
-        verifyRttPipeReadBlocking(inCallSideRtt, connectionSideRtt);
+        verifyRttPipeReadBlocking(connectionSideRtt);
     }
 
-    private void verifyRttPipeReadBlocking(
-            Call.RttCall inCallSide, Connection.RttTextStream connectionSide) {
+    private void verifyRttPipeReadBlocking(Connection.RttTextStream connectionSide) {
         // Make sure that nothing gets read from the pipe
         boolean[] flag = new boolean[1];
         flag[0] = false;
-
-        Thread inCallSideThread = new Thread(() -> {
-            try {
-                inCallSide.read();
-                flag[0] = true;
-            } catch (Exception e) {
-                // do nothing
-            }
-        });
-        inCallSideThread.start();
-        sleep(500);
-        inCallSideThread.interrupt();
-        assertFalse(flag[0]);
-
-        Thread connectionSideThread = new Thread(() -> {
+        Thread t = new Thread(() -> {
             try {
                 connectionSide.read();
                 flag[0] = true;
@@ -264,9 +249,9 @@ public class RttOperationsTest extends BaseTelecomTestWithMockServices {
                 // do nothing
             }
         });
-        connectionSideThread.start();
+        t.start();
         sleep(500);
-        connectionSideThread.interrupt();
+        t.interrupt();
         assertFalse(flag[0]);
     }
 

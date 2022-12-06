@@ -22,7 +22,6 @@ import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.assertValidS
 import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.startActivityAndVerifySplit;
 import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.waitAndAssertNotVisible;
 import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.waitForFillsTask;
-import static android.server.wm.jetpack.utils.TestActivityLauncher.KEY_ACTIVITY_ID;
 
 import static org.junit.Assert.assertTrue;
 
@@ -226,6 +225,6 @@ public class ActivityEmbeddingBoundsTests extends ActivityEmbeddingTestBase {
         }
         return primaryActivityId.equals(((TestActivityWithId) activityIntentPair.first).getId())
                 && secondaryActivityId.equals(activityIntentPair.second.getStringExtra(
-                KEY_ACTIVITY_ID));
+                        ACTIVITY_ID_LABEL));
     }
 }

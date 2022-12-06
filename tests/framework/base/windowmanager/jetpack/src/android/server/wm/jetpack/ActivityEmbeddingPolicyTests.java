@@ -16,8 +16,6 @@
 
 package android.server.wm.jetpack;
 
-import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
-import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static android.server.wm.jetpack.second.Components.SECOND_UNTRUSTED_EMBEDDING_ACTIVITY;
 import static android.server.wm.jetpack.signed.Components.SIGNED_EMBEDDING_ACTIVITY;
 import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.createWildcardSplitPairRule;
@@ -25,6 +23,7 @@ import static android.server.wm.jetpack.utils.ExtensionUtil.assumeExtensionSuppo
 import static android.server.wm.jetpack.utils.ExtensionUtil.getWindowExtensions;
 import static android.server.wm.jetpack.utils.WindowManagerJetpackTestBase.EXTRA_EMBED_ACTIVITY;
 import static android.server.wm.jetpack.utils.WindowManagerJetpackTestBase.startActivityFromActivity;
+import static android.server.wm.jetpack.utils.WindowManagerJetpackTestBase.startActivityNewTask;
 import static android.server.wm.jetpack.utils.WindowManagerJetpackTestBase.startActivityOnDisplaySingleTop;
 import static android.view.Display.DEFAULT_DISPLAY;
 
@@ -44,7 +43,6 @@ import android.server.wm.Condition;
 import android.server.wm.NestedShellPermission;
 import android.server.wm.WindowManagerState;
 import android.server.wm.jetpack.utils.TestActivityKnownEmbeddingCerts;
-import android.server.wm.jetpack.utils.TestActivityLauncher;
 import android.server.wm.jetpack.utils.TestConfigChangeHandlingActivity;
 
 import androidx.annotation.NonNull;
@@ -107,11 +105,9 @@ public class ActivityEmbeddingPolicyTests extends ActivityManagerTestBase {
         // to app.
         assumeFalse(ENABLE_SHELL_TRANSITIONS);
 
-        Activity primaryActivity = new TestActivityLauncher<>(mContext,
-                TestConfigChangeHandlingActivity.class)
-                .addIntentFlag(FLAG_ACTIVITY_NEW_TASK)
-                .setWindowingMode(WINDOWING_MODE_FULLSCREEN)
-                .launch(mInstrumentation);
+        Activity primaryActivity = startActivityNewTask(mContext, mInstrumentation,
+                TestConfigChangeHandlingActivity.class, null /* activityId */,
+                true /* isFullScreen */);
 
         SplitPairRule splitPairRule = createWildcardSplitPairRule(true /* shouldClearTop */);
         mActivityEmbeddingComponent.setEmbeddingRules(Collections.singleton(splitPairRule));

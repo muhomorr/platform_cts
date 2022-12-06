@@ -22,7 +22,6 @@ android_test {
         "ctsdeviceutillegacy-axt",
         "ctstestrunner-axt",
         "ctstestserver",
-        "framework-annotations-lib",
         "junit",
         "truth-prebuilt",
     ],
