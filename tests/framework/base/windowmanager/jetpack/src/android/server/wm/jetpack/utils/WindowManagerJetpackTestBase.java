@@ -17,6 +17,7 @@
 package android.server.wm.jetpack.utils;
 
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
+import static android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
@@ -25,6 +26,7 @@ import static android.content.pm.PackageManager.FEATURE_SCREEN_LANDSCAPE;
 import static android.content.pm.PackageManager.FEATURE_SCREEN_PORTRAIT;
 import static android.content.res.Configuration.ORIENTATION_LANDSCAPE;
 import static android.content.res.Configuration.ORIENTATION_PORTRAIT;
+import static android.server.wm.jetpack.utils.TestActivityLauncher.KEY_ACTIVITY_ID;
 
 import static androidx.test.core.app.ApplicationProvider.getApplicationContext;
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
@@ -33,12 +35,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
 import android.app.Activity;
 import android.app.ActivityOptions;
 import android.app.Application;
 import android.app.Instrumentation;
+import android.app.PictureInPictureParams;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -57,11 +61,11 @@ import org.junit.Before;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 /** Base class for all tests in the module. */
 public class WindowManagerJetpackTestBase {
 
-    public static final String ACTIVITY_ID_LABEL = "ActivityID";
     public static final String EXTRA_EMBED_ACTIVITY = "EmbedActivity";
     public static final String EXTRA_SPLIT_RATIO = "SplitRatio";
 
@@ -105,36 +109,37 @@ public class WindowManagerJetpackTestBase {
                 || (!supportsLandscape && !supportsPortrait));
     }
 
-
-    public Activity startActivityNewTask(@NonNull Class activityClass) {
+    public <T extends Activity> T startActivityNewTask(@NonNull Class<T> activityClass) {
         return startActivityNewTask(activityClass, null /* activityId */);
     }
 
-    public Activity startActivityNewTask(@NonNull Class activityClass,
+    public <T extends Activity> T startActivityNewTask(@NonNull Class<T> activityClass,
             @Nullable String activityId) {
-        return startActivityNewTask(mContext, mInstrumentation, activityClass, activityId,
-                false /* isFullScreen */);
+        return launcherForActivityNewTask(activityClass, activityId, false /* isFullScreen */)
+                .launch(mInstrumentation);
     }
 
-    public Activity startFullScreenActivityNewTask(@NonNull Class activityClass,
+    public <T extends  Activity> T startFullScreenActivityNewTask(@NonNull Class<T> activityClass,
             @Nullable String activityId) {
-        return startActivityNewTask(mContext, mInstrumentation, activityClass, activityId,
-                true/* isFullScreen */);
+        return launcherForActivityNewTask(activityClass, activityId, true/* isFullScreen */)
+                .launch(mInstrumentation);
     }
 
-    public static Activity startActivityNewTask(@NonNull Context context,
-            @NonNull Instrumentation instrumentation, @NonNull Class activityClass,
-            @Nullable String activityId, boolean isFullScreen) {
-        final Intent intent = new Intent(context, activityClass);
-        intent.addFlags(FLAG_ACTIVITY_NEW_TASK);
-        if (activityId != null) {
-            intent.putExtra(ACTIVITY_ID_LABEL, activityId);
-        }
-        final ActivityOptions options = ActivityOptions.makeBasic();
-        if (isFullScreen) {
-            options.setLaunchWindowingMode(WINDOWING_MODE_FULLSCREEN);
-        }
-        return instrumentation.startActivitySync(intent, options.toBundle());
+    public static void waitForOrFail(String message, BooleanSupplier condition) {
+        Condition.waitFor(new Condition<>(message, condition)
+                .setRetryIntervalMs(500)
+                .setRetryLimit(5)
+                .setOnFailure(unusedResult -> fail("FAILED because unsatisfied: " + message)));
+    }
+
+    private <T extends Activity> TestActivityLauncher<T> launcherForActivityNewTask(
+            @NonNull Class<T> activityClass, @Nullable String activityId, boolean isFullScreen) {
+        final int windowingMode = isFullScreen ? WINDOWING_MODE_FULLSCREEN :
+                WINDOWING_MODE_UNDEFINED;
+        return new TestActivityLauncher<>(mContext, activityClass)
+                .addIntentFlag(FLAG_ACTIVITY_NEW_TASK)
+                .setActivityId(activityId)
+                .setWindowingMode(windowingMode);
     }
 
     /**
@@ -172,7 +177,7 @@ public class WindowManagerJetpackTestBase {
     public static <T extends Activity> void startActivityFromActivity(Activity activityToLaunchFrom,
             Class<T> activityToLaunchClass, String newActivityId) {
         Intent intent = new Intent(activityToLaunchFrom, activityToLaunchClass);
-        intent.putExtra(ACTIVITY_ID_LABEL, newActivityId);
+        intent.putExtra(KEY_ACTIVITY_ID, newActivityId);
         activityToLaunchFrom.startActivity(intent);
     }
 
@@ -185,7 +190,7 @@ public class WindowManagerJetpackTestBase {
         Intent intent = new Intent();
         intent.setClassName(activityToLaunchComponent.getPackageName(),
                 activityToLaunchComponent.getClassName());
-        intent.putExtra(ACTIVITY_ID_LABEL, newActivityId);
+        intent.putExtra(KEY_ACTIVITY_ID, newActivityId);
         intent.putExtras(extras);
         activityToLaunchFrom.startActivity(intent);
     }
@@ -236,9 +241,36 @@ public class WindowManagerJetpackTestBase {
         activity.setRequestedOrientation(orientation == ORIENTATION_PORTRAIT
                 ? SCREEN_ORIENTATION_PORTRAIT : SCREEN_ORIENTATION_LANDSCAPE);
         // Wait for the activity to layout, which will happen after the orientation change
+        waitForOrFail("Activity orientation must be updated",
+                () -> activity.getResources().getConfiguration().orientation == orientation);
+    }
+
+    public static void enterPipActivityHandlesConfigChanges(TestActivity activity) {
+        if (activity.isInPictureInPictureMode()) {
+            throw new IllegalStateException("Activity must not be in PiP");
+        }
+        activity.resetLayoutCounter();
+        // Change the orientation
+        PictureInPictureParams params = (new PictureInPictureParams.Builder()).build();
+        activity.enterPictureInPictureMode(params);
+        // Wait for the activity to layout, which will happen after the orientation change
         assertTrue(activity.waitForLayout());
         // Check that orientation matches
-        assertEquals(orientation, activity.getResources().getConfiguration().orientation);
+        assertTrue(activity.isInPictureInPictureMode());
+    }
+
+    public static void exitPipActivityHandlesConfigChanges(TestActivity activity) {
+        if (!activity.isInPictureInPictureMode()) {
+            throw new IllegalStateException("Activity must be in PiP");
+        }
+        activity.resetLayoutCounter();
+        Intent intent = new Intent(activity, activity.getClass());
+        intent.addFlags(FLAG_ACTIVITY_SINGLE_TOP);
+        activity.startActivity(intent);
+        // Wait for the activity to layout, which will happen after the orientation change
+        assertTrue(activity.waitForLayout());
+        // Check that orientation matches
+        assertFalse(activity.isInPictureInPictureMode());
     }
 
     public static void setActivityOrientationActivityDoesNotHandleOrientationChanges(
