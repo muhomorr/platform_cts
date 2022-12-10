@@ -125,25 +125,27 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         const val ALERT_DIALOG_MESSAGE = "android:id/message"
         const val ALERT_DIALOG_OK_BUTTON = "android:id/button1"
 
+        const val GRANT_DIALOG_PERMISSION_RATIONALE_CONTAINER_VIEW =
+            "com.android.permissioncontroller:id/permission_rationale_container"
+        const val PERMISSION_RATIONALE_ACTIVITY_TITLE_VIEW =
+            "com.android.permissioncontroller:id/permission_rationale_title"
+
         const val REQUEST_LOCATION_MESSAGE = "permgrouprequest_location"
 
-        val STORAGE_AND_MEDIA_PERMISSIONS = setOf(
-            android.Manifest.permission.READ_EXTERNAL_STORAGE,
-            android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            android.Manifest.permission.ACCESS_MEDIA_LOCATION,
-            android.Manifest.permission.READ_MEDIA_AUDIO,
-            android.Manifest.permission.READ_MEDIA_IMAGES,
-            android.Manifest.permission.READ_MEDIA_VIDEO,
-            android.Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
-        )
+        val MEDIA_PERMISSIONS: Set<String> = mutableSetOf(
+            Manifest.permission.ACCESS_MEDIA_LOCATION,
+            Manifest.permission.READ_MEDIA_AUDIO,
+            Manifest.permission.READ_MEDIA_IMAGES,
+            Manifest.permission.READ_MEDIA_VIDEO,
+        ).apply {
+            if (SdkLevel.isAtLeastU()) {
+                add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+            }
+        }.toSet()
 
-        val MEDIA_PERMISSIONS = setOf(
-            android.Manifest.permission.ACCESS_MEDIA_LOCATION,
-            android.Manifest.permission.READ_MEDIA_AUDIO,
-            android.Manifest.permission.READ_MEDIA_IMAGES,
-            android.Manifest.permission.READ_MEDIA_VIDEO,
-            android.Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
-        )
+        val STORAGE_AND_MEDIA_PERMISSIONS = MEDIA_PERMISSIONS
+            .plus(Manifest.permission.READ_EXTERNAL_STORAGE)
+            .plus(Manifest.permission.WRITE_EXTERNAL_STORAGE)
 
         @JvmStatic
         protected val PICKER_ENABLED_SETTING = "photo_picker_prompt_enabled"
@@ -501,6 +503,11 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         }
     }
 
+    protected fun clickPermissionRationaleViewInGrantDialog() {
+        waitForIdle()
+        click(By.res(GRANT_DIALOG_PERMISSION_RATIONALE_CONTAINER_VIEW))
+    }
+
     protected fun grantAppPermissions(vararg permissions: String, targetSdk: Int = 30) {
         setAppPermissionState(*permissions, state = PermissionState.ALLOWED, isLegacyApp = false,
                 targetSdk = targetSdk)
@@ -760,7 +767,7 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         By.text(Pattern.compile("(?i)^${Pattern.quote(prefix)}.*$"))
 
     protected fun assertAppHasPermission(permissionName: String, expectPermission: Boolean) {
-        assertEquals(
+        assertEquals( "Permission $permissionName",
             if (expectPermission) {
                 PackageManager.PERMISSION_GRANTED
             } else {
