@@ -49,6 +49,7 @@ android_test {
         "bluetooth-test-util-lib",
         "CtsAccessibilityCommon",
         "safety-center-internal-data",
+        "sts-device-util",
     ],
     jni_libs: [
         "libctspermission_jni",
@@ -115,7 +116,6 @@ android_test {
         ":CtsVictimPermissionDefinerApp",
         ":CtsAppThatRequestsSystemAlertWindow22",
         ":CtsAppThatRequestsSystemAlertWindow23",
-        ":CtsAppThatRequestCustomCameraPermission",
     ],
     per_testcase_directory: true,
 }
