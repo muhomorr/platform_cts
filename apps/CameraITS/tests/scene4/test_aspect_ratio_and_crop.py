@@ -217,9 +217,6 @@ class AspectRatioAndCropTest(its_base_test.ItsBaseTest):
       fls_physical = props['android.lens.info.availableFocalLengths']
       logging.debug('physical available focal lengths: %s', str(fls_physical))
       name_with_log_path = os.path.join(self.log_path, _NAME)
-      if self.hidden_physical_id:
-        logging.debug('Testing camera: %s.%s',
-                      self.camera_id, self.hidden_physical_id)
 
       # Check SKIP conditions.
       first_api_level = its_session_utils.get_first_api_level(self.dut.serial)
@@ -239,10 +236,11 @@ class AspectRatioAndCropTest(its_base_test.ItsBaseTest):
       cam.do_3a()
       req = capture_request_utils.auto_capture_request()
 
-      # If raw available, use as ground truth.
+      # If raw is available and main camera, use it as ground truth.
+      raw_bool = raw_avlb and (fls_physical == fls_logical)
       ref_fov, cc_ct_gt, aspect_ratio_gt = (
           image_fov_utils.find_fov_reference(
-              cam, req, props, raw_avlb, name_with_log_path))
+              cam, req, props, raw_bool, name_with_log_path))
 
       run_crop_test = full_or_better and raw_avlb
       if run_crop_test:

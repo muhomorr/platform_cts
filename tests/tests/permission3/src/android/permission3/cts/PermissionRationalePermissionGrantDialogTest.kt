@@ -21,7 +21,6 @@ import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.Manifest.permission.CAMERA
 import android.os.Build
 import android.provider.DeviceConfig
-import android.safetylabel.SafetyLabelConstants.PERMISSION_RATIONALE_ENABLED
 import android.support.test.uiautomator.By
 import androidx.test.filters.SdkSuppress
 import com.android.compatibility.common.util.DeviceConfigStateChangerRule
@@ -44,7 +43,7 @@ class PermissionRationalePermissionGrantDialogTest : BaseUsePermissionTest() {
         DeviceConfigStateChangerRule(
             context,
             DeviceConfig.NAMESPACE_PRIVACY,
-            PERMISSION_RATIONALE_ENABLED,
+            PRIVACY_PERMISSION_RATIONALE_ENABLED,
             true.toString())
 
     // TODO(b/257293222): Remove when hooking up PackageManager APIs
@@ -76,7 +75,7 @@ class PermissionRationalePermissionGrantDialogTest : BaseUsePermissionTest() {
 
     @Test
     fun noPermissionRationaleWhenFlagDisabled() {
-        setDeviceConfigPrivacyProperty(PERMISSION_RATIONALE_ENABLED, false.toString())
+        setDeviceConfigPrivacyProperty(PRIVACY_PERMISSION_RATIONALE_ENABLED, false.toString())
         installPackageWithInstallSource()
 
         assertAppHasPermission(ACCESS_COARSE_LOCATION, false)
@@ -196,6 +195,9 @@ class PermissionRationalePermissionGrantDialogTest : BaseUsePermissionTest() {
     }
 
     companion object {
+        private const val PRIVACY_PERMISSION_RATIONALE_ENABLED =
+            "privacy_permission_rationale_enabled"
+
         // TODO(b/257293222): Remove when hooking up PackageManager APIs
         private const val PRIVACY_PLACEHOLDER_SAFETY_LABEL_DATA_ENABLED =
             "privacy_placeholder_safety_label_data_enabled"

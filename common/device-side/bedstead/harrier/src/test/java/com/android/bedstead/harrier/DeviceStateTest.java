@@ -839,14 +839,14 @@ public class DeviceStateTest {
     @RequireMultipleUsersOnMultipleDisplays(reason = "Test")
     public void requireMultipleUsersOnMultipleDisplaysAnnotation_supported() {
         assertThat(TestApis.context().instrumentedContext().getSystemService(UserManager.class)
-                .isVisibleBackgroundUsersSupported()).isTrue();
+                .isUsersOnSecondaryDisplaysSupported()).isTrue();
     }
 
     @Test
     @RequireNotMultipleUsersOnMultipleDisplays(reason = "Test")
     public void requireNotMultipleUsersOnMultipleDisplaysAnnotation_notSupported() {
         assertThat(TestApis.context().instrumentedContext().getSystemService(UserManager.class)
-                .isVisibleBackgroundUsersSupported()).isFalse();
+                .isUsersOnSecondaryDisplaysSupported()).isFalse();
     }
 
     @Test

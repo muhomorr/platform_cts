@@ -51,8 +51,8 @@ public class ActiveTileServiceCompatChangeTest extends CompatChangeGatingTestCas
     private static final String REQUEST_LISTENING = "am broadcast -a " + ACTION_REQUEST_LISTENING
             + " " + PACKAGE;
 
-    private static final String REQUEST_LISTENING_BAD = "am broadcast -a "
-            + ACTION_REQUEST_LISTENING + " --ez " + EXTRA_BAD_PACKAGE + " true " + PACKAGE;
+    private static final String REQUEST_LISTENING_BAD =
+            REQUEST_LISTENING + " -ez " + EXTRA_BAD_PACKAGE + " true";
 
     @Override
     protected void setUp() throws Exception {
@@ -87,31 +87,11 @@ public class ActiveTileServiceCompatChangeTest extends CompatChangeGatingTestCas
         setCompatConfig(enabledSet, disabledSet, PACKAGE);
 
         addTile();
-        waitFor("onDestroy");
+        assertTrue(waitFor("onDestroy"));
 
         // Request the listening state but use a bad component name (not in the same package)
         getDevice().executeShellCommand(REQUEST_LISTENING_BAD);
         assertTrue(waitFor("SecurityException"));
-        resetCompatChanges(Set.of(REQUEST_LISTENING_MUST_MATCH_PACKAGE), PACKAGE);
-    }
-
-    @Override
-    protected void setCompatConfig(Set<Long> enabledChanges, Set<Long> disabledChanges,
-            String packageName) throws DeviceNotAvailableException {
-        for (Long enabledChange : enabledChanges) {
-            runCommand("am compat enable --no-kill " + enabledChange + " " + packageName);
-        }
-        for (Long disabledChange : disabledChanges) {
-            runCommand("am compat disable --no-kill" + disabledChange + " " + packageName);
-        }
-    }
-
-    @Override
-    protected void resetCompatChanges(Set<Long> changes, String packageName)
-            throws DeviceNotAvailableException {
-        for (Long change : changes) {
-            runCommand("am compat reset --no-kill" + change + " " + packageName);
-        }
     }
 
     private void runTest(boolean enabled) throws Exception {
@@ -122,17 +102,19 @@ public class ActiveTileServiceCompatChangeTest extends CompatChangeGatingTestCas
         setCompatConfig(enabledSet, disabledSet, PACKAGE);
 
         final long configId = getClass().getCanonicalName().hashCode();
+        createAndUploadStatsdConfig(configId, PACKAGE);
 
         try {
             executeRequestListeningTest();
         } finally {
             resetCompatChanges(Set.of(REQUEST_LISTENING_MUST_MATCH_PACKAGE), PACKAGE);
+            validatePostRunStatsdReport(configId, PACKAGE, enabledSet, disabledSet);
         }
     }
 
     private void executeRequestListeningTest() throws Exception {
         addTile();
-        waitFor("onDestroy");
+        assertTrue(waitFor("onDestroy"));
 
         // Request the listening state and verify that it gets an onStartListening.
         getDevice().executeShellCommand(REQUEST_LISTENING);
@@ -180,7 +162,7 @@ public class ActiveTileServiceCompatChangeTest extends CompatChangeGatingTestCas
 
     private boolean supportedSoftware() throws DeviceNotAvailableException {
         String supported = getDevice().executeShellCommand(REQUEST_SUPPORTED);
-        return Boolean.parseBoolean(supported.trim());
+        return Boolean.parseBoolean(supported);
     }
 
     private boolean supportedHardware() throws DeviceNotAvailableException {

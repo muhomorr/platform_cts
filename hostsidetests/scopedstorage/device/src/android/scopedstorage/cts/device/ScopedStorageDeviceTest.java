@@ -3134,20 +3134,17 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
      */
     @Test
     public void testCantProbeOtherAppsExternalDirs() throws Exception {
-        // Before fuse-bpf, apps could see other app's external storage
-        boolean expectToSee = !isFuseBpfEnabled()
-                && mVolumeName.equals(MediaStore.VOLUME_EXTERNAL);
-        String message = expectToSee
-                ? "Expected to see other app's private dirs"
-                : "Expected not to see other app's private dirs";
+        if (isFuseBpfEnabled()) {
+            String message = "Expected not to see other app's private dirs";
 
-        assertWithMessage(message)
-                .that(fileExistsAs(APP_B_NO_PERMS, new File(getExternalFilesDir().getParent())))
-                .isEqualTo(expectToSee);
+            assertWithMessage(message)
+                    .that(fileExistsAs(APP_B_NO_PERMS, new File(getExternalFilesDir().getParent())))
+                    .isFalse();
 
-        assertWithMessage(message)
-                .that(fileExistsAs(APP_B_NO_PERMS, getExternalObbDir()))
-                .isEqualTo(expectToSee);
+            assertWithMessage(message)
+                    .that(fileExistsAs(APP_B_NO_PERMS, getExternalObbDir()))
+                    .isFalse();
+        }
     }
 
     private boolean isFuseBpfEnabled() throws Exception {

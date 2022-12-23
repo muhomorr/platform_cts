@@ -21,7 +21,6 @@ import android.content.Intent.ACTION_REVIEW_APP_DATA_SHARING_UPDATES
 import android.content.Intent.FLAG_ACTIVITY_NEW_TASK
 import android.os.Build
 import android.provider.DeviceConfig
-import android.safetylabel.SafetyLabelConstants.PERMISSION_RATIONALE_ENABLED
 import android.safetylabel.SafetyLabelConstants.SAFETY_LABEL_CHANGE_NOTIFICATIONS_ENABLED
 import android.support.test.uiautomator.By
 import androidx.test.filters.SdkSuppress
@@ -51,7 +50,7 @@ class AppDataSharingUpdatesTest : BasePermissionTest() {
         DeviceConfigStateChangerRule(
             context,
             DeviceConfig.NAMESPACE_PRIVACY,
-            PERMISSION_RATIONALE_ENABLED,
+            PRIVACY_PERMISSION_RATIONALE_ENABLED,
             true.toString())
 
     @Before
@@ -73,12 +72,11 @@ class AppDataSharingUpdatesTest : BasePermissionTest() {
         }
 
         waitFindObject(By.textContains("Data Sharing updates"))
-        pressBack()
     }
 
     @Test
     fun startActivityWithIntent_permissionRationaleDisabled_doesNotOpenDataSharingUpdatesPage() {
-        setDeviceConfigPrivacyProperty(PERMISSION_RATIONALE_ENABLED, false.toString())
+        setDeviceConfigPrivacyProperty(PRIVACY_PERMISSION_RATIONALE_ENABLED, false.toString())
         runWithShellPermissionIdentity {
             context.startActivity(
                 Intent(ACTION_REVIEW_APP_DATA_SHARING_UPDATES).apply {
@@ -106,7 +104,7 @@ class AppDataSharingUpdatesTest : BasePermissionTest() {
 
     @Test
     fun startActivityWithIntent_bothFeaturesDisabled_doesNotOpenDataSharingUpdatesPage() {
-        setDeviceConfigPrivacyProperty(PERMISSION_RATIONALE_ENABLED, false.toString())
+        setDeviceConfigPrivacyProperty(PRIVACY_PERMISSION_RATIONALE_ENABLED, false.toString())
         setDeviceConfigPrivacyProperty(SAFETY_LABEL_CHANGE_NOTIFICATIONS_ENABLED, false.toString())
         runWithShellPermissionIdentity {
             context.startActivity(
@@ -117,5 +115,15 @@ class AppDataSharingUpdatesTest : BasePermissionTest() {
 
         val dataSharingUpdates = waitFindObjectOrNull(By.textContains("Data Sharing updates"))
         assertNull(dataSharingUpdates)
+    }
+
+    /** Companion object for [AppDataSharingUpdatesTest]. */
+    companion object {
+        /**
+         * [DeviceConfig] flag controlling to show permission rationale in permission settings and
+         * grant dialog.
+         */
+        private const val PRIVACY_PERMISSION_RATIONALE_ENABLED =
+            "privacy_permission_rationale_enabled"
     }
 }

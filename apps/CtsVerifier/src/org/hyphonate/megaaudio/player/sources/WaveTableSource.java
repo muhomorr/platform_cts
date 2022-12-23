@@ -78,10 +78,8 @@ public class WaveTableSource extends AudioSource {
      * Sets the playback sample rate for which samples will be generated.
      * @param sampleRate
      */
-    @Override
-    public void setSampleRate(int sampleRate) {
+    public void setSampleRate(float sampleRate) {
         mSampleRate = sampleRate;
-
         calcFN();
     }
 
@@ -149,9 +147,7 @@ public class WaveTableSource extends AudioSource {
      */
     public static void genSinWave(float[] buffer) {
         int size = buffer.length;
-        // remember, the table has 1 extra (redundant) sample as a guard point, so the logical size
-        // is buffer.length - 1
-        float incr = ((float) Math.PI  * 2.0f) / (float) (buffer.length - 1);
+        float incr = ((float)Math.PI  * 2.0f) / (float)(size - 1);
         for(int index = 0; index < size; index++) {
             buffer[index] = (float)Math.sin(index * incr);
         }
@@ -167,8 +163,6 @@ public class WaveTableSource extends AudioSource {
     public static void genTriangleWave(
             float[] buffer, float maxValue, float minValue, float dutyCycle) {
         float range = maxValue - minValue;
-        // remember, the table has 1 extra (redundant) sample as a guard point, so the logical size
-        // is buffer.length - 1
         int size = buffer.length - 1;
 
         // Make a triangle that goes 0 -> max -> min -> 0.

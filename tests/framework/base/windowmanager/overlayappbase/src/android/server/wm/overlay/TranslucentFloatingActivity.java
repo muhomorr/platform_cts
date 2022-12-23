@@ -43,8 +43,7 @@ public class TranslucentFloatingActivity extends Activity {
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
 
         registerReceiver(mReceiver,
-                new IntentFilter(Components.TranslucentFloatingActivity.ACTION_FINISH),
-                Context.RECEIVER_EXPORTED);
+                new IntentFilter(Components.TranslucentFloatingActivity.ACTION_FINISH));
     }
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {

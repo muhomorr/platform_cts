@@ -139,7 +139,7 @@ public class HdmiControlManagerTest {
         HdmiControlServiceWrapper mService = new HdmiControlServiceWrapper();
         mHdmiControlManager = mService.createHdmiControlManager();
         assertThat(mHdmiControlManager).isNotNull();
-        List<HdmiPortInfo> expectedInfo = new ArrayList();
+        List<HdmiPortInfo> mExpectedInfo = new ArrayList();
         final int id = 0;
         final int address = 0x1000;
         final boolean cec = true;
@@ -147,30 +147,11 @@ public class HdmiControlManagerTest {
         final boolean arc = true;
         final HdmiPortInfo info =
                 new HdmiPortInfo(id, HdmiPortInfo.PORT_INPUT, address, cec, mhl, arc);
-        expectedInfo.add(info);
-        mService.setPortInfo(expectedInfo);
+        mExpectedInfo.add(info);
+        mService.setPortInfo(mExpectedInfo);
 
         final List<HdmiPortInfo> portInfo = mHdmiControlManager.getPortInfo();
-        assertThat(portInfo).isEqualTo(expectedInfo);
-    }
-
-    @Test
-    public void testHdmiPortInfo() {
-        final int id = 0;
-        final int address = 0x1000;
-        final boolean cec = true;
-        final boolean mhl = false;
-        final boolean arc = true;
-        final boolean earc = true;
-        final HdmiPortInfo info =
-                new HdmiPortInfo(id, HdmiPortInfo.PORT_INPUT, address, cec, mhl, arc, earc);
-
-        assertThat(info.getId()).isEqualTo(id);
-        assertThat(info.getAddress()).isEqualTo(address);
-        assertThat(info.isCecSupported()).isEqualTo(cec);
-        assertThat(info.isMhlSupported()).isEqualTo(mhl);
-        assertThat(info.isArcSupported()).isEqualTo(arc);
-        assertThat(info.isEarcSupported()).isEqualTo(earc);
+        assertThat(portInfo).isEqualTo(mExpectedInfo);
     }
 
     @Test

@@ -35,12 +35,10 @@ public class ActiveTileServiceTest extends BaseTileServiceTest {
     public void testNotListening() throws Exception {
         if (!supported()) return;
         addTile();
-        assertTrue(waitFor("onCreate"));
+        assertTrue(waitFor("onDestroy"));
 
         // Open quick settings and verify that this service doesn't get put in
         // a listening state since its an active tile.
-
-        clearLogcat();
         openSettings();
         assertFalse(waitFor("onStartListening"));
     }
@@ -48,9 +46,7 @@ public class ActiveTileServiceTest extends BaseTileServiceTest {
     public void testRequestListening() throws Exception {
         if (!supported()) return;
         addTile();
-        assertTrue(waitFor("onCreate"));
-
-        clearLogcat();
+        assertTrue(waitFor("onDestroy"));
 
         // Request the listening state and verify that it gets an onStartListening.
         getDevice().executeShellCommand(REQUEST_LISTENING);
@@ -61,10 +57,7 @@ public class ActiveTileServiceTest extends BaseTileServiceTest {
     public void testClick() throws Exception {
         if (!supported()) return;
         addTile();
-
-        assertTrue(waitFor("onCreate"));
-
-        clearLogcat();
+        assertTrue(waitFor("onDestroy"));
 
         // Open the quick settings.
         openSettings();

@@ -52,54 +52,20 @@ public class DuplexAudioManager {
     private int mInputPreset = Recorder.INPUT_PRESET_NONE;
 
     public DuplexAudioManager(AudioSourceProvider sourceProvider, AudioSinkProvider sinkProvider) {
-        setSources(sourceProvider, sinkProvider);
-    }
-
-    /**
-     * Specify the source providers for the source and sink.
-     * @param sourceProvider The AudioSourceProvider for the output stream
-     * @param sinkProvider The AudioSinkProvider for the input stream.
-     */
-    public void setSources(AudioSourceProvider sourceProvider, AudioSinkProvider sinkProvider) {
         mSourceProvider = sourceProvider;
         mSinkProvider = sinkProvider;
     }
 
-    //
-    // Be careful using these, they will change after setupStreams is called.
-    //
     public Player getPlayer() {
         return mPlayer;
     }
+
     public Recorder getRecorder() {
         return mRecorder;
     }
 
-    public void setPlayerSampleRate(int sampleRate) {
-        mPlayerSampleRate = sampleRate;
-    }
-
-    public void setRecordererSampleRate(int sampleRate) {
-        mPlayerSampleRate = sampleRate;
-    }
-
-    public void setPlayerRouteDevice(AudioDeviceInfo deviceInfo) {
-        mPlayerSelectedDevice = deviceInfo;
-    }
-
-    public void setRecorderRouteDevice(AudioDeviceInfo deviceInfo) {
-        mRecorderSelectedDevice = deviceInfo;
-    }
-
-    public void setNumPlayerChannels(int numChannels) {
-        mNumPlayerChannels = numChannels;
-    }
-
     public void setNumRecorderChannels(int numChannels) {
         mNumRecorderChannels = numChannels;
-    }
-    public void setRecorderSampleRate(int sampleRate) {
-        mRecorderSampleRate = sampleRate;
     }
 
     public void setInputPreset(int preset) { mInputPreset = preset; }
@@ -108,17 +74,14 @@ public class DuplexAudioManager {
         // Recorder
         if ((recorderType & BuilderBase.TYPE_MASK) != BuilderBase.TYPE_NONE) {
             try {
-                RecorderBuilder builder = new RecorderBuilder()
+                mRecorder = new RecorderBuilder()
                         .setRecorderType(recorderType)
-                        .setAudioSinkProvider(mSinkProvider);
-                builder.setSampleRate(mRecorderSampleRate);
-                builder.setChannelCount(mNumRecorderChannels);
-                mRecorder = builder.build();
+                        .setAudioSinkProvider(mSinkProvider)
+                        .build();
                 if (mInputPreset != Recorder.INPUT_PRESET_NONE) {
                     mRecorder.setInputPreset(mInputPreset);
                 }
                 mRecorder.setRouteDevice(mRecorderSelectedDevice);
-
                 int errorCode = mRecorder.setupStream(
                         mNumRecorderChannels, mRecorderSampleRate, mNumRecorderBufferFrames);
                 if (errorCode != StreamBase.OK) {
@@ -137,14 +100,11 @@ public class DuplexAudioManager {
             try {
                 mNumPlayerBufferFrames =
                         Player.calcMinBufferFrames(mNumPlayerChannels, mPlayerSampleRate);
-                PlayerBuilder builder = new PlayerBuilder()
+                mPlayer = new PlayerBuilder()
                         .setPlayerType(playerType)
-                        .setSourceProvider(mSourceProvider);
-                builder.setSampleRate(mPlayerSampleRate);
-                builder.setChannelCount(mNumPlayerChannels);
-                mPlayer = builder.build();
+                        .setSourceProvider(mSourceProvider)
+                        .build();
                 mPlayer.setRouteDevice(mPlayerSelectedDevice);
-
                 int errorCode = mPlayer.setupStream(
                         mNumPlayerChannels, mPlayerSampleRate, mNumPlayerBufferFrames);
                 if (errorCode != StreamBase.OK) {

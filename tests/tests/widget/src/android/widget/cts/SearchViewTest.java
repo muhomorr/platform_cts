@@ -44,7 +44,6 @@ import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.CtsKeyEventUtil;
-import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.WidgetTestUtils;
 
 import org.junit.Before;
@@ -71,8 +70,6 @@ public class SearchViewTest {
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
         mActivity = mActivityRule.getActivity();
         mSearchView = (SearchView) mActivity.findViewById(R.id.search_view);
-
-        PollingCheck.waitFor(() -> mActivity.hasWindowFocus());
     }
 
     @UiThreadTest

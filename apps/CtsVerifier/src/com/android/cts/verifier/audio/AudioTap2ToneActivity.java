@@ -34,10 +34,10 @@ import com.android.compatibility.common.util.ResultUnit;
 import com.android.cts.verifier.CtsVerifierReportLog;
 import com.android.cts.verifier.PassFailButtons;
 import com.android.cts.verifier.R;
-import com.android.cts.verifier.audio.analyzers.TapLatencyAnalyzer;
 import com.android.cts.verifier.audio.audiolib.AudioSystemFlags;
 import com.android.cts.verifier.audio.audiolib.CircularBufferFloat;
 import com.android.cts.verifier.audio.audiolib.StatUtils;
+import com.android.cts.verifier.audio.audiolib.TapLatencyAnalyser;
 import com.android.cts.verifier.audio.audiolib.WaveformView;
 import com.android.cts.verifier.audio.sources.BlipAudioSourceProvider;
 
@@ -63,7 +63,6 @@ public class AudioTap2ToneActivity
     static {
         try {
             System.loadLibrary("megaaudio_jni");
-            JavaSourceProxy.initN();
         } catch (UnsatisfiedLinkError e) {
             Log.e(TAG, "Error loading MegaAudio JNI library");
             Log.e(TAG, "e: " + e);
@@ -107,7 +106,7 @@ public class AudioTap2ToneActivity
     private Runnable mAnalysisTask;
     private int mTaskCountdown;
 
-    private TapLatencyAnalyzer mTapLatencyAnalyzer;
+    private TapLatencyAnalyser mTapLatencyAnalyser;
 
     // Stats for latency
     private double mMaxRequiredLatency;
@@ -257,7 +256,9 @@ public class AudioTap2ToneActivity
         // Setup analysis
         int numBufferSamples = (int) (ANALYSIS_TIME_MAX * ANALYSIS_SAMPLE_RATE);
         mInputBuffer = new CircularBufferFloat(numBufferSamples);
-        mTapLatencyAnalyzer = new TapLatencyAnalyzer();
+        mTapLatencyAnalyser = new TapLatencyAnalyser();
+
+        JavaSourceProxy.initN();
 
         calculateTestPass();
     }
@@ -371,7 +372,7 @@ public class AudioTap2ToneActivity
         public float[] samples;
         public float[] filtered;
         public int frameRate;
-        public TapLatencyAnalyzer.TapLatencyEvent[] events;
+        public TapLatencyAnalyser.TapLatencyEvent[] events;
     }
 
     private void processTest(TestResult result) {
@@ -429,8 +430,8 @@ public class AudioTap2ToneActivity
         TestResult result = new TestResult();
         result.samples = buffer;
         result.frameRate = sampleRate;
-        result.events = mTapLatencyAnalyzer.analyze(buffer, 0, numRead);
-        result.filtered = mTapLatencyAnalyzer.getFilteredBuffer();
+        result.events = mTapLatencyAnalyser.analyze(buffer, 0, numRead);
+        result.filtered = mTapLatencyAnalyser.getFilteredBuffer();
 
         // This will come in on a background thread, so switch to the UI thread to update the UI.
         runOnUiThread(new Runnable() {

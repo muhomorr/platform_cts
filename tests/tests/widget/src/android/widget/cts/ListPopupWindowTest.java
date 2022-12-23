@@ -112,8 +112,6 @@ public class ListPopupWindowTest {
         mActivity = mActivityRule.getActivity();
         mItemClickListener = new PopupItemClickListener();
         mActivity.getApplicationInfo().setEnableOnBackInvokedCallback(false);
-
-        PollingCheck.waitFor(() -> mActivity.hasWindowFocus());
     }
 
     @After

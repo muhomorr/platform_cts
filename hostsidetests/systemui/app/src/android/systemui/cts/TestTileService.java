@@ -73,12 +73,11 @@ public class TestTileService extends TileService {
         registerReceiver(mReceiver, filter);
 
         // Set up some initial good state.
-        Tile tile = getQsTile();
-        tile.setLabel(TAG);
-        tile.setContentDescription("CTS Test Tile");
-        tile.setIcon(Icon.createWithResource(this, android.R.drawable.ic_secure));
-        tile.setState(Tile.STATE_ACTIVE);
-        tile.updateTile();
+        super.getQsTile().setLabel(TAG);
+        super.getQsTile().setContentDescription("CTS Test Tile");
+        super.getQsTile().setIcon(Icon.createWithResource(this, android.R.drawable.ic_secure));
+        super.getQsTile().setState(Tile.STATE_ACTIVE);
+        super.getQsTile().updateTile();
     }
 
     @Override

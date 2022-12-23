@@ -76,15 +76,6 @@ public class WaveScopeView extends View {
         invalidate();
     }
 
-    /**
-     * Specifies the number of channels contained in the data buffer to display
-     * @param numChannels
-     */
-    public void setNumChannels(int numChannels) {
-        mNumChannels = numChannels;
-        setupPointBuffer();
-    }
-
     private void setupPointBuffer() {
         int width = getWidth();
 

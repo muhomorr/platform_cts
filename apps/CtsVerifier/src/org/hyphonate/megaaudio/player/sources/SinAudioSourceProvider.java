@@ -20,20 +20,14 @@ import org.hyphonate.megaaudio.player.AudioSourceProvider;
 import org.hyphonate.megaaudio.player.NativeAudioSource;
 
 public class SinAudioSourceProvider implements AudioSourceProvider {
-    // Cache sources
-    AudioSource mJavaSource;
-    NativeAudioSource mNativeSource;
-
     @Override
     public AudioSource getJavaSource() {
-        return mJavaSource != null ? mJavaSource : (mJavaSource = new SinAudioSource());
+        return new SinAudioSource();
     }
 
     @Override
     public NativeAudioSource getNativeSource() {
-        return mNativeSource != null
-                ? mNativeSource
-                : (mNativeSource = new NativeAudioSource(allocNativeSource()));
+        return new NativeAudioSource(allocNativeSource());
     }
 
     private native long allocNativeSource();

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.cts.verifier.audio.analyzers;
+package com.android.cts.verifier.audio.audiolib;
 
 import java.util.ArrayList;
 
@@ -21,7 +21,7 @@ import java.util.ArrayList;
  * Analyzes a block of samples to find a trigger "tick" (presumably from a screen tap) and the
  * resulting "blip" tone and compute the latency between those events.
  */
-public class TapLatencyAnalyzer {
+public class TapLatencyAnalyser {
     public static final int TYPE_TAP = 0;
     float[] mHighPassBuffer;
 
