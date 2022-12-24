@@ -34,14 +34,15 @@ import com.android.compatibility.common.util.ResultUnit;
 import com.android.cts.verifier.CtsVerifierReportLog;
 import com.android.cts.verifier.PassFailButtons;
 import com.android.cts.verifier.R;
+import com.android.cts.verifier.audio.analyzers.TapLatencyAnalyzer;
 import com.android.cts.verifier.audio.audiolib.AudioSystemFlags;
 import com.android.cts.verifier.audio.audiolib.CircularBufferFloat;
 import com.android.cts.verifier.audio.audiolib.StatUtils;
-import com.android.cts.verifier.audio.audiolib.TapLatencyAnalyser;
 import com.android.cts.verifier.audio.audiolib.WaveformView;
 import com.android.cts.verifier.audio.sources.BlipAudioSourceProvider;
 
 import org.hyphonate.megaaudio.common.BuilderBase;
+import org.hyphonate.megaaudio.common.StreamBase;
 import org.hyphonate.megaaudio.duplex.DuplexAudioManager;
 import org.hyphonate.megaaudio.player.AudioSource;
 import org.hyphonate.megaaudio.player.AudioSourceProvider;
@@ -63,6 +64,7 @@ public class AudioTap2ToneActivity
     static {
         try {
             System.loadLibrary("megaaudio_jni");
+            JavaSourceProxy.initN();
         } catch (UnsatisfiedLinkError e) {
             Log.e(TAG, "Error loading MegaAudio JNI library");
             Log.e(TAG, "e: " + e);
@@ -74,7 +76,7 @@ public class AudioTap2ToneActivity
 
     private boolean mIsRecording;
 
-    private int mPlayerType = BuilderBase.TYPE_OBOE | BuilderBase.SUB_TYPE_OBOE_AAUDIO;
+    private int mApi = BuilderBase.TYPE_OBOE | BuilderBase.SUB_TYPE_OBOE_DEFAULT;
 
     private DuplexAudioManager mDuplexAudioManager;
     private AudioSource mBlipSource;
@@ -82,6 +84,7 @@ public class AudioTap2ToneActivity
     private Button mStartBtn;
     private Button mStopBtn;
 
+    private TextView mBuffSizeView;
     private TextView mSpecView;
     private TextView mResultsView;
     private TextView mStatsView;
@@ -106,7 +109,7 @@ public class AudioTap2ToneActivity
     private Runnable mAnalysisTask;
     private int mTaskCountdown;
 
-    private TapLatencyAnalyser mTapLatencyAnalyser;
+    private TapLatencyAnalyzer mTapLatencyAnalyzer = new TapLatencyAnalyzer();
 
     // Stats for latency
     private double mMaxRequiredLatency;
@@ -208,6 +211,8 @@ public class AudioTap2ToneActivity
         ((TextView) findViewById(R.id.audio_t2t_required_latency))
                 .setText("" + mMaxRequiredLatency + "ms");
 
+        mBuffSizeView = (TextView) findViewById(R.id.audio_t2t_buffer_frames);
+
         mStartBtn = (Button) findViewById(R.id.tap2tone_startBtn);
         mStartBtn.setOnClickListener(this);
         mStopBtn = (Button) findViewById(R.id.tap2tone_stopBtn);
@@ -256,7 +261,10 @@ public class AudioTap2ToneActivity
         // Setup analysis
         int numBufferSamples = (int) (ANALYSIS_TIME_MAX * ANALYSIS_SAMPLE_RATE);
         mInputBuffer = new CircularBufferFloat(numBufferSamples);
-        mTapLatencyAnalyser = new TapLatencyAnalyser();
+
+        // MegaAudio Initialization
+        StreamBase.calcNumBurstFrames(this);
+        StreamBase.calcSystemSampleRate(this);
 
         JavaSourceProxy.initN();
 
@@ -275,7 +283,12 @@ public class AudioTap2ToneActivity
             mDuplexAudioManager.setNumRecorderChannels(NUM_RECORD_CHANNELS);
         }
 
-        mDuplexAudioManager.setupStreams(mPlayerType, BuilderBase.TYPE_JAVA);
+        mDuplexAudioManager.setupStreams(mApi, BuilderBase.TYPE_JAVA);
+        mBuffSizeView.setText(
+                getString(R.string.audio_general_play_colon)
+                + mDuplexAudioManager.getNumPlayerBufferFrames()
+                + getString(R.string.audio_general_record_colon)
+                + mDuplexAudioManager.getNumRecorderBufferFrames());
         mDuplexAudioManager.start();
 
         mBlipSource = (AudioSource) mDuplexAudioManager.getAudioSource();
@@ -372,7 +385,7 @@ public class AudioTap2ToneActivity
         public float[] samples;
         public float[] filtered;
         public int frameRate;
-        public TapLatencyAnalyser.TapLatencyEvent[] events;
+        public TapLatencyAnalyzer.TapLatencyEvent[] events;
     }
 
     private void processTest(TestResult result) {
@@ -430,8 +443,8 @@ public class AudioTap2ToneActivity
         TestResult result = new TestResult();
         result.samples = buffer;
         result.frameRate = sampleRate;
-        result.events = mTapLatencyAnalyser.analyze(buffer, 0, numRead);
-        result.filtered = mTapLatencyAnalyser.getFilteredBuffer();
+        result.events = mTapLatencyAnalyzer.analyze(buffer, 0, numRead);
+        result.filtered = mTapLatencyAnalyzer.getFilteredBuffer();
 
         // This will come in on a background thread, so switch to the UI thread to update the UI.
         runOnUiThread(new Runnable() {
@@ -471,12 +484,12 @@ public class AudioTap2ToneActivity
         } else if (id == R.id.audioJavaApiBtn) {
             stopAudio();
             clearResults();
-            mPlayerType = BuilderBase.TYPE_JAVA;
+            mApi = BuilderBase.TYPE_JAVA;
             mActiveTestAPI = TEST_API_JAVA;
         } else if (id == R.id.audioNativeApiBtn) {
             stopAudio();
             clearResults();
-            mPlayerType = BuilderBase.TYPE_OBOE | BuilderBase.SUB_TYPE_OBOE_AAUDIO;
+            mApi = BuilderBase.TYPE_OBOE | BuilderBase.SUB_TYPE_OBOE_DEFAULT;
             mActiveTestAPI = TEST_API_NATIVE;
         } else if (id == R.id.tap2tone_clearResults) {
                 clearResults();

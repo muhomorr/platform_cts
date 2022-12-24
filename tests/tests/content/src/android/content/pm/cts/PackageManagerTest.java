@@ -16,10 +16,11 @@
 
 package android.content.pm.cts;
 
-import static android.content.Context.RECEIVER_EXPORTED;
-
+import static android.Manifest.permission.DELETE_PACKAGES;
 import static android.Manifest.permission.GET_INTENT_SENDER_INTENT;
 import static android.Manifest.permission.INSTALL_TEST_ONLY_PACKAGE;
+import static android.Manifest.permission.WRITE_SECURE_SETTINGS;
+import static android.content.Context.RECEIVER_EXPORTED;
 import static android.content.Intent.FLAG_EXCLUDE_STOPPED_PACKAGES;
 import static android.content.pm.ApplicationInfo.FLAG_HAS_CODE;
 import static android.content.pm.ApplicationInfo.FLAG_INSTALLED;
@@ -42,6 +43,8 @@ import static android.content.pm.PackageManager.MATCH_INSTANT;
 import static android.content.pm.PackageManager.MATCH_SYSTEM_ONLY;
 import static android.content.pm.PackageManager.MATCH_UNINSTALLED_PACKAGES;
 import static android.content.pm.cts.PackageManagerShellCommandIncrementalTest.parsePackageDump;
+import static android.os.UserHandle.CURRENT;
+import static android.os.UserHandle.USER_CURRENT;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -59,6 +62,7 @@ import static org.testng.Assert.assertThrows;
 
 import android.annotation.NonNull;
 import android.app.Activity;
+import android.app.ActivityThread;
 import android.app.Instrumentation;
 import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
@@ -77,6 +81,7 @@ import android.content.cts.R;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.ComponentInfo;
+import android.content.pm.IPackageManager;
 import android.content.pm.InstrumentationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageItemInfo;
@@ -90,17 +95,21 @@ import android.content.pm.ResolveInfo;
 import android.content.pm.ServiceInfo;
 import android.content.pm.SharedLibraryInfo;
 import android.content.pm.Signature;
+import android.content.pm.cts.util.AbandonAllPackageSessionsRule;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.content.res.XmlResourceParser;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.IBinder;
+import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.platform.test.annotations.AppModeFull;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -112,6 +121,7 @@ import androidx.test.rule.ServiceTestRule;
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.SystemUtil;
 import com.android.compatibility.common.util.TestUtils;
+import com.android.internal.security.VerityUtils;
 
 import com.google.common.truth.Expect;
 
@@ -247,6 +257,9 @@ public class PackageManagerTest {
             ComponentName.createRelative(MOCK_LAUNCHER_PACKAGE_NAME, ".MockProvider");
 
     private final ServiceTestRule mServiceTestRule = new ServiceTestRule();
+
+    @Rule
+    public AbandonAllPackageSessionsRule mAbandonSessionsRule = new AbandonAllPackageSessionsRule();
 
     @Rule public final Expect expect = Expect.create();
 
@@ -2492,6 +2505,24 @@ public class PackageManagerTest {
                 .contains(SecurityException.class.getName());
     }
 
+    @Test
+    public void testSettingAndReserveCopyVerityProtected() throws Exception {
+        File systemDir = new File(Environment.getDataDirectory(), "system");
+        File settings = new File(systemDir, "packages.xml");
+        File settingsReserveCopy = new File(systemDir, "packages.xml.reservecopy");
+
+        // Primary.
+        assertTrue(settings.exists());
+        // Reserve copy.
+        assertTrue(settingsReserveCopy.exists());
+        // Temporary backup.
+        assertFalse(new File(systemDir, "packages-backup.xml").exists());
+
+        assumeTrue(VerityUtils.isFsVeritySupported());
+        assertTrue(VerityUtils.hasFsverity(settings.getAbsolutePath()));
+        assertTrue(VerityUtils.hasFsverity(settingsReserveCopy.getAbsolutePath()));
+    }
+
     private static String runCommand(String cmd) throws Exception {
         final Process process = Runtime.getRuntime().exec(cmd);
         final StringBuilder output = new StringBuilder();
@@ -2502,5 +2533,26 @@ public class PackageManagerTest {
         reader.lines().forEach(line -> output.append(line));
         process.waitFor();
         return output.toString();
+    }
+
+    @Test
+    public void testNewAppInstalledNotificationEnabled() {
+        SystemUtil.runWithShellPermissionIdentity(mInstrumentation.getUiAutomation(), () -> {
+            Settings.Global.putString(mContext.getContentResolver(),
+                    Settings.Global.SHOW_NEW_APP_INSTALLED_NOTIFICATION_ENABLED, "1" /* true */);
+        }, WRITE_SECURE_SETTINGS);
+
+        assertEquals(true, mPackageManager.shouldShowNewAppInstalledNotification());
+
+    }
+
+    @Test
+    public void testCanUserUninstall_setToTrue_returnsTrue() throws RemoteException {
+        SystemUtil.runWithShellPermissionIdentity(mInstrumentation.getUiAutomation(), () -> {
+            IPackageManager iPm = ActivityThread.getPackageManager();
+            iPm.setBlockUninstallForUser(PACKAGE_NAME, true, USER_CURRENT);
+        }, DELETE_PACKAGES);
+
+        assertEquals(true, mPackageManager.canUserUninstall(PACKAGE_NAME, CURRENT));
     }
 }
