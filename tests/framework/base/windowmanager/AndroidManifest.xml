@@ -29,13 +29,14 @@
     <uses-permission android:name="android.permission.STOP_APP_SWITCHES"/>
     <uses-permission android:name="android.permission.CAPTURE_VIDEO_OUTPUT"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"/>
 
     <application android:label="CtsWindowManagerDeviceTestCases"
                  android:requestLegacyExternalStorage="true"
-                 android:enableOnBackInvokedCallback="true"
+                 android:enableOnBackInvokedCallback="false"
                  android:testOnly="true">
         <uses-library android:name="android.test.runner"/>
         <uses-library android:name="androidx.window.extensions"
@@ -585,6 +586,7 @@
             android:exported="true">
         </activity>
         <activity android:name="android.server.wm.BackNavigationActivity"
+                  android:enableOnBackInvokedCallback="true"
                   android:exported="true"/>
         <activity android:name="android.server.wm.PinnedStackTests$TestActivity"
                   android:exported="true"/>
@@ -596,12 +598,16 @@
                   android:exported="true" />
         <activity android:name="android.server.wm.BackGestureInvokedTest$BackInvokedActivity"
                   android:label="BackInvokedActivity"
+                  android:enableOnBackInvokedCallback="true"
                   android:exported="true" />
         <activity android:name="android.server.wm.BackGestureInvokedTest$NewTaskActivity"
+                  android:enableOnBackInvokedCallback="true"
                   android:exported="true" />
         <activity android:name="android.server.wm.BackGestureInvokedTest$SecondActivity"
+                  android:enableOnBackInvokedCallback="true"
                   android:exported="true" />
         <activity android:name="android.server.wm.BackGestureInvokedTest$ImeTestActivity"
+                  android:enableOnBackInvokedCallback="true"
                   android:exported="true"
                   android:windowSoftInputMode="stateVisible"/>
         <activity android:name="android.server.wm.DisplayShapeTests$TestActivity"
