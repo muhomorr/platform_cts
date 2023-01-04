@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-package android.security.cts.cve_2021_0642;
+package android.webkit.cts;
 
-import android.app.Activity;
-
-public class PocActivity extends Activity {
-}
+parcelable HttpRequest;
