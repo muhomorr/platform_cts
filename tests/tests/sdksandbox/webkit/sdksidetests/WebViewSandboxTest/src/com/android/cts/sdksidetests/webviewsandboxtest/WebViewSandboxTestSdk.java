@@ -16,33 +16,57 @@
 
 package com.android.cts.sdksidetests.webviewsandboxtest;
 
-
-import static com.google.common.truth.Truth.assertThat;
-
 import android.app.sdksandbox.testutils.testscenario.SdkSandboxTestScenarioRunner;
 import android.content.Context;
 import android.os.Bundle;
 import android.view.View;
+import android.view.ViewGroup.LayoutParams;
 import android.webkit.WebView;
-
-import org.junit.Test;
-
+import android.webkit.cts.IHostAppInvoker;
+import android.webkit.cts.SharedWebViewTestEnvironment;
+import android.webkit.cts.WebViewOnUiThread;
+import android.webkit.cts.WebViewTest;
+import android.widget.LinearLayout;
 
 public class WebViewSandboxTestSdk extends SdkSandboxTestScenarioRunner {
+    private WebViewTest mTestInstance = new WebViewTest();
     private WebView mWebView;
+    private WebViewOnUiThread mOnUiThread;
+
+    @Override
+    public Object getTestInstance() {
+        return mTestInstance;
+    }
 
     @Override
     public View beforeEachTest(Context windowContext, Bundle params, int width, int height) {
-        mWebView = new WebView(windowContext);
-        return mWebView;
-    }
+        mWebView = new WebView(getContext());
+        mOnUiThread = new WebViewOnUiThread(mWebView);
 
-    @Test
-    public void testScrollBarOverlay() {
-        mWebView.setHorizontalScrollbarOverlay(true);
-        mWebView.setVerticalScrollbarOverlay(false);
+        SharedWebViewTestEnvironment testEnvironment =
+                new SharedWebViewTestEnvironment.Builder()
+                        .setContext(getContext())
+                        .setWebView(mWebView)
+                        .setWebViewOnUiThread(mOnUiThread)
+                        .setHostAppInvoker(IHostAppInvoker.Stub.asInterface(getCustomInterface()))
+                        .build();
 
-        assertThat(mWebView.overlayHorizontalScrollbar()).isTrue();
-        assertThat(mWebView.overlayVerticalScrollbar()).isFalse();
+        mTestInstance.setTestEnvironment(testEnvironment);
+
+        // Some tests expect the WebView to have a parent so making the parent
+        // a linear layout the same as the regular webkit tests.
+        LinearLayout parent = new LinearLayout(getContext());
+        parent.setLayoutParams(
+                new LinearLayout.LayoutParams(
+                        LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+        parent.setOrientation(LinearLayout.VERTICAL);
+
+        parent.addView(mWebView);
+
+        mWebView.setLayoutParams(
+                new LinearLayout.LayoutParams(
+                        LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+
+        return parent;
     }
 }
