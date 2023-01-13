@@ -95,6 +95,7 @@ public class RequirementConstants {
     public static final String SECURE_REQ_SATISFIED = "secure_requirement_satisfied_boolean";
     public static final String NUM_CRYPTO_HW_SECURE_ALL_SUPPORT =
         "number_crypto_hw_secure_all_support";
+    public static final String FILESYSTEM_IO_RATE = "filesystem_io_rate_mbps";
 
     public static final String PRIMARY_CAMERA_AVAILABLE = "primary_camera_available";
     public static final String PRIMARY_CAMERA_RESOLUTION = "primary_camera_resolution";
@@ -129,6 +130,8 @@ public class RequirementConstants {
             "rear_camera_stream_usecase_supported";
     public static final String FRONT_CAMERA_STREAM_USECASE_SUPPORTED =
             "front_camera_stream_usecase_supported";
+    public static final String API_NATIVE_LATENCY = "native_latency_ms";
+    public static final String API_JAVA_LATENCY = "java_latency_ms";
 
     public enum Result {
         NA, MET, UNMET
@@ -140,9 +143,10 @@ public class RequirementConstants {
     public static final BiPredicate<Integer, Integer> INTEGER_GTE = RequirementConstants.gte();
     public static final BiPredicate<Integer, Integer> INTEGER_LTE = RequirementConstants.lte();
     public static final BiPredicate<Integer, Integer> INTEGER_EQ = RequirementConstants.eq();
+    public static final BiPredicate<Double, Double> DOUBLE_GTE = RequirementConstants.gte();
+    public static final BiPredicate<Double, Double> DOUBLE_LTE = RequirementConstants.lte();
     public static final BiPredicate<Double, Double> DOUBLE_EQ = RequirementConstants.eq();
     public static final BiPredicate<Boolean, Boolean> BOOLEAN_EQ = RequirementConstants.eq();
-    public static final BiPredicate<Double, Double> DOUBLE_GTE = RequirementConstants.gte();
 
     /**
      * Creates a >= predicate.
