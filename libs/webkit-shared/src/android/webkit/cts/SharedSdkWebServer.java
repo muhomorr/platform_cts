@@ -33,9 +33,9 @@ public final class SharedSdkWebServer {
     }
 
     /** Starts the web server. */
-    public void start(boolean secure) {
+    public void start(@SslMode int sslMode) {
         try {
-            mWebServer.start(secure);
+            mWebServer.start(sslMode);
         } catch (RemoteException e) {
             throw new RuntimeException(e);
         }
@@ -86,6 +86,15 @@ public final class SharedSdkWebServer {
         }
     }
 
+    /** Get the full auth url for an asset. */
+    public String getAuthAssetUrl(String path) {
+        try {
+            return mWebServer.getAuthAssetUrl(path);
+        } catch (RemoteException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     /** Get a binary url. */
     public String getBinaryUrl(String mimeType, int contentLength) {
         try {
@@ -105,9 +114,9 @@ public final class SharedSdkWebServer {
     }
 
     /** Retrieve the last request to be made on a url. */
-    public HttpRequest getLastRequest(String url) {
+    public HttpRequest getLastAssetRequest(String url) {
         try {
-            return mWebServer.getLastRequest(url);
+            return mWebServer.getLastAssetRequest(url);
         } catch (RemoteException e) {
             throw new RuntimeException(e);
         }
