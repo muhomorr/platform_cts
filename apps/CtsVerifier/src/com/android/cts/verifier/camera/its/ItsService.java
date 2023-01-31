@@ -78,6 +78,7 @@ import android.os.IBinder;
 import android.os.SystemClock;
 import android.os.Vibrator;
 import android.util.Log;
+import android.util.Pair;
 import android.util.Rational;
 import android.util.Size;
 import android.util.SparseArray;
@@ -123,6 +124,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashSet;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -183,6 +185,8 @@ public class ItsService extends Service implements SensorEventListener {
     public static final String EVCOMP_KEY = "evComp";
     public static final String AUTO_FLASH_KEY = "autoFlash";
     public static final String AUDIO_RESTRICTION_MODE_KEY = "mode";
+    public static final int AVAILABILITY_TIMEOUT_MS = 10;
+
 
     private CameraManager mCameraManager = null;
     private HandlerThread mCameraThread = null;
@@ -252,6 +256,8 @@ public class ItsService extends Service implements SensorEventListener {
     private volatile boolean mNeedsLockedAWB = false;
     private volatile boolean mDoAE = true;
     private volatile boolean mDoAF = true;
+    private Set<Pair<String, String>> mUnavailablePhysicalCameras;
+
 
     class MySensorEvent {
         public Sensor sensor;
@@ -469,6 +475,7 @@ public class ItsService extends Service implements SensorEventListener {
         }
 
         try {
+            mUnavailablePhysicalCameras = getUnavailablePhysicalCameras();
             mCamera = mBlockingCameraManager.openCamera(cameraId, mCameraListener, mCameraHandler);
             mCameraCharacteristics = mCameraManager.getCameraCharacteristics(cameraId);
 
@@ -826,6 +833,9 @@ public class ItsService extends Service implements SensorEventListener {
                     doCheckHLG10Support(cameraId, profileId);
                 } else if ("doCaptureWithFlash".equals(cmdObj.getString("cmdName"))) {
                     doCaptureWithFlash(cmdObj);
+                } else if ("doGetUnavailablePhysicalCameras".equals(cmdObj.getString("cmdName"))) {
+                    String cameraId = cmdObj.getString("cameraId");
+                    doGetUnavailablePhysicalCameras(cameraId);
                 } else {
                     throw new ItsException("Unknown command: " + cmd);
                 }
@@ -1182,6 +1192,53 @@ public class ItsService extends Service implements SensorEventListener {
                 .supportsSensorToggle(SensorPrivacyManager.Sensors.CAMERA);
         mSocketRunnableObj.sendResponse("cameraPrivacyModeSupport",
                 hasPrivacySupport ? "true" : "false");
+    }
+
+    private void doGetUnavailablePhysicalCameras(String cameraId) throws ItsException {
+        try {
+            JSONArray cameras = new JSONArray();
+            JSONObject jsonObj = new JSONObject();
+            for (Pair<String, String> p : mUnavailablePhysicalCameras) {
+                if (cameraId.equals(p.first)) {
+                    cameras.put(p.second);
+                }
+            }
+            jsonObj.put("unavailablePhysicalCamerasArray", cameras);
+            Log.i(TAG, "unavailablePhysicalCameras : " +
+                    Arrays.asList(mUnavailablePhysicalCameras.toString()));
+            mSocketRunnableObj.sendResponse("unavailablePhysicalCameras", null, jsonObj, null);
+        } catch (org.json.JSONException e) {
+            throw new ItsException("JSON error: ", e);
+        }
+    }
+
+    private Set<Pair<String, String>> getUnavailablePhysicalCameras() throws ItsException {
+        final LinkedBlockingQueue<Pair<String, String>> unavailablePhysicalCamEventQueue =
+                new LinkedBlockingQueue<>();
+        try {
+            CameraManager.AvailabilityCallback ac = new CameraManager.AvailabilityCallback() {
+                @Override
+                public void onPhysicalCameraUnavailable(String cameraId, String physicalCameraId) {
+                    unavailablePhysicalCamEventQueue.offer(new Pair<>(cameraId, physicalCameraId));
+                }
+            };
+            mCameraManager.registerAvailabilityCallback(ac, mCameraHandler);
+            Set<Pair<String, String>> unavailablePhysicalCameras =
+                    new HashSet<Pair<String, String>>();
+            Pair<String, String> candidatePhysicalIds =
+                    unavailablePhysicalCamEventQueue.poll(AVAILABILITY_TIMEOUT_MS,
+                    java.util.concurrent.TimeUnit.MILLISECONDS);
+            while (candidatePhysicalIds != null) {
+                unavailablePhysicalCameras.add(candidatePhysicalIds);
+                candidatePhysicalIds =
+                        unavailablePhysicalCamEventQueue.poll(AVAILABILITY_TIMEOUT_MS,
+                        java.util.concurrent.TimeUnit.MILLISECONDS);
+            }
+            mCameraManager.unregisterAvailabilityCallback(ac);
+            return unavailablePhysicalCameras;
+        } catch (Exception e) {
+            throw new ItsException("Exception: ", e);
+        }
     }
 
     private void doCheckPrimaryCamera(String cameraId) throws ItsException {
@@ -1849,8 +1906,8 @@ public class ItsService extends Service implements SensorEventListener {
         // s1440p which is the max supported stream size in a combination, when preview
         // stabilization is on.
         Size maxPreviewSize = new Size(1920, 1440);
-        // QCIF, we test only sizes >= this.
-        Size minPreviewSize = new Size(176, 144);
+        // 320 x 240, we test only sizes >= this.
+        Size minPreviewSize = new Size(320, 240);
         Size[] outputSizes = configMap.getOutputSizes(ImageFormat.YUV_420_888);
         if (outputSizes == null) {
             mSocketRunnableObj.sendResponse("supportedPreviewSizes", "");
@@ -2128,6 +2185,8 @@ public class ItsService extends Service implements SensorEventListener {
 
         int cameraDeviceId = Integer.parseInt(cameraId);
         Size videoSize = Size.parseSize(videoSizeString);
+        int sensorOrientation = mCameraCharacteristics.get(
+                CameraCharacteristics.SENSOR_ORIENTATION);
 
         // Set up MediaRecorder to accept Images from ImageWriter
         int fileFormat = MediaRecorder.OutputFormat.DEFAULT;
@@ -2136,78 +2195,20 @@ public class ItsService extends Service implements SensorEventListener {
                 /* quality= */"preview", fileFormat, stabilize);
         assert outputFilePath != null;
 
-        mMediaRecorder = new MediaRecorder(this);
-        mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
-        mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.DEFAULT);
-
-        mMediaRecorder.setOutputFormat(fileFormat);
-        mMediaRecorder.setVideoSize(videoSize.getWidth(), videoSize.getHeight());
-        mMediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.DEFAULT);
-        mMediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT);
-        mMediaRecorder.setOutputFile(outputFilePath);
-
-        try {
-            mMediaRecorder.prepare();
-            mRecordSurface = mMediaRecorder.getSurface();
-        } catch (IOException e) {
-            throw new ItsException("Error preparing MediaRecorder", e);
-        }
-
-        // Image writer to write to mMediaRecorder
-        ImageWriter imageWriter = ImageWriter.newInstance(mRecordSurface, /* maxImages= */ 5,
-                ImageFormat.YUV_420_888);
-
-        // ImageReader to read preview frames from camera HAL
-        // HardwareBuffer.USAGE_COMPOSER_OVERLAY should indicate to the HAL that this surface is
-        // meant for preview
-        ImageReader imageReader = ImageReader.newInstance(videoSize.getWidth(),
-                videoSize.getHeight(), ImageFormat.YUV_420_888, /* maxImages= */ 5, /* usage= */
-                HardwareBuffer.USAGE_COMPOSER_OVERLAY | HardwareBuffer.USAGE_CPU_READ_OFTEN);
-        imageReader.setOnImageAvailableListener(reader -> {
-            Image image = reader.acquireNextImage();
-            if (image != null) {
-                imageWriter.queueInputImage(image); // redirect the frame to mMediaRecorder
-            }
-            // no need to call `image.close()` as imageWriter does it for us.
-        }, mCameraHandler);
-        Surface imageReaderSurface = imageReader.getSurface();
-
-        try {
+        try (PreviewRecorder pr = new PreviewRecorder(cameraDeviceId, videoSize,
+                sensorOrientation, outputFilePath, mCameraHandler, this)) {
             int stabilizationMode = stabilize
                     ? CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION
                     : CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF;
-            configureAndCreateCaptureSession(CameraDevice.TEMPLATE_PREVIEW, imageReaderSurface,
-                    stabilizationMode);
+            configureAndCreateCaptureSession(CameraDevice.TEMPLATE_PREVIEW,
+                    pr.getCameraSurface(), stabilizationMode);
+            pr.recordPreview(recordingDuration * 1000L);
+            mSession.close();
         } catch (CameraAccessException e) {
             throw new ItsException("Error configuring and creating capture request", e);
         }
 
-        mMediaRecorder.start();
-        try {
-            Thread.sleep(recordingDuration * 1000L); // recordingDuration is in seconds
-        } catch (InterruptedException e) {
-            throw new ItsException("Unexpected InterruptException while recording", e);
-        }
-        mSession.close();
-
-        // close imageReader and imageWriter before stopping mMediaRecorder, otherwise they might
-        // attempt to access closed surfaces.
-        imageReader.close();
-        imageWriter.close();
-        mMediaRecorder.stop();
-
-        mMediaRecorder.reset();
-        mMediaRecorder.release();
-
-
-        mMediaRecorder = null;
-        if (mRecordSurface != null) {
-            mRecordSurface.release();
-            mRecordSurface = null;
-        }
-
         Log.i(TAG, "Preview recording complete: " + outputFilePath);
-
         // Send VideoRecordingObject for further processing.
         VideoRecordingObject obj = new VideoRecordingObject(outputFilePath, /* quality= */"preview",
                 videoSize, fileFormat);
@@ -2226,6 +2227,8 @@ public class ItsService extends Service implements SensorEventListener {
         assert (recordSurface != null);
         // Create capture request builder
         mCaptureRequestBuilder = mCamera.createCaptureRequest(requestTemplate);
+        mCaptureRequestBuilder.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
+            CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_OFF);
 
         switch (videoStabilizationMode) {
             case CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON:

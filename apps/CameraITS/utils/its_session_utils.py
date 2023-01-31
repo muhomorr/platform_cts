@@ -453,6 +453,24 @@ class ItsSession(object):
     self.sock.settimeout(self.SOCK_TIMEOUT)
     return data['objValue']
 
+  def get_unavailable_physical_cameras(self, camera_id):
+    """Get the unavailable physical cameras ids.
+
+    Args:
+      camera_id: int; device id
+    Returns:
+      List of all physical camera ids which are unavailable.
+    """
+    cmd = {'cmdName': 'doGetUnavailablePhysicalCameras',
+           'cameraId': camera_id}
+    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
+    timeout = self.SOCK_TIMEOUT + self.EXTRA_SOCK_TIMEOUT
+    self.sock.settimeout(timeout)
+    data, _ = self.__read_response_from_socket()
+    if data['tag'] != 'unavailablePhysicalCameras':
+      raise error_util.CameraItsError('Invalid command response')
+    return data['objValue']
+
   def is_hlg10_recording_supported(self, profile_id):
     """Query whether the camera device supports HLG10 video recording.
 
@@ -672,7 +690,7 @@ class ItsSession(object):
     ncap = 1
     capture_results_returned = False
     yuv_bufs = {}
-    while not capture_results_returned:
+    while (nbufs < ncap) or (not capture_results_returned):
       json_obj, buf = self.__read_response_from_socket()
       if json_obj['tag'] in ItsSession.IMAGE_FORMAT_LIST_1 and buf is not None:
         fmt = json_obj['tag'][:-5]
