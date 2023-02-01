@@ -21,6 +21,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.*;
 
+import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.ContextWrapper;
@@ -152,14 +153,10 @@ public class WebViewTest extends SharedWebViewTest {
     private WebView mWebView;
     private WebViewOnUiThread mOnUiThread;
 
-    // TODO(bewise): Get rid of this member variable
-    // once all these tests are referencing the test environment instead.
-    private WebViewCtsActivity mActivity;
-
     @Before
     public void setUp() throws Exception {
         mWebView = getTestEnvironment().getWebView();
-        mOnUiThread = getTestEnvironment().getWebViewOnUiThread();
+        mOnUiThread = new WebViewOnUiThread(mWebView);
         mContext = getTestEnvironment().getContext();
     }
 
@@ -176,7 +173,6 @@ public class WebViewTest extends SharedWebViewTest {
             mIconDb.close();
             mIconDb = null;
         }
-        mActivity = null;
     }
 
     @Override
@@ -189,19 +185,13 @@ public class WebViewTest extends SharedWebViewTest {
                 .getScenario()
                 .onActivity(
                         activity -> {
-                            mActivity = (WebViewCtsActivity) activity;
-
-                            WebView webView = mActivity.getWebView();
+                            WebView webView = ((WebViewCtsActivity) activity).getWebView();
                             builder.setHostAppInvoker(
                                             SharedWebViewTestEnvironment.createHostAppInvoker(
-                                                    mActivity))
-                                    .setContext(mActivity)
-                                    .setWebView(webView);
-
-                            if (webView != null) {
-                                WebViewOnUiThread onUi = new WebViewOnUiThread(webView);
-                                builder.setWebViewOnUiThread(onUi);
-                            }
+                                                    activity))
+                                    .setContext(activity)
+                                    .setWebView(webView)
+                                    .setRootLayout(((WebViewCtsActivity) activity).getRootLayout());
                         });
 
         SharedWebViewTestEnvironment environment = builder.build();
@@ -212,10 +202,10 @@ public class WebViewTest extends SharedWebViewTest {
             new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
                 @Override
                 protected boolean check() {
-                    return mActivity.hasWindowFocus();
+                    return ((Activity) environment.getContext()).hasWindowFocus();
                 }
             }.run();
-            File f = mActivity.getFileStreamPath("snapshot");
+            File f = environment.getContext().getFileStreamPath("snapshot");
             if (f.exists()) {
                 f.delete();
             }
@@ -227,7 +217,7 @@ public class WebViewTest extends SharedWebViewTest {
     private void startWebServer(boolean secure) throws Exception {
         assertNull(mWebServer);
         mWebServer = getTestEnvironment().getWebServer();
-        mWebServer.start(secure);
+        mWebServer.start(secure ? SslMode.NO_CLIENT_AUTH : SslMode.INSECURE);
     }
 
     @Test
@@ -350,7 +340,7 @@ public class WebViewTest extends SharedWebViewTest {
 
                     // verify that the request also includes X-Requested-With header
                     HttpRequest request =
-                            mWebServer.getLastRequest(TestHtmlConstants.HELLO_WORLD_URL);
+                            mWebServer.getLastAssetRequest(TestHtmlConstants.HELLO_WORLD_URL);
                     String[] matchingHeaders = request.getHeaders(X_REQUESTED_WITH);
                     assertEquals(1, matchingHeaders.length);
 
@@ -384,7 +374,7 @@ public class WebViewTest extends SharedWebViewTest {
 
         mOnUiThread.postUrlAndWaitForCompletion(networkUrl, postData);
 
-        HttpRequest request = mWebServer.getLastRequest(TestHtmlConstants.HELLO_WORLD_URL);
+        HttpRequest request = mWebServer.getLastAssetRequest(TestHtmlConstants.HELLO_WORLD_URL);
         assertEquals("The last request should be POST", request.getMethod(), "POST");
         assertEquals(request.getBody(), postDataString);
     }
@@ -421,7 +411,7 @@ public class WebViewTest extends SharedWebViewTest {
                     // verify that the request also includes X-Requested-With header
                     // but is not overwritten by the webview
                     HttpRequest request =
-                            mWebServer.getLastRequest(TestHtmlConstants.HELLO_WORLD_URL);
+                            mWebServer.getLastAssetRequest(TestHtmlConstants.HELLO_WORLD_URL);
                     String[] matchingHeaders = request.getHeaders(X_REQUESTED_WITH);
                     assertEquals(1, matchingHeaders.length);
 
@@ -445,7 +435,7 @@ public class WebViewTest extends SharedWebViewTest {
                     // verify that the request also includes X-Requested-With header
                     // but is not overwritten by the webview
                     HttpRequest request =
-                            mWebServer.getLastRequest(TestHtmlConstants.HELLO_WORLD_URL);
+                            mWebServer.getLastAssetRequest(TestHtmlConstants.HELLO_WORLD_URL);
                     String[] matchingHeaders = request.getHeaders(X_REQUESTED_WITH);
                     assertEquals(1, matchingHeaders.length);
 
@@ -468,7 +458,7 @@ public class WebViewTest extends SharedWebViewTest {
         map.put(X_REFERER, X_REFERER_VALUE);
         mOnUiThread.loadUrlAndWaitForCompletion(url, map);
 
-        HttpRequest request = mWebServer.getLastRequest(TestHtmlConstants.HELLO_WORLD_URL);
+        HttpRequest request = mWebServer.getLastAssetRequest(TestHtmlConstants.HELLO_WORLD_URL);
         for (Map.Entry<String, String> value : map.entrySet()) {
             String header = value.getKey();
             String[] matchingHeaders = request.getHeaders(header);
@@ -833,7 +823,7 @@ public class WebViewTest extends SharedWebViewTest {
                             boolean isDialog,
                             boolean isUserGesture,
                             Message resultMsg) {
-                        mActivity.addContentView(
+                        getTestEnvironment().addContentView(
                                 childWebView,
                                 new ViewGroup.LayoutParams(
                                         ViewGroup.LayoutParams.FILL_PARENT,
