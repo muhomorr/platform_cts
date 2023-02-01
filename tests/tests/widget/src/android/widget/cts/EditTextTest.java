@@ -16,7 +16,10 @@
 
 package android.widget.cts;
 
+import static com.android.cts.mockime.ImeEventStreamTestUtils.expectEvent;
+
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
@@ -25,10 +28,17 @@ import static org.junit.Assert.assertTrue;
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Point;
+import android.os.SystemClock;
+import android.support.test.uiautomator.By;
+import android.support.test.uiautomator.UiDevice;
+import android.support.test.uiautomator.UiObject2;
+import android.support.test.uiautomator.Until;
 import android.text.Editable;
 import android.text.InputFilter;
+import android.text.InputType;
 import android.text.Layout;
 import android.text.Spanned;
 import android.text.TextUtils;
@@ -40,9 +50,11 @@ import android.util.SparseArray;
 import android.util.TypedValue;
 import android.util.Xml;
 import android.view.KeyEvent;
+import android.view.ViewConfiguration;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
+import android.widget.Editor;
 import android.widget.TextView;
 import android.widget.TextView.BufferType;
 
@@ -54,6 +66,9 @@ import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.CtsKeyEventUtil;
 import com.android.compatibility.common.util.CtsTouchUtils;
+import com.android.cts.mockime.ImeEventStream;
+import com.android.cts.mockime.ImeSettings;
+import com.android.cts.mockime.MockImeSession;
 
 import org.junit.After;
 import org.junit.Before;
@@ -63,6 +78,7 @@ import org.junit.runner.RunWith;
 import org.xmlpull.v1.XmlPullParser;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 @SmallTest
@@ -77,6 +93,8 @@ public class EditTextTest {
     @Rule
     public ActivityTestRule<EditTextCtsActivity> mActivityRule =
             new ActivityTestRule<>(EditTextCtsActivity.class);
+    public ActivityTestRule<EditTextCursorCtsActivity> mEmptyActivityRule =
+            new ActivityTestRule<>(EditTextCursorCtsActivity.class, false, false);
 
     @Before
     public void setup() {
@@ -691,6 +709,124 @@ public class EditTextTest {
         et.setSingleLine(false);
         assertEquals(1, et.getFilters().length);
         assertEquals(et.getFilters()[0], myFilter);
+    }
+
+    @UiThreadTest
+    @Test
+    public void testInputTypeForConversionSuggestions() {
+        EditText editText = new EditText(mActivity);
+        editText.setInputType(EditorInfo.TYPE_CLASS_TEXT
+                | EditorInfo.TYPE_TEXT_FLAG_ENABLE_TEXT_CONVERSION_SUGGESTIONS);
+        editText.setText(mActivity.getResources().getText(R.string.even_more_long_text));
+
+        // The value of the input type is put into the EditorInfo parameter, and then the
+        // InputMethodManager can retrieve the value of the input type from EditorInfo.
+        EditorInfo editorInfo = new EditorInfo();
+        editText.onCreateInputConnection(editorInfo);
+
+        assertEquals(InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_FLAG_ENABLE_TEXT_CONVERSION_SUGGESTIONS,
+                        editorInfo.inputType);
+    }
+
+    @UiThreadTest
+    @Test
+    public void testAttributeTextConversionSuggestion() {
+        mActivity.setContentView(R.layout.edittext_layout);
+        TextView tv = (TextView) mActivity.findViewById(
+                R.id.edittext_conversion_suggestion);
+
+        assertEquals(InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_FLAG_ENABLE_TEXT_CONVERSION_SUGGESTIONS, tv.getInputType());
+    }
+
+    @Test
+    public void testClickTwice_showIme() throws Throwable {
+        try (MockImeSession imeSession = MockImeSession.create(
+                mInstrumentation.getContext(),
+                mInstrumentation.getUiAutomation(),
+                new ImeSettings.Builder())) {
+
+            clickOnEditText1();
+            mInstrumentation.waitForIdleSync();
+
+            clickOnEditText1();
+            mInstrumentation.waitForIdleSync();
+
+            final ImeEventStream stream = imeSession.openEventStream();
+            expectEvent(stream,
+                    event -> "showSoftInput".equals(event.getEventName()),
+                    TimeUnit.SECONDS.toMillis(2));
+        }
+    }
+
+    private void clickOnEditText1() throws Exception {
+        final UiObject2 object = UiDevice.getInstance(mInstrumentation)
+                .findObject(By.res("android.widget.cts", "edittext_simple1"));
+        object.click();
+        SystemClock.sleep(ViewConfiguration.getDoubleTapTimeout() + 50);
+    }
+
+    @Test
+    public void testCursorNotBlinkingOnNewActivity_WithoutFocus() {
+        Activity testActivity = mEmptyActivityRule.launchActivity(null);
+        EditText et = testActivity.findViewById(R.id.edittext_simple1);
+        Editor editor = et.getEditorForTesting();
+        boolean cursorBlinking = editor.isBlinking();
+        assertFalse(cursorBlinking);
+    }
+
+    @Test
+    public void testCursorBlinkingOnNewActivity_WithFocus() {
+        Activity testActivity = mEmptyActivityRule.launchActivity(null);
+        EditText et = testActivity.findViewById(R.id.edittext_simple1);
+        Editor editor = et.getEditorForTesting();
+
+        mInstrumentation.runOnMainSync(() -> {
+            et.requestFocus();
+        });
+
+        boolean cursorBlinking = editor.isBlinking();
+        assertTrue(cursorBlinking);
+    }
+
+    @Test
+    public void testSuspendAndResumeBlinkingCursor() {
+        Activity testActivity = mEmptyActivityRule.launchActivity(null);
+        final EditText et = testActivity.findViewById(R.id.edittext_simple1);
+        Editor editor = et.getEditorForTesting();
+
+        mInstrumentation.runOnMainSync(() -> {
+            et.requestFocus();
+        });
+
+        UiDevice device =  UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
+
+        boolean cursorBlinking = editor.isBlinking();
+        assertTrue(cursorBlinking);
+
+        // Send activity to the background.
+        device.pressHome();
+        device.waitForIdle();
+
+        cursorBlinking = editor.isBlinking();
+        assertFalse(cursorBlinking);
+
+        // Bring the activity back into the foreground
+        Intent resumeActivity = new Intent(mInstrumentation.getContext(),
+                EditTextCursorCtsActivity.class);
+        resumeActivity.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        mActivity.startActivity(resumeActivity);
+
+        // Check if the activity is in the foreground.
+        device.wait(Until.findObject(By.text("test for blinking cursor")), 2000);
+
+        mInstrumentation.runOnMainSync(() -> {
+            et.requestFocus();
+        });
+
+        cursorBlinking = editor.isBlinking();
+        assertTrue(cursorBlinking);
     }
 
 }

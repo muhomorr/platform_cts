@@ -82,6 +82,19 @@ android_test {
         "compatibility-host-telephony-preconditions",
         "cts-tradefed",
     ],
+    data: [
+        ":CtsTelephonyPreparerApp",
+        ":CtsTelephonyCleanerApp",
+        ":TestSmsApp22",
+        ":LocationAccessingApp",
+        ":LocationAccessingAppSdk28",
+        ":TestFinancialSmsApp",
+        ":TestSmsRetrieverApp",
+        ":TestSmsApp",
+        ":TestExternalImsServiceApp",
+        ":EmbmsMiddlewareCtsTestApp",
+    ],
+    per_testcase_directory: true,
 }
 
 filegroup {

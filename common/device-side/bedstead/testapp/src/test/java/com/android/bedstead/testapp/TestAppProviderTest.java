@@ -45,7 +45,7 @@ public class TestAppProviderTest {
     private static final String KNOWN_EXISTING_TESTAPP_ACTIVITY_CLASSNAME =
             "android.testapp.activity";
 
-    private static final String QUERY_ONLY_TEST_APP_PACKAGE_NAME = "com.android.RemoteDPC";
+    private static final String QUERY_ONLY_TEST_APP_PACKAGE_NAME = "com.android.cts.RemoteDPC";
 
     private static final String PERMISSION_DECLARED_BY_TESTAPP = "android.permission.READ_CALENDAR";
 
@@ -100,6 +100,34 @@ public class TestAppProviderTest {
         TestAppQueryBuilder query = mTestAppProvider.query().wherePackageName().isEqualTo(EXISTING_PACKAGENAME);
 
         assertThrows(NotFoundException.class, query::get);
+    }
+
+    @Test
+    public void query_afterRestore_returnsTestAppAgain() {
+        mTestAppProvider.snapshot();
+        mTestAppProvider.query().wherePackageName().isEqualTo(EXISTING_PACKAGENAME).get();
+
+        mTestAppProvider.restore();
+
+        assertThat(mTestAppProvider.query().wherePackageName()
+                .isEqualTo(EXISTING_PACKAGENAME).get()).isNotNull();
+    }
+
+    @Test
+    public void query_afterRestoreWithAppAlreadyUsed_doesNotReturnTestAppAgain() {
+        mTestAppProvider.query().wherePackageName().isEqualTo(EXISTING_PACKAGENAME).get();
+        mTestAppProvider.snapshot();
+
+        mTestAppProvider.restore();
+
+        TestAppQueryBuilder query =
+                mTestAppProvider.query().wherePackageName().isEqualTo(EXISTING_PACKAGENAME);
+        assertThrows(NotFoundException.class, query::get);
+    }
+
+    @Test
+    public void restore_noSnapshot_throwsException() {
+        assertThrows(IllegalStateException.class, mTestAppProvider::restore);
     }
 
     @Test
@@ -205,7 +233,7 @@ public class TestAppProviderTest {
     public void query_withExistingActivity_returnsMatching() {
         TestApp testApp = mTestAppProvider.query()
                 .whereActivities().contains(
-                        activity().activityClass()
+                        activity().where().activityClass()
                             .className().isEqualTo(KNOWN_EXISTING_TESTAPP_ACTIVITY_CLASSNAME)
                 )
                 .get();
@@ -231,6 +259,26 @@ public class TestAppProviderTest {
                 .get();
 
         assertThat(testApp.activities()).isEmpty();
+    }
+
+    @Test
+    public void query_isDeviceAdmin_returnsMatching() {
+        TestApp testApp = mTestAppProvider.query()
+                .whereIsDeviceAdmin().isTrue()
+                .get();
+
+        assertThat(testApp.packageName()).isEqualTo(
+                "com.android.bedstead.testapp.DeviceAdminTestApp");
+    }
+
+    @Test
+    public void query_isNotDeviceAdmin_returnsMatching() {
+        TestApp testApp = mTestAppProvider.query()
+                .whereIsDeviceAdmin().isFalse()
+                .get();
+
+        assertThat(testApp.packageName()).isNotEqualTo(
+                "com.android.bedstead.testapp.DeviceAdminTestApp");
     }
 
     @Test

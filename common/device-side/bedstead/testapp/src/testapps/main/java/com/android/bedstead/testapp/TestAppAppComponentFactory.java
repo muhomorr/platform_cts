@@ -19,8 +19,11 @@ package com.android.bedstead.testapp;
 import android.accounts.AccountManager;
 import android.app.Activity;
 import android.app.AppComponentFactory;
+import android.app.NotificationManager;
 import android.app.Service;
 import android.app.admin.DevicePolicyManager;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothManager;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -36,6 +39,7 @@ import android.util.Log;
 
 import com.android.bedstead.testapp.processor.annotations.FrameworkClass;
 import com.android.bedstead.testapp.processor.annotations.TestAppReceiver;
+import com.android.eventlib.premade.EventLibService;
 
 /**
  * An {@link AppComponentFactory} which redirects invalid class names to premade TestApp classes.
@@ -52,7 +56,10 @@ import com.android.bedstead.testapp.processor.annotations.TestAppReceiver;
                 @FrameworkClass(frameworkClass = AccountManager.class, constructor = "context.getSystemService(android.accounts.AccountManager.class)"),
                 @FrameworkClass(frameworkClass = Context.class, constructor = "context"),
                 @FrameworkClass(frameworkClass = ContentResolver.class, constructor = "context.getContentResolver()"),
-                @FrameworkClass(frameworkClass = KeyChain.class, constructor = "null") // KeyChain can not be instantiated - all calls are static
+                @FrameworkClass(frameworkClass = BluetoothManager.class, constructor = "context.getSystemService(android.bluetooth.BluetoothManager.class)"),
+                @FrameworkClass(frameworkClass = BluetoothAdapter.class, constructor = "context.getSystemService(android.bluetooth.BluetoothManager.class).getAdapter()"),
+                @FrameworkClass(frameworkClass = KeyChain.class, constructor = "null"), // KeyChain can not be instantiated - all calls are static
+                @FrameworkClass(frameworkClass = NotificationManager.class, constructor = "context.getSystemService(android.app.NotificationManager.class)")
         }
 )
 public final class TestAppAppComponentFactory extends AppComponentFactory {
@@ -62,7 +69,8 @@ public final class TestAppAppComponentFactory extends AppComponentFactory {
     @Override
     public Activity instantiateActivity(ClassLoader classLoader, String className, Intent intent)
             throws InstantiationException, IllegalAccessException, ClassNotFoundException {
-
+        Log.e(LOG_TAG, "Initiating activity for class "
+                + className + " and intent " + intent);
         try {
             return super.instantiateActivity(classLoader, className, intent);
         } catch (ClassNotFoundException e) {
@@ -80,10 +88,11 @@ public final class TestAppAppComponentFactory extends AppComponentFactory {
     public BroadcastReceiver instantiateReceiver(ClassLoader classLoader, String className,
             Intent intent)
             throws InstantiationException, IllegalAccessException, ClassNotFoundException {
+        Log.e(LOG_TAG, "Initiating receiver for class "
+                + className + " and intent " + intent);
         try {
             return super.instantiateReceiver(classLoader, className, intent);
         } catch (ClassNotFoundException e) {
-
             if (className.endsWith("DeviceAdminReceiver")) {
                 Log.d(LOG_TAG, "Broadcast Receiver class (" + className
                         + ") not found, routing to TestAppDeviceAdminReceiver");
@@ -92,6 +101,15 @@ public final class TestAppAppComponentFactory extends AppComponentFactory {
                                 classLoader, BaseTestAppDeviceAdminReceiver.class.getName(),
                                 intent);
                 receiver.setOverrideDeviceAdminReceiverClassName(className);
+                return receiver;
+            } else if (className.endsWith("DelegatedAdminReceiver")) {
+                Log.d(LOG_TAG, "Broadcast Receiver class (" + className
+                        + ") not found, routing to TestAppDelegatedAdminReceiver");
+                BaseTestAppDelegatedAdminReceiver receiver = (BaseTestAppDelegatedAdminReceiver)
+                        super.instantiateReceiver(
+                                classLoader, BaseTestAppDelegatedAdminReceiver.class.getName(),
+                                intent);
+                receiver.setOverrideDelegatedAdminReceiverClassName(className);
                 return receiver;
             }
 
@@ -108,6 +126,8 @@ public final class TestAppAppComponentFactory extends AppComponentFactory {
     @Override
     public Service instantiateService(ClassLoader classLoader, String className, Intent intent)
             throws InstantiationException, IllegalAccessException, ClassNotFoundException {
+        Log.e(LOG_TAG, "Initiating service for class "
+                + className + " and intent " + intent);
         try {
             return super.instantiateService(classLoader, className, intent);
         } catch (ClassNotFoundException e) {
@@ -118,9 +138,15 @@ public final class TestAppAppComponentFactory extends AppComponentFactory {
                         classLoader,
                         TestAppAccountAuthenticatorService.class.getName(),
                         intent);
-            } else {
-                throw e;
             }
+
+            Log.d(LOG_TAG,
+                    "Service class (" + className + ") not found, routing to EventLibService");
+            EventLibService service =
+                    (EventLibService) super.instantiateService(
+                            classLoader, EventLibService.class.getName(), intent);
+            service.setOverrideServiceClassName(className);
+            return service;
         }
     }
 }

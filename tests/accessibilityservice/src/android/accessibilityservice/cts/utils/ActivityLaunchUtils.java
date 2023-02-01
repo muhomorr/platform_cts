@@ -135,6 +135,11 @@ public class ActivityLaunchUtils {
         wakeUpOrBust(context, uiAutomation);
         if (context.getPackageManager().isInstantApp()) return;
         if (isHomeScreenShowing(context, uiAutomation)) return;
+        final AccessibilityServiceInfo serviceInfo = uiAutomation.getServiceInfo();
+        final int enabledFlags = serviceInfo.flags;
+        // Make sure we could query windows.
+        serviceInfo.flags |= AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
+        uiAutomation.setServiceInfo(serviceInfo);
         try {
             executeAndWaitOn(
                     uiAutomation,
@@ -159,6 +164,9 @@ public class ActivityLaunchUtils {
             }
 
             fail("Unable to reach home screen");
+        } finally {
+            serviceInfo.flags = enabledFlags;
+            uiAutomation.setServiceInfo(serviceInfo);
         }
     }
 
@@ -284,6 +292,13 @@ public class ActivityLaunchUtils {
                                 findWindowByTitleAndDisplay(uiAutomation, activityTitle, displayId);
                         if (window == null) return false;
                         if (window.getRoot() == null) return false;
+                        if (displayId == Display.DEFAULT_DISPLAY
+                                && (!window.isActive() || !window.isFocused())) {
+                            // The window should get activated and focused.
+                            // Launching activity in non-default display in CTS is usually in a
+                            // virtual display, which doesn't get focused on launch.
+                            return false;
+                        }
 
                         window.getBoundsInScreen(bounds);
                         mTempActivity.getWindow().getDecorView().getLocationOnScreen(location);

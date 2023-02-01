@@ -16,6 +16,8 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import android.os.Bundle;
@@ -31,7 +33,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 @RunWith(JUnit4.class)
-public class BundleKeyQueryHelperTest {
+public final class BundleKeyQueryHelperTest {
 
     private static final String KEY = "Key";
     private static final String KEY2 = "Key2";
@@ -284,5 +286,16 @@ public class BundleKeyQueryHelperTest {
         bundleKeyQueryHelper.integerListValue().containsAll(DIFFERENT_INTEGER_LIST_VALUE);
 
         assertThat(bundleKeyQueryHelper.matches(mBundle, KEY)).isFalse();
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        BundleKeyQueryHelper<Queryable> bundleKeyQueryHelper =
+                new BundleKeyQueryHelper<>(mQuery);
+
+        bundleKeyQueryHelper.exists();
+        bundleKeyQueryHelper.stringValue().isEqualTo("");
+
+        assertParcelsCorrectly(BundleKeyQueryHelper.class, bundleKeyQueryHelper);
     }
 }

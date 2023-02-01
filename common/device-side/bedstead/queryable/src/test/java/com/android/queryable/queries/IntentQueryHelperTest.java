@@ -16,6 +16,9 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+import static com.android.queryable.queries.IntentQuery.intent;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import android.content.Intent;
@@ -27,7 +30,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
-public class IntentQueryHelperTest {
+public final class IntentQueryHelperTest {
 
     private final Queryable mQuery = null;
     private static final String STRING_VALUE = "String";
@@ -89,5 +92,26 @@ public class IntentQueryHelperTest {
                 .isEqualTo(DIFFERENT_STRING_VALUE);
 
         assertThat(intentQueryHelper.matches(intent)).isFalse();
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        IntentQueryHelper<Queryable> intentQueryHelper =
+                new IntentQueryHelper<>(mQuery);
+
+        intentQueryHelper.action().isEqualTo("");
+        intentQueryHelper.extras().key("").stringValue().isEqualTo("");
+
+        assertParcelsCorrectly(IntentQueryHelper.class, intentQueryHelper);
+    }
+
+    @Test
+    public void intentQueryHelper_queries() {
+        Intent intent = new Intent();
+        intent.putExtra(/* key= */ STRING_VALUE, /* value= */ STRING_VALUE);
+
+        assertThat(intent()
+                .where().extras().key(STRING_VALUE).exists()
+                .matches(intent)).isTrue();
     }
 }

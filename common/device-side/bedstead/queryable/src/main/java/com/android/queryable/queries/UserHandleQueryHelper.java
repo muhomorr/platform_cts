@@ -16,14 +16,18 @@
 
 package com.android.queryable.queries;
 
+import android.os.Parcel;
+import android.os.Parcelable;
 import android.os.UserHandle;
 
 import com.android.queryable.Queryable;
+import com.android.queryable.QueryableBaseWithMatch;
 import com.android.queryable.util.SerializableParcelWrapper;
 
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /** Implementation of {@link UserHandleQuery}. */
 public final class UserHandleQueryHelper<E extends Queryable>
@@ -31,16 +35,41 @@ public final class UserHandleQueryHelper<E extends Queryable>
 
     private static final long serialVersionUID = 1;
 
-    private final E mQuery;
+    private final transient E mQuery;
     private UserHandle mEqualsValue;
     private IntegerQueryHelper<E> mIdQuery;
 
-    UserHandleQueryHelper() {
-        mQuery = (E) this;
+    public static final class UserHandleQueryBase extends
+            QueryableBaseWithMatch<UserHandle, UserHandleQueryHelper<UserHandleQueryBase>> {
+        UserHandleQueryBase() {
+            super();
+            setQuery(new UserHandleQueryHelper<>(this));
+        }
+
+        UserHandleQueryBase(Parcel in) {
+            super(in);
+        }
+
+        public static final Parcelable.Creator<UserHandleQueryHelper.UserHandleQueryBase> CREATOR =
+                new Parcelable.Creator<>() {
+                    public UserHandleQueryHelper.UserHandleQueryBase createFromParcel(Parcel in) {
+                        return new UserHandleQueryHelper.UserHandleQueryBase(in);
+                    }
+
+                    public UserHandleQueryHelper.UserHandleQueryBase[] newArray(int size) {
+                        return new UserHandleQueryHelper.UserHandleQueryBase[size];
+                    }
+                };
     }
 
     public UserHandleQueryHelper(E query) {
         mQuery = query;
+    }
+
+    private UserHandleQueryHelper(Parcel in) {
+        mQuery = null;
+        mEqualsValue = in.readParcelable(UserHandleQueryHelper.class.getClassLoader());
+        mIdQuery = in.readParcelable(UserHandleQueryHelper.class.getClassLoader());
     }
 
     @Override
@@ -96,5 +125,41 @@ public final class UserHandleQueryHelper<E extends Queryable>
         }
 
         return Queryable.joinQueryStrings(queryStrings);
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+        out.writeParcelable(mEqualsValue, flags);
+        out.writeParcelable(mIdQuery, flags);
+    }
+
+    public static final Parcelable.Creator<UserHandleQueryHelper> CREATOR =
+            new Parcelable.Creator<UserHandleQueryHelper>() {
+                public UserHandleQueryHelper createFromParcel(Parcel in) {
+                    return new UserHandleQueryHelper(in);
+                }
+
+                public UserHandleQueryHelper[] newArray(int size) {
+                    return new UserHandleQueryHelper[size];
+                }
+    };
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof UserHandleQueryHelper)) return false;
+        UserHandleQueryHelper<?> that = (UserHandleQueryHelper<?>) o;
+        return Objects.equals(mEqualsValue, that.mEqualsValue) && Objects.equals(
+                mIdQuery, that.mIdQuery);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(mEqualsValue, mIdQuery);
     }
 }

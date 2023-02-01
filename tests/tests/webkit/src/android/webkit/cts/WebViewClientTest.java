@@ -38,6 +38,8 @@ import android.webkit.WebViewClient;
 import android.webkit.cts.WebViewSyncLoader.WaitForLoadedClient;
 import android.util.Pair;
 
+import androidx.test.filters.FlakyTest;
+
 import com.android.compatibility.common.util.NullWebViewUtils;
 import com.android.compatibility.common.util.PollingCheck;
 import com.google.common.util.concurrent.SettableFuture;
@@ -51,7 +53,6 @@ import java.util.ArrayList;
 
 @AppModeFull
 public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewCtsActivity> {
-    private static final long TEST_TIMEOUT = 5000;
     private static final String TEST_URL = "http://www.example.com/";
 
     private WebViewOnUiThread mOnUiThread;
@@ -78,7 +79,7 @@ public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewC
         final WebViewCtsActivity activity = getActivity();
         WebView webview = activity.getWebView();
         if (webview != null) {
-            new PollingCheck(TEST_TIMEOUT) {
+            new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
                 @Override
                     protected boolean check() {
                     return activity.hasWindowFocus();
@@ -142,6 +143,7 @@ public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewC
 
     // Verify shouldoverrideurlloading called on webview called via onCreateWindow
     // TODO(sgurun) upstream this test to Aw.
+    @FlakyTest(bugId = 253448914)
     public void testShouldOverrideUrlLoadingOnCreateWindow() throws Exception {
         if (!NullWebViewUtils.isWebViewAvailable()) {
             return;
@@ -178,13 +180,13 @@ public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewC
           final int childCallCount = childWebViewClient.getShouldOverrideUrlLoadingCallCount();
           mOnUiThread.loadUrl(mWebServer.getAssetUrl(TestHtmlConstants.BLANK_TAG_URL));
 
-          new PollingCheck(TEST_TIMEOUT) {
+          new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
               @Override
               protected boolean check() {
                   return childWebViewClient.hasOnPageFinishedCalled();
               }
           }.run();
-          new PollingCheck(TEST_TIMEOUT) {
+          new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
               @Override
               protected boolean check() {
                   return childWebViewClient.getShouldOverrideUrlLoadingCallCount() > childCallCount;
@@ -197,7 +199,7 @@ public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewC
         final int childCallCount = childWebViewClient.getShouldOverrideUrlLoadingCallCount();
         final int mainCallCount = mainWebViewClient.getShouldOverrideUrlLoadingCallCount();
         clickOnLinkUsingJs("link", childWebViewOnUiThread);
-        new PollingCheck(TEST_TIMEOUT) {
+        new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
             @Override
             protected boolean check() {
                 return childWebViewClient.getShouldOverrideUrlLoadingCallCount() > childCallCount;
@@ -230,21 +232,21 @@ public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewC
         assertFalse(webViewClient.hasOnPageFinishedCalled());
         mOnUiThread.loadUrlAndWaitForCompletion(url);
 
-        new PollingCheck(TEST_TIMEOUT) {
+        new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
             @Override
             protected boolean check() {
                 return webViewClient.hasOnPageStartedCalled();
             }
         }.run();
 
-        new PollingCheck(TEST_TIMEOUT) {
+        new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
             @Override
             protected boolean check() {
                 return webViewClient.hasOnLoadResourceCalled();
             }
         }.run();
 
-        new PollingCheck(TEST_TIMEOUT) {
+        new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
             @Override
             protected boolean check() {
                 return webViewClient.hasOnPageFinishedCalled();
@@ -273,7 +275,7 @@ public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewC
             assertFalse(webViewClient.hasOnReceivedLoginRequest());
             mOnUiThread.loadUrlAndWaitForCompletion(url);
             assertTrue(webViewClient.hasOnReceivedLoginRequest());
-            new PollingCheck(TEST_TIMEOUT) {
+            new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
                 @Override
                 protected boolean check() {
                     return webViewClient.hasOnReceivedLoginRequest();
@@ -361,7 +363,7 @@ public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewC
                 url.equals(mOnUiThread.getUrl()));
         // reloading the current URL should trigger the callback
         mOnUiThread.reload();
-        new PollingCheck(TEST_TIMEOUT) {
+        new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
             @Override
             protected boolean check() {
                 return webViewClient.hasOnFormResubmissionCalled();
@@ -382,7 +384,7 @@ public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewC
         String url2 = mWebServer.getAssetUrl(TestHtmlConstants.BR_TAG_URL);
         mOnUiThread.loadUrlAndWaitForCompletion(url1);
         mOnUiThread.loadUrlAndWaitForCompletion(url2);
-        new PollingCheck(TEST_TIMEOUT) {
+        new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
             @Override
             protected boolean check() {
                 return webViewClient.hasDoUpdateVisitedHistoryCalled();
@@ -428,7 +430,7 @@ public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewC
         assertFalse(webViewClient.hasOnUnhandledKeyEventCalled());
         sendKeys(KeyEvent.KEYCODE_1);
 
-        new PollingCheck(TEST_TIMEOUT) {
+        new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
             @Override
             protected boolean check() {
                 return webViewClient.hasOnUnhandledKeyEventCalled();
@@ -448,7 +450,7 @@ public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewC
         String url1 = mWebServer.getAssetUrl(TestHtmlConstants.HELLO_WORLD_URL);
         mOnUiThread.loadUrlAndWaitForCompletion(url1);
 
-        new PollingCheck(TEST_TIMEOUT) {
+        new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
             @Override
             protected boolean check() {
                 return mOnUiThread.canZoomIn();
@@ -456,7 +458,7 @@ public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewC
         }.run();
 
         assertTrue(mOnUiThread.zoomIn());
-        new PollingCheck(TEST_TIMEOUT) {
+        new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
             @Override
             protected boolean check() {
                 return webViewClient.hasOnScaleChangedCalled();
@@ -618,7 +620,7 @@ public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewC
         final MockWebViewClient webViewClient = new MockWebViewClient();
         mOnUiThread.setWebViewClient(webViewClient);
         mOnUiThread.loadUrl("chrome://kill");
-        new PollingCheck(TEST_TIMEOUT * 5) {
+        new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
             @Override
             protected boolean check() {
                 return webViewClient.hasRenderProcessGoneCalled();

@@ -58,12 +58,15 @@ android_test {
     static_libs: [
         "compatibility-device-util-axt",
         "ctstestrunner-axt",
+        "cts-hardware-lib",
         "mockito-target-minus-junit4",
         "android-ex-camera2",
         "CtsCameraUtils",
         "truth-prebuilt",
         "androidx.heifwriter_heifwriter",
         "androidx.test.rules",
+        "MediaPerformanceClassCommon",
+        "cts-wm-util",
     ],
     jni_libs: [
         "libctscamera2_jni",

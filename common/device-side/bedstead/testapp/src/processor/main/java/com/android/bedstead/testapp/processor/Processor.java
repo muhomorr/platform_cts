@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.RoundEnvironment;
@@ -106,13 +107,17 @@ public final class Processor extends AbstractProcessor {
             ClassName.get(
                     "com.android.bedstead.testapp",
                     "TargetedRemoteActivityWrapper");
-    private static final ClassName CROSS_PROFILE_CONNECTOR_CLASSNAME =
-            ClassName.get("com.google.android.enterprise.connectedapps",
-                    "CrossProfileConnector");
+    private static final ClassName TEST_APP_CONNECTOR_CLASSNAME =
+            ClassName.get("com.android.bedstead.testapp",
+                    "TestAppConnector");
     private static final ClassName PROFILE_RUNTIME_EXCEPTION_CLASSNAME =
             ClassName.get(
                     "com.google.android.enterprise.connectedapps.exceptions",
                     "ProfileRuntimeException");
+    private static final ClassName PROFILE_CONNECTION_HOLDER_CLASSNAME =
+            ClassName.get(
+                    "com.google.android.enterprise.connectedapps",
+                    "ProfileConnectionHolder");
     private static final ClassName NENE_EXCEPTION_CLASSNAME =
             ClassName.get(
                     "com.android.bedstead.nene.exceptions",
@@ -134,6 +139,9 @@ public final class Processor extends AbstractProcessor {
     private static final ClassName REMOTE_CONTENT_RESOLVER_WRAPPER_CLASSNAME =
             ClassName.get("android.content",
                     "RemoteContentResolverWrapper");
+    private static final ClassName REMOTE_BLUETOOTH_ADAPTER_WRAPPER_CLASSNAME =
+            ClassName.get("android.bluetooth",
+                    "RemoteBluetoothAdapterWrapper");
 
     /**
      * Extract classes provided in an annotation.
@@ -244,13 +252,13 @@ public final class Processor extends AbstractProcessor {
                         .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                         .build());
         classBuilder.addField(
-                FieldSpec.builder(CROSS_PROFILE_CONNECTOR_CLASSNAME, "mConnector")
+                FieldSpec.builder(TEST_APP_CONNECTOR_CLASSNAME, "mConnector")
                         .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                         .build());
 
         classBuilder.addMethod(MethodSpec.constructorBuilder()
                 .addModifiers(Modifier.PUBLIC)
-                .addParameter(CROSS_PROFILE_CONNECTOR_CLASSNAME, "connector")
+                .addParameter(TEST_APP_CONNECTOR_CLASSNAME, "connector")
                 .addStatement("mConnector = connector")
                 .addStatement(
                         "mProfileClass = $T.create(connector)",
@@ -289,7 +297,7 @@ public final class Processor extends AbstractProcessor {
 
             CodeBlock.Builder logicLambda = CodeBlock.builder()
                     .add("() -> {\n").indent()
-                    .addStatement("mConnector.connect()");
+                    .beginControlFlow("try ($T p = mConnector.connect())", PROFILE_CONNECTION_HOLDER_CLASSNAME);
 
             if (method.getReturnType().toString().equals(
                     "android.app.admin.RemoteDevicePolicyManager")
@@ -305,13 +313,24 @@ public final class Processor extends AbstractProcessor {
             } else if (method.getReturnType().toString().equals(
                     "android.content.RemoteContentResolver")
                     && method.getSimpleName().contentEquals("getContentResolver")) {
-                // Special case, we want to return a contnet resolver, but still call through to
+                // Special case, we want to return a content resolver, but still call through to
                 // the other side for exceptions, etc.
                 logicLambda.addStatement(
                         "mProfileClass.other().$L($L)",
                         method.getSimpleName(), String.join(", ", params));
                 logicLambda.addStatement("return new $T(mConnector)",
                         REMOTE_CONTENT_RESOLVER_WRAPPER_CLASSNAME);
+            } else if (method.getReturnType().toString().equals(
+                    "android.bluetooth.RemoteBluetoothAdapter")
+                    && (method.getSimpleName().contentEquals("getAdapter")
+                    || method.getSimpleName().contentEquals("getDefaultAdapter"))) {
+                // Special case, we want to return a bluetooth adapter, but still call through to
+                // the other side for exceptions, etc.
+                logicLambda.addStatement(
+                        "mProfileClass.other().$L($L)",
+                        method.getSimpleName(), String.join(", ", params));
+                logicLambda.addStatement("return new $T(mConnector)",
+                        REMOTE_BLUETOOTH_ADAPTER_WRAPPER_CLASSNAME);
             } else if (method.getReturnType().getKind().equals(TypeKind.VOID)) {
                 logicLambda.addStatement("mProfileClass.other().$L($L)", method.getSimpleName(),
                         String.join(", ", params));
@@ -319,12 +338,19 @@ public final class Processor extends AbstractProcessor {
                 logicLambda.addStatement("return mProfileClass.other().$L($L)",
                         method.getSimpleName(), String.join(", ", params));
             }
-            logicLambda.unindent().add("}");
+            logicLambda.endControlFlow().unindent().add("}");
+
+            String terminalExceptionCode = Stream.concat(
+                            Stream.of(CodeBlock.of("e instanceof $T",
+                                    PROFILE_RUNTIME_EXCEPTION_CLASSNAME)),
+                            method.getThrownTypes().stream().map(
+                                    t -> CodeBlock.of("e instanceof $T", t)))
+                    .map(CodeBlock::toString).collect(Collectors.joining(" || "));
 
             CodeBlock runLogic = CodeBlock.of(
-                    "$1T.logic($2L).terminalException(e -> e instanceof $3T).run()",
+                    "$1T.logic($2L).terminalException(e -> $3L).run()",
                     RETRY_CLASSNAME,
-                    logicLambda.build().toString(), PROFILE_RUNTIME_EXCEPTION_CLASSNAME);
+                    logicLambda.build().toString(), terminalExceptionCode);
 
             methodBuilder.beginControlFlow("try");
 
@@ -348,8 +374,6 @@ public final class Processor extends AbstractProcessor {
                     .addStatement(
                             "throw new $T($S, e)",
                             NENE_EXCEPTION_CLASSNAME, "Error connecting to test app")
-                    .nextControlFlow("finally")
-                    .addStatement("mConnector.stopManualConnectionManagement()")
                     .endControlFlow();
 
             classBuilder.addMethod(methodBuilder.build());
@@ -377,7 +401,7 @@ public final class Processor extends AbstractProcessor {
                         .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                         .build());
         classBuilder.addField(
-                FieldSpec.builder(CROSS_PROFILE_CONNECTOR_CLASSNAME, "mConnector")
+                FieldSpec.builder(TEST_APP_CONNECTOR_CLASSNAME, "mConnector")
                         .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                         .build());
         classBuilder.addField(
@@ -387,7 +411,7 @@ public final class Processor extends AbstractProcessor {
 
         classBuilder.addMethod(MethodSpec.constructorBuilder()
                 .addModifiers(Modifier.PUBLIC)
-                .addParameter(CROSS_PROFILE_CONNECTOR_CLASSNAME, "connector")
+                .addParameter(TEST_APP_CONNECTOR_CLASSNAME, "connector")
                 .addParameter(COMPONENT_NAME_CLASSNAME, "profileOwnerComponentName")
                 .addStatement("mConnector = connector")
                 .addStatement("mProfileOwnerComponentName = profileOwnerComponentName")
@@ -420,7 +444,7 @@ public final class Processor extends AbstractProcessor {
 
             CodeBlock.Builder logicLambda = CodeBlock.builder()
                     .add("() -> {\n").indent()
-                    .addStatement("mConnector.connect()");
+                    .beginControlFlow("try ($T p = mConnector.connect())", PROFILE_CONNECTION_HOLDER_CLASSNAME);
 
             if (method.getReturnType().getKind().equals(TypeKind.VOID)) {
                 logicLambda.addStatement("mProfileClass.other().$L($L)", method.getSimpleName(),
@@ -429,12 +453,19 @@ public final class Processor extends AbstractProcessor {
                 logicLambda.addStatement("return mProfileClass.other().$L($L)",
                         method.getSimpleName(), String.join(", ", params));
             }
-            logicLambda.unindent().add("}");
+            logicLambda.endControlFlow().unindent().add("}");
+
+            String terminalExceptionCode = Stream.concat(
+                            Stream.of(CodeBlock.of("e instanceof $T",
+                                    PROFILE_RUNTIME_EXCEPTION_CLASSNAME)),
+                            method.getThrownTypes().stream().map(
+                                    t -> CodeBlock.of("e instanceof $T", t)))
+                    .map(CodeBlock::toString).collect(Collectors.joining(" || "));
 
             CodeBlock runLogic = CodeBlock.of(
-                    "$1T.logic($2L).terminalException(e -> e instanceof $3T).run()",
+                    "$1T.logic($2L).terminalException(e -> $3L).run()",
                     RETRY_CLASSNAME,
-                    logicLambda.build().toString(), PROFILE_RUNTIME_EXCEPTION_CLASSNAME);
+                    logicLambda.build().toString(), terminalExceptionCode);
 
             methodBuilder.beginControlFlow("try");
 
@@ -456,8 +487,6 @@ public final class Processor extends AbstractProcessor {
                     .addStatement(
                             "throw new $T($S, e)",
                             NENE_EXCEPTION_CLASSNAME, "Error connecting to test app")
-                    .nextControlFlow("finally")
-                    .addStatement("mConnector.stopManualConnectionManagement()")
                     .endControlFlow();
 
             classBuilder.addMethod(methodBuilder.build());
@@ -528,12 +557,12 @@ public final class Processor extends AbstractProcessor {
                         .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                         .build());
         classBuilder.addField(
-                FieldSpec.builder(CROSS_PROFILE_CONNECTOR_CLASSNAME, "mConnector")
+                FieldSpec.builder(TEST_APP_CONNECTOR_CLASSNAME, "mConnector")
                         .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                         .build());
 
         classBuilder.addMethod(MethodSpec.constructorBuilder()
-                .addParameter(CROSS_PROFILE_CONNECTOR_CLASSNAME, "connector")
+                .addParameter(TEST_APP_CONNECTOR_CLASSNAME, "connector")
                 .addStatement("mConnector = connector")
                 .addStatement(
                         "mProfileTargetedRemoteActivity = $T.create(connector)",
@@ -569,7 +598,7 @@ public final class Processor extends AbstractProcessor {
 
             CodeBlock.Builder logicLambda = CodeBlock.builder()
                     .add("() -> {\n").indent()
-                    .addStatement("mConnector.connect()");
+                    .beginControlFlow("try ($T p = mConnector.connect())", PROFILE_CONNECTION_HOLDER_CLASSNAME);
 
             if (method.getReturnType().getKind().equals(TypeKind.VOID)) {
                 logicLambda.addStatement(
@@ -579,12 +608,19 @@ public final class Processor extends AbstractProcessor {
                 logicLambda.addStatement("return mProfileTargetedRemoteActivity.other().$L($L)",
                         method.getSimpleName(), String.join(", ", params));
             }
-            logicLambda.unindent().add("}");
+            logicLambda.endControlFlow().unindent().add("}");
+
+            String terminalExceptionCode = Stream.concat(
+                            Stream.of(CodeBlock.of("e instanceof $T",
+                                    PROFILE_RUNTIME_EXCEPTION_CLASSNAME)),
+                            method.getThrownTypes().stream().map(
+                                    t -> CodeBlock.of("e instanceof $T", t)))
+                    .map(CodeBlock::toString).collect(Collectors.joining(" || "));
 
             CodeBlock runLogic = CodeBlock.of(
-                    "$1T.logic($2L).terminalException(e -> e instanceof $3T).run()",
+                    "$1T.logic($2L).terminalException(e -> $3L).run()",
                     RETRY_CLASSNAME,
-                    logicLambda.build().toString(), PROFILE_RUNTIME_EXCEPTION_CLASSNAME);
+                    logicLambda.build().toString(), terminalExceptionCode);
 
             methodBuilder.beginControlFlow("try");
 
@@ -608,8 +644,6 @@ public final class Processor extends AbstractProcessor {
                     .addStatement(
                             "throw new $T($S, e)",
                             NENE_EXCEPTION_CLASSNAME, "Error connecting to test app")
-                    .nextControlFlow("finally")
-                    .addStatement("mConnector.stopManualConnectionManagement()")
                     .endControlFlow();
 
             classBuilder.addMethod(methodBuilder.build());
@@ -774,6 +808,7 @@ public final class Processor extends AbstractProcessor {
                         .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                         .addAnnotation(AnnotationSpec.builder(CrossProfileConfiguration.class)
                                 .addMember("providers", "Provider.class")
+                                .addMember("connector", "$T.class", TEST_APP_CONNECTOR_CLASSNAME)
                                 .build());
 
         writeClassToFile(PACKAGE_NAME, classBuilder.build());

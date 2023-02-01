@@ -16,6 +16,9 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+import static com.android.queryable.queries.LongQuery.Long;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import com.android.queryable.Queryable;
@@ -25,7 +28,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
-public class LongQueryHelperTest {
+public final class LongQueryHelperTest {
 
     private final Queryable mQuery = null;
     private static final long LONG_VALUE = 100L;
@@ -157,5 +160,25 @@ public class LongQueryHelperTest {
         longQueryHelper.isLessThanOrEqualTo(LONG_VALUE);
 
         assertThat(longQueryHelper.matches(GREATER_VALUE)).isFalse();
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        LongQueryHelper<Queryable> longQueryHelper = new LongQueryHelper<>(mQuery);
+
+        longQueryHelper.isEqualTo(1);
+        longQueryHelper.isGreaterThan(1);
+        longQueryHelper.isGreaterThanOrEqualTo(1);
+        longQueryHelper.isLessThan(1);
+        longQueryHelper.isLessThanOrEqualTo(1);
+
+        assertParcelsCorrectly(LongQueryHelper.class, longQueryHelper);
+    }
+
+    @Test
+    public void longQueryHelper_queries() {
+        assertThat(Long()
+                .where().isEqualTo(1L)
+                .matches(1L)).isTrue();
     }
 }

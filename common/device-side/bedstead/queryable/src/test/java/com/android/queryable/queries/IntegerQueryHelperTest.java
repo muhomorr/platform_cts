@@ -16,6 +16,9 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+import static com.android.queryable.queries.IntegerQuery.integer;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import com.android.queryable.Queryable;
@@ -25,7 +28,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
-public class IntegerQueryHelperTest {
+public final class IntegerQueryHelperTest {
 
     private final Queryable mQuery = null;
     private static final int INTEGER_VALUE = 100;
@@ -158,5 +161,27 @@ public class IntegerQueryHelperTest {
         integerQueryHelper.isLessThanOrEqualTo(INTEGER_VALUE);
 
         assertThat(integerQueryHelper.matches(GREATER_VALUE)).isFalse();
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        IntegerQueryHelper<Queryable> integerQueryHelper =
+                new IntegerQueryHelper<>(mQuery);
+
+        integerQueryHelper.isEqualTo(1);
+        integerQueryHelper.isGreaterThan(1);
+        integerQueryHelper.isGreaterThanOrEqualTo(1);
+        integerQueryHelper.isLessThan(1);
+        integerQueryHelper.isLessThanOrEqualTo(1);
+
+        assertParcelsCorrectly(IntegerQueryHelper.class, integerQueryHelper);
+    }
+
+    @Test
+    public void integerQueryHelper_queries() {
+        assertThat(
+                integer()
+                        .where().isEqualTo(1)
+                        .matches(1)).isTrue();
     }
 }

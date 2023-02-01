@@ -32,6 +32,7 @@ import com.android.bedstead.harrier.annotations.AfterClass;
 import com.android.bedstead.harrier.annotations.BeforeClass;
 import com.android.bedstead.harrier.annotations.EnsureHasNoSecondaryUser;
 import com.android.bedstead.harrier.annotations.EnsureHasNoWorkProfile;
+import com.android.bedstead.harrier.annotations.RequireRunOnInitialUser;
 import com.android.bedstead.harrier.annotations.RequireRunOnSystemUser;
 import com.android.bedstead.harrier.annotations.RequireSdkVersion;
 import com.android.bedstead.harrier.annotations.enterprise.EnsureHasDeviceOwner;
@@ -45,7 +46,6 @@ import com.android.bedstead.nene.exceptions.NeneException;
 import com.android.bedstead.nene.users.UserReference;
 import com.android.bedstead.nene.users.UserType;
 import com.android.bedstead.testapp.TestApp;
-import com.android.bedstead.testapp.TestAppProvider;
 
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -64,7 +64,10 @@ public class RemoteDpcTest {
     @ClassRule @Rule
     public static DeviceState sDeviceState = new DeviceState();
 
-    private static TestApp sNonRemoteDpcTestApp;
+    private static TestApp sNonRemoteDpcTestApp = sDeviceState.testApps().query()
+    // TODO(180478924): Query by feature not package name
+                .wherePackageName().isEqualTo(DEVICE_ADMIN_TESTAPP_PACKAGE_NAME)
+                .get();
     private static final UserReference sUser = TestApis.users().instrumented();
     private static final UserReference NON_EXISTING_USER_REFERENCE =
             TestApis.users().find(99999);
@@ -73,11 +76,6 @@ public class RemoteDpcTest {
 
     @BeforeClass
     public static void setupClass() {
-        sNonRemoteDpcTestApp = new TestAppProvider().query()
-                // TODO(180478924): Query by feature not package name
-                .wherePackageName().isEqualTo(DEVICE_ADMIN_TESTAPP_PACKAGE_NAME)
-                .get();
-
         sNonRemoteDpcTestApp.install();
         sNonRemoteDpcTestApp.install(TestApis.users().system());
     }
@@ -148,7 +146,7 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     public void profileOwner_userHandle_noProfileOwner_returnsNull() {
         UserReference profile = TestApis.users().createUser()
                 .parent(sUser)
@@ -164,7 +162,7 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     @RequireSdkVersion(min = Q, reason = "Cannot use RemoteDPC cross-user prior to Q")
     public void profileOwner_userHandle_nonRemoteDpcProfileOwner_returnsNull() {
         UserReference profile = TestApis.users().createUser()
@@ -184,7 +182,7 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     @RequireSdkVersion(min = Q, reason = "Cannot use RemoteDPC cross-user prior to Q")
     public void profileOwner_userHandle_remoteDpcProfileOwner_returnsInstance() {
         UserReference profile = TestApis.users().createUser()
@@ -208,7 +206,7 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     public void profileOwner_userReference_noProfileOwner_returnsNull() {
         UserReference profile = TestApis.users().createUser()
                 .parent(sUser)
@@ -223,7 +221,7 @@ public class RemoteDpcTest {
 
     @Test
     @EnsureHasNoDeviceOwner
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     @EnsureHasNoWorkProfile
     public void profileOwner_userReference_nonRemoteDpcProfileOwner_returnsNull() {
         UserReference profile = TestApis.users().createUser()
@@ -243,7 +241,7 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     @RequireSdkVersion(min = Q, reason = "Cannot use RemoteDPC cross-user prior to Q")
     public void profileOwner_userReference_remoteDpcProfileOwner_returnsInstance() {
         UserReference profile = TestApis.users().createUser()
@@ -323,7 +321,7 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     public void any_userHandle_noDeviceOwner_nonRemoteDpcProfileOwner_returnsNull() {
         UserReference profile = TestApis.users().createUser()
                 .parent(sUser)
@@ -368,7 +366,7 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     @RequireSdkVersion(min = Q, reason = "Cannot use RemoteDPC cross-user prior to Q")
     public void any_userHandle_remoteDpcProfileOwner_returnsProfileOwner() {
         UserReference profile = TestApis.users().createUser()
@@ -397,7 +395,7 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     public void any_userReference_noDeviceOwner_nonRemoteDpcProfileOwner_returnsNull() {
         UserReference profile = TestApis.users().createUser()
                 .parent(sUser)
@@ -442,7 +440,7 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     @RequireSdkVersion(min = Q, reason = "Cannot use RemoteDPC cross-user prior to Q")
     public void any_userReference_remoteDpcProfileOwner_returnsProfileOwner() {
         UserReference profile = TestApis.users().createUser()
@@ -517,7 +515,7 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     @RequireSdkVersion(min = Q, reason = "Cannot use RemoteDPC cross-user prior to Q")
     public void setAsProfileOwner_userHandle_alreadySet_doesNothing() {
         UserReference profile = TestApis.users().createUser()
@@ -538,30 +536,29 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
-    @RequireSdkVersion(min = Q, reason = "Cannot use RemoteDPC cross-user prior to Q")
+    @RequireRunOnInitialUser
     public void setAsProfileOwner_userHandle_alreadyHasProfileOwner_replacesProfileOwner() {
-        UserReference profile = TestApis.users().createUser()
-                .parent(sUser)
-                .type(TestApis.users().supportedType(UserType.MANAGED_PROFILE_TYPE_NAME))
-                .createAndStart();
-        sNonRemoteDpcTestApp.install(profile);
+        sNonRemoteDpcTestApp.install();
+        RemoteDpc remoteDPC = null;
         try {
-            TestApis.devicePolicy().setProfileOwner(profile, NON_REMOTE_DPC_COMPONENT);
+            TestApis.devicePolicy()
+                    .setProfileOwner(TestApis.users().instrumented(), NON_REMOTE_DPC_COMPONENT);
 
-            RemoteDpc remoteDPC = RemoteDpc.setAsProfileOwner(profile.userHandle());
+            remoteDPC = RemoteDpc.setAsProfileOwner(TestApis.users().instrumented().userHandle());
 
-            assertThat(TestApis.devicePolicy().getProfileOwner(profile))
+            assertThat(TestApis.devicePolicy().getProfileOwner(TestApis.users().instrumented()))
                     .isEqualTo(remoteDPC.devicePolicyController());
         } finally {
-            profile.remove();
+            if (remoteDPC != null) {
+                remoteDPC.remove();
+            }
         }
     }
 
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     @RequireSdkVersion(min = Q, reason = "Cannot use RemoteDPC cross-user prior to Q")
     public void setAsProfileOwner_userHandle_doesNotHaveProfileOwner_setsProfileOwner() {
         UserReference profile = TestApis.users().createUser()
@@ -580,7 +577,7 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     @RequireSdkVersion(min = Q, reason = "Cannot use RemoteDPC cross-user prior to Q")
     public void setAsProfileOwner_disallowInstallUnknownSourcesIsDisabled() {
         // This is a temp fix for an issue where DISALLOW_INSTALL_UNKNOWN_SOURCES causes
@@ -615,7 +612,7 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     @RequireSdkVersion(min = Q, reason = "Cannot use RemoteDPC cross-user prior to Q")
     public void setAsProfileOwner_userReference_alreadySet_doesNothing() {
         UserReference profile = TestApis.users().createUser()
@@ -636,30 +633,29 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
-    @RequireSdkVersion(min = Q, reason = "Cannot use RemoteDPC cross-user prior to Q")
+    @RequireRunOnInitialUser
     public void setAsProfileOwner_userReference_alreadyHasProfileOwner_replacesProfileOwner() {
-        UserReference profile = TestApis.users().createUser()
-                .parent(sUser)
-                .type(TestApis.users().supportedType(UserType.MANAGED_PROFILE_TYPE_NAME))
-                .createAndStart();
-        sNonRemoteDpcTestApp.install(profile);
+        sNonRemoteDpcTestApp.install();
+        RemoteDpc remoteDPC = null;
         try {
-            TestApis.devicePolicy().setProfileOwner(profile, NON_REMOTE_DPC_COMPONENT);
+            TestApis.devicePolicy()
+                    .setProfileOwner(TestApis.users().instrumented(), NON_REMOTE_DPC_COMPONENT);
 
-            RemoteDpc remoteDPC = RemoteDpc.setAsProfileOwner(profile);
+            remoteDPC = RemoteDpc.setAsProfileOwner(TestApis.users().instrumented());
 
-            assertThat(TestApis.devicePolicy().getProfileOwner(profile))
+            assertThat(TestApis.devicePolicy().getProfileOwner(TestApis.users().instrumented()))
                     .isEqualTo(remoteDPC.devicePolicyController());
         } finally {
-            profile.remove();
+            if (remoteDPC != null) {
+                remoteDPC.remove();
+            }
         }
     }
 
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     @RequireSdkVersion(min = Q, reason = "Cannot use RemoteDPC cross-user prior to Q")
     public void setAsProfileOwner_userReference_doesNotHaveProfileOwner_setsProfileOwner() {
         UserReference profile = TestApis.users().createUser()
@@ -701,7 +697,7 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     @RequireSdkVersion(min = Q, reason = "Cannot use RemoteDPC cross-user prior to Q")
     public void remove_profileOwner_removes() {
         try (UserReference profile = TestApis.users().createUser()
@@ -728,7 +724,7 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoDeviceOwner
     @EnsureHasNoWorkProfile
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     @RequireSdkVersion(min = Q, reason = "Cannot use RemoteDPC cross-user prior to Q")
     public void frameworkCall_onProfile_makesCall() {
         try (UserReference profile = TestApis.users().createUser()
@@ -785,7 +781,7 @@ public class RemoteDpcTest {
     @Test
     @EnsureHasNoWorkProfile
     @EnsureHasNoDeviceOwner
-    @RequireRunOnSystemUser
+    @RequireRunOnInitialUser
     @RequireSdkVersion(min = Q, reason = "Cannot use RemoteDPC cross-user prior to Q")
     public void getParentProfileInstance_returnsUsableInstance() {
         try (UserReference profile = TestApis.users().createUser()

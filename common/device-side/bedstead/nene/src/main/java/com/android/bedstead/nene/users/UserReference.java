@@ -19,13 +19,22 @@ package com.android.bedstead.nene.users;
 import static android.Manifest.permission.CREATE_USERS;
 import static android.Manifest.permission.INTERACT_ACROSS_USERS;
 import static android.Manifest.permission.INTERACT_ACROSS_USERS_FULL;
+import static android.content.Intent.ACTION_MANAGED_PROFILE_AVAILABLE;
+import static android.content.Intent.ACTION_MANAGED_PROFILE_UNAVAILABLE;
+import static android.os.Build.VERSION_CODES.P;
 import static android.os.Build.VERSION_CODES.R;
 import static android.os.Build.VERSION_CODES.S;
 
+import static com.android.bedstead.nene.permissions.CommonPermissions.MANAGE_PROFILE_AND_DEVICE_OWNERS;
+import static com.android.bedstead.nene.permissions.CommonPermissions.MODIFY_QUIET_MODE;
 import static com.android.bedstead.nene.users.Users.users;
 
+import android.annotation.TargetApi;
+import android.app.KeyguardManager;
+import android.app.admin.DevicePolicyManager;
 import android.content.Intent;
 import android.content.pm.UserInfo;
+import android.os.Build;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.Log;
@@ -33,6 +42,7 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 
 import com.android.bedstead.nene.TestApis;
+import com.android.bedstead.nene.annotations.Experimental;
 import com.android.bedstead.nene.exceptions.AdbException;
 import com.android.bedstead.nene.exceptions.NeneException;
 import com.android.bedstead.nene.permissions.PermissionContext;
@@ -47,10 +57,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- * A representation of a User on device which may or may not exist.
- */
-public class UserReference implements AutoCloseable {
+/** A representation of a User on device which may or may not exist. */
+public final class UserReference implements AutoCloseable {
 
     private static final Set<AdbUser.UserState> RUNNING_STATES = new HashSet<>(
             Arrays.asList(AdbUser.UserState.RUNNING_LOCKED,
@@ -59,6 +67,12 @@ public class UserReference implements AutoCloseable {
     );
 
     private static final String LOG_TAG = "UserReference";
+
+    private static final String USER_SETUP_COMPLETE_KEY = "user_setup_complete";
+
+    private static final String TYPE_PASSWORD = "password";
+    private static final String TYPE_PIN = "pin";
+    private static final String TYPE_PATTERN = "pattern";
 
     private final int mId;
 
@@ -70,6 +84,16 @@ public class UserReference implements AutoCloseable {
     private Boolean mIsPrimary;
     private boolean mParentCached = false;
     private UserReference mParent;
+    private @Nullable String mLockCredential;
+    private @Nullable String mLockType;
+
+
+    /**
+     * Returns a {@link UserReference} equivalent to the passed {@code userHandle}.
+     */
+    public static UserReference of(UserHandle userHandle) {
+        return TestApis.users().find(userHandle.getIdentifier());
+    }
 
     UserReference(int id) {
         mId = id;
@@ -79,6 +103,10 @@ public class UserReference implements AutoCloseable {
 
     public final int id() {
         return mId;
+    }
+
+    public boolean isSystem() {
+        return id() == 0;
     }
 
     /**
@@ -255,12 +283,15 @@ public class UserReference implements AutoCloseable {
                             .getSystemService(UserManager.class)
                             .getUserName();
                 }
-                if (mName.equals("")) {
+                if (mName == null || mName.equals("")) {
                     if (!exists()) {
                         mName = null;
                         throw new NeneException("User does not exist " + this);
                     }
                 }
+            }
+            if (mName == null) {
+                mName = "";
             }
         }
 
@@ -369,6 +400,251 @@ public class UserReference implements AutoCloseable {
             return TestApis.users().all().stream().anyMatch(u -> u.equals(this));
         }
         return users().anyMatch(ui -> ui.id == id());
+    }
+
+    /**
+     * Sets the value of {@code user_setup_complete} in secure settings to {@code complete}.
+     */
+    @Experimental
+    public void setSetupComplete(boolean complete) {
+        if (!Versions.meetsMinimumSdkVersionRequirement(S)) {
+            return;
+        }
+        DevicePolicyManager devicePolicyManager =
+                TestApis.context().androidContextAsUser(this)
+                        .getSystemService(DevicePolicyManager.class);
+        TestApis.settings().secure().putInt(
+                /* user= */ this, USER_SETUP_COMPLETE_KEY, complete ? 1 : 0);
+        try (PermissionContext p =
+                     TestApis.permissions().withPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)) {
+            devicePolicyManager.forceUpdateUserSetupComplete(id());
+        }
+    }
+
+    /**
+     * Gets the value of {@code user_setup_complete} from secure settings.
+     */
+    @Experimental
+    public boolean getSetupComplete() {
+        try (PermissionContext p = TestApis.permissions().withPermission(CREATE_USERS)) {
+            return TestApis.settings().secure()
+                    .getInt(/*user= */ this, USER_SETUP_COMPLETE_KEY, /* def= */ 0) == 1;
+        }
+    }
+
+    /**
+     * True if the user has a lock credential (password, pin or pattern set).
+     */
+    public boolean hasLockCredential() {
+        return TestApis.context().androidContextAsUser(this)
+                .getSystemService(KeyguardManager.class).isDeviceSecure();
+    }
+
+    /**
+     * Set a specific type of lock credential for the user.
+     */
+    private void setLockCredential(String lockType, String lockCredential) {
+        String lockTypeSentenceCase = Character.toUpperCase(lockType.charAt(0))
+                + lockType.substring(1);
+        try {
+            ShellCommand.builder("cmd lock_settings")
+                    .addOperand("set-" + lockType)
+                    .addOperand(lockCredential)
+                    .addOption("--user", mId)
+                    .validate(s -> s.startsWith(lockTypeSentenceCase + " set to"))
+                    .execute();
+        } catch (AdbException e) {
+            throw new NeneException("Error setting " + lockType, e);
+        }
+        mLockCredential = lockCredential;
+        mLockType = lockType;
+    }
+
+    /**
+     * Set a password for the user.
+     */
+    public void setPassword(String password) {
+        setLockCredential(TYPE_PASSWORD, password);
+    }
+
+    /**
+     * Set a pin for the user.
+     */
+    public void setPin(String pin) {
+        setLockCredential(TYPE_PIN, pin);
+    }
+
+    /**
+     * Set a pattern for the user.
+     */
+    public void setPattern(String pattern) {
+        setLockCredential(TYPE_PATTERN, pattern);
+    }
+
+    /**
+     * Clear the password for the user, using the lock credential that was last set using
+     * Nene.
+     */
+    public void clearPassword() {
+        clearLockCredential(mLockCredential, TYPE_PASSWORD);
+    }
+
+    /**
+     * Clear password for the user.
+     */
+    public void clearPassword(String password) {
+        clearLockCredential(password, TYPE_PASSWORD);
+    }
+
+    /**
+     * Clear the pin for the user, using the lock credential that was last set using
+     * Nene.
+     */
+    public void clearPin() {
+        clearLockCredential(mLockCredential, TYPE_PIN);
+    }
+
+    /**
+     * Clear pin for the user.
+     */
+    public void clearPin(String pin) {
+        clearLockCredential(pin, TYPE_PIN);
+    }
+
+    /**
+     * Clear the pattern for the user, using the lock credential that was last set using
+     * Nene.
+     */
+    public void clearPattern() {
+        clearLockCredential(mLockCredential, TYPE_PATTERN);
+    }
+
+    /**
+     * Clear pin for the user.
+     */
+    public void clearPattern(String pattern) {
+        clearLockCredential(pattern, TYPE_PATTERN);
+    }
+
+    /**
+     * Clear the lock credential for the user.
+     */
+    private void clearLockCredential(String lockCredential, String lockType) {
+        if (!lockType.equals(mLockType) && mLockType != null) {
+            String lockTypeSentenceCase = Character.toUpperCase(lockType.charAt(0))
+                    + lockType.substring(1);
+            throw new NeneException(
+                    "clear" + lockTypeSentenceCase + "() can only be called when set"
+                            + lockTypeSentenceCase + " was used to set the lock credential");
+        }
+
+        try {
+            ShellCommand.builder("cmd lock_settings")
+                    .addOperand("clear")
+                    .addOption("--old", lockCredential)
+                    .addOption("--user", mId)
+                    .validate(s -> s.startsWith("Lock credential cleared"))
+                    .execute();
+        } catch (AdbException e) {
+            if (e.output().contains("user has no password")) {
+                // No lock credential anyway, fine
+                mLockCredential = null;
+                mLockType = null;
+                return;
+            }
+            throw new NeneException("Error clearing lock credential", e);
+        }
+
+        mLockCredential = null;
+        mLockType = null;
+    }
+
+    /**
+     * returns password if password has been set using nene
+     */
+    public @Nullable String password() {
+        return lockCredential(TYPE_PASSWORD);
+    }
+
+    /**
+     * returns pin if pin has been set using nene
+     */
+    public @Nullable String pin() {
+        return lockCredential(TYPE_PIN);
+    }
+
+    /**
+     * returns pattern if pattern has been set using nene
+     */
+    public @Nullable String pattern() {
+        return lockCredential(TYPE_PATTERN);
+    }
+
+    /**
+     * Returns the lock credential for this user if that lock credential was set using Nene.
+     * Where a lock credential can either be a password, pin or pattern.
+     *
+     * <p>If there is a lock credential but the lock credential was not set using the corresponding
+     * Nene method, this will throw an exception. If there is no lock credential set
+     * (regardless off the calling method) this will return {@code null}
+     */
+    private @Nullable String lockCredential(String lockType) {
+        if (mLockType != null && !lockType.equals(mLockType)) {
+            String lockTypeSentenceCase = Character.toUpperCase(lockType.charAt(0))
+                    + lockType.substring(1);
+            throw new NeneException(lockType + " not set, as set" + lockTypeSentenceCase + "() has "
+                    + "not been called");
+        }
+        return mLockCredential;
+    }
+
+    /**
+     * Sets quiet mode to {@code enabled}. This will only work for managed profiles with no
+     * credentials set.
+     *
+     * @return {@code false} if user's credential is needed in order to turn off quiet mode,
+     *         {@code true} otherwise.
+     */
+    @TargetApi(P)
+    @Experimental
+    public boolean setQuietMode(boolean enabled) {
+        if (!Versions.meetsMinimumSdkVersionRequirement(P)) {
+            return false;
+        }
+
+        if (isQuietModeEnabled() == enabled) {
+            return true;
+        }
+
+        try (PermissionContext p = TestApis.permissions().withPermission(MODIFY_QUIET_MODE)) {
+            BlockingBroadcastReceiver r = BlockingBroadcastReceiver.create(
+                            TestApis.context().instrumentedContext(),
+                            enabled
+                                    ? ACTION_MANAGED_PROFILE_UNAVAILABLE
+                                    : ACTION_MANAGED_PROFILE_AVAILABLE)
+                    .register();
+            try {
+                if (mUserManager.requestQuietModeEnabled(enabled, userHandle())) {
+                    r.awaitForBroadcast();
+                    return true;
+                }
+                return false;
+            } finally {
+                r.unregisterQuietly();
+            }
+        }
+    }
+
+    /**
+     * Returns true if this user is a profile and quiet mode is enabled. Otherwise false.
+     */
+    @Experimental
+    public boolean isQuietModeEnabled() {
+        if (!Versions.meetsMinimumSdkVersionRequirement(Build.VERSION_CODES.N)) {
+            // Quiet mode not supported by < N
+            return false;
+        }
+        return mUserManager.isQuietModeEnabled(userHandle());
     }
 
     @Override

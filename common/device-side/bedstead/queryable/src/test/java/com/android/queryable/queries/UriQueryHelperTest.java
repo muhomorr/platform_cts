@@ -16,6 +16,8 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import android.net.Uri;
@@ -27,7 +29,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
-public class UriQueryHelperTest {
+public final class UriQueryHelperTest {
 
     private static final Queryable QUERY = null;
     private static final String URI_STRING_VALUE = "http://uri";
@@ -76,5 +78,22 @@ public class UriQueryHelperTest {
         uriQueryHelper.stringValue().isEqualTo(DIFFERENT_URI_STRING_VALUE);
 
         assertThat(uriQueryHelper.matches(URI_VALUE)).isFalse();
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        UriQueryHelper<Queryable> uriQueryHelper = new UriQueryHelper<>(QUERY);
+
+        uriQueryHelper.isEqualTo(null);
+        uriQueryHelper.stringValue().isEqualTo(DIFFERENT_URI_STRING_VALUE);
+
+        assertParcelsCorrectly(UriQueryHelper.class, uriQueryHelper);
+    }
+
+    @Test
+    public void uriQueryHelper_queries() {
+        assertThat(UriQuery.uri()
+                .where().stringValue().isEqualTo(URI_STRING_VALUE)
+                .matches(URI_VALUE)).isTrue();
     }
 }

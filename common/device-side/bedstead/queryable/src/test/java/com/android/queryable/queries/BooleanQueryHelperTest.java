@@ -16,6 +16,9 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+import static com.android.queryable.queries.BooleanQuery.Boolean;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import com.android.queryable.Queryable;
@@ -25,7 +28,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
-public class BooleanQueryHelperTest {
+public final class BooleanQueryHelperTest {
 
     private final Queryable mQuery = null;
 
@@ -100,4 +103,17 @@ public class BooleanQueryHelperTest {
         assertThat(booleanQueryHelper.matches(false)).isTrue();
     }
 
+    @Test
+    public void parcel_parcelsCorrectly() {
+        BooleanQueryHelper<Queryable> booleanQueryHelper = new BooleanQueryHelper<>(mQuery);
+
+        booleanQueryHelper.isTrue();
+
+        assertParcelsCorrectly(BooleanQueryHelper.class, booleanQueryHelper);
+    }
+
+    @Test
+    public void booleanQueryBase_queries() {
+        assertThat(Boolean().where().isEqualTo(true).matches(true)).isTrue();
+    }
 }

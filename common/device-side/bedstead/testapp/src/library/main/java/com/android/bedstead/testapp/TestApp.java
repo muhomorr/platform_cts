@@ -30,6 +30,7 @@ import com.android.bedstead.nene.packages.Package;
 import com.android.bedstead.nene.users.UserReference;
 import com.android.bedstead.nene.users.Users;
 import com.android.bedstead.testapp.processor.annotations.TestAppSender;
+import com.android.queryable.collections.QueryableActivityInfoHashSet;
 import com.android.queryable.info.ActivityInfo;
 
 import java.io.File;
@@ -44,7 +45,7 @@ import java.util.Set;
 public final class TestApp {
     // Must be instrumentation context to access resources
     private static final Context sContext = TestApis.context().instrumentationContext();
-    private final TestAppDetails mDetails;
+    final TestAppDetails mDetails;
 
     TestApp(TestAppDetails details) {
         if (details == null) {
@@ -143,9 +144,18 @@ public final class TestApp {
         return new TestAppInstance(this, user);
     }
 
-    private byte[] apkBytes() {
-        try (InputStream inputStream =
-                     sContext.getResources().openRawResource(mDetails.mResourceIdentifier)) {
+    /**
+     * Returns an {@link InputStream} of the apk for this app.
+     */
+    public InputStream apkStream() {
+        return sContext.getResources().openRawResource(mDetails.mResourceIdentifier);
+    }
+
+    /**
+     * Returns a byte array of the apk for this app.
+     */
+    public byte[] apkBytes() {
+        try (InputStream inputStream = apkStream()) {
             return readInputStreamFully(inputStream);
         } catch (IOException e) {
             throw new NeneException("Error when reading TestApp bytes", e);
@@ -158,6 +168,11 @@ public final class TestApp {
         try (FileOutputStream output = new FileOutputStream(outputFile)) {
             output.write(apkBytes());
         }
+    }
+
+    /** The package label, or the package name if no label is specified. */
+    public String label() {
+        return mDetails.label() != null ? mDetails.label() : packageName();
     }
 
     /** The package name of the test app. */
@@ -191,8 +206,8 @@ public final class TestApp {
     }
 
     /** The activities which exist in the test app. */
-    public Set<ActivityInfo> activities() {
-        return mDetails.mActivities;
+    public QueryableActivityInfoHashSet activities() {
+        return new QueryableActivityInfoHashSet(mDetails.mActivities);
     }
 
     /**

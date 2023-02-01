@@ -24,6 +24,7 @@ import static com.android.queryable.queries.ServiceQuery.service;
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
@@ -39,19 +40,17 @@ import com.android.bedstead.harrier.DeviceState;
 import com.android.bedstead.harrier.annotations.Postsubmit;
 import com.android.bedstead.harrier.annotations.enterprise.CanSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.CannotSetPolicyTest;
-import com.android.bedstead.harrier.annotations.enterprise.PositivePolicyTest;
+import com.android.bedstead.harrier.annotations.enterprise.PolicyAppliesTest;
 import com.android.bedstead.harrier.policies.AccountManagement;
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.utils.Poll;
 import com.android.bedstead.remotedpc.RemotePolicyManager;
 import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppInstance;
-import com.android.bedstead.testapp.TestAppProvider;
 
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(BedsteadJUnit4.class)
@@ -61,13 +60,13 @@ public final class AccountManagementTest {
     public static final DeviceState sDeviceState = new DeviceState();
 
     private static final Context sContext = TestApis.context().instrumentedContext();
-    private static final TestAppProvider sTestAppProvider = new TestAppProvider();
-    private static final TestApp sAccountManagementApp = sTestAppProvider
+
+    private static final TestApp sAccountManagementApp = sDeviceState.testApps()
             .query()
             // TODO(b/198590265) Filter for the correct account type.
             .whereServices().contains(
-                    service().intentFilters().contains(
-                            intentFilter().actions().contains(
+                    service().where().intentFilters().contains(
+                            intentFilter().where().actions().contains(
                                     "android.accounts.AccountAuthenticator"))
                     )
             .get();
@@ -89,25 +88,24 @@ public final class AccountManagementTest {
         mAccountManager = sContext.getSystemService(AccountManager.class);
     }
 
-    @Test
-    @Postsubmit(reason = "new test")
-    @PositivePolicyTest(policy = AccountManagement.class)
+    @PolicyAppliesTest(policy = AccountManagement.class)
     public void getAccountTypesWithManagementDisabled_emptyByDefault() {
         assertThat(mDpm.getAccountTypesWithManagementDisabled()).isEmpty();
     }
 
-    @Test
     @Postsubmit(reason = "new test")
     // We don't include non device admin states as passing a null admin is a NullPointerException
     @CannotSetPolicyTest(policy = AccountManagement.class, includeNonDeviceAdminStates = false)
     public void setAccountTypesWithManagementDisabled_invalidAdmin_throwsException() {
-        assertThrows(OperationCanceledException.class, () ->
+        Exception exception = assertThrows(Exception.class, () ->
                 mDpm.setAccountManagementDisabled(
                         mAdmin, FAKE_ACCOUNT_TYPE, /* disabled= */ false));
+
+        assertTrue("Expected OperationCanceledException or SecurityException to be thrown",
+                (exception instanceof OperationCanceledException)
+                        || (exception instanceof SecurityException));
     }
 
-    @Test
-    @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = AccountManagement.class, singleTestOnly = true)
     public void setAccountTypesWithManagementDisabled_nullAdmin_throwsException() {
         assertThrows(NullPointerException.class, () ->
@@ -115,9 +113,7 @@ public final class AccountManagementTest {
                         /* admin= */ null, FAKE_ACCOUNT_TYPE, /* disabled= */ false));
     }
 
-    @Test
-    @Postsubmit(reason = "new test")
-    @PositivePolicyTest(policy = AccountManagement.class)
+    @PolicyAppliesTest(policy = AccountManagement.class)
     public void setAccountManagementDisabled_disableAccountType_works() {
         try {
             mDpm.setAccountManagementDisabled(mAdmin, FAKE_ACCOUNT_TYPE, /* disabled= */ true);
@@ -130,9 +126,7 @@ public final class AccountManagementTest {
         }
     }
 
-    @Test
-    @Postsubmit(reason = "new test")
-    @PositivePolicyTest(policy = AccountManagement.class)
+    @PolicyAppliesTest(policy = AccountManagement.class)
     public void setAccountManagementDisabled_addSameAccountTypeTwice_presentOnlyOnce() {
         try {
             mDpm.setAccountManagementDisabled(mAdmin, FAKE_ACCOUNT_TYPE, /* disabled= */ true);
@@ -146,8 +140,6 @@ public final class AccountManagementTest {
         }
     }
 
-    @Test
-    @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = AccountManagement.class)
     public void setAccountManagementDisabled_disableThenEnable_noDisabledAccountTypes() {
         mDpm.setAccountManagementDisabled(mAdmin, FAKE_ACCOUNT_TYPE, /* disabled= */ true);
@@ -156,7 +148,6 @@ public final class AccountManagementTest {
         assertThat(mDpm.getAccountTypesWithManagementDisabled()).isEmpty();
     }
 
-    @Test
     @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = AccountManagement.class)
     public void addAccount_fromDpcWithAccountManagementDisabled_accountAdded()
@@ -174,7 +165,6 @@ public final class AccountManagementTest {
         }
     }
 
-    @Test
     @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = AccountManagement.class)
     public void addAccount_fromDpcWithDisallowModifyAccountsRestriction_accountAdded()
@@ -192,7 +182,6 @@ public final class AccountManagementTest {
         }
     }
 
-    @Test
     @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = AccountManagement.class)
     public void removeAccount_fromDpcWithDisallowModifyAccountsRestriction_accountRemoved()
@@ -210,8 +199,6 @@ public final class AccountManagementTest {
         }
     }
 
-    @Test
-    @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = AccountManagement.class)
     public void addAccount_withDisallowModifyAccountsRestriction_throwsException() {
         try (TestAppInstance accountAuthenticatorApp = sAccountManagementApp.install()) {
@@ -224,7 +211,6 @@ public final class AccountManagementTest {
         }
     }
 
-    @Test
     @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = AccountManagement.class)
     public void removeAccount_withDisallowModifyAccountsRestriction_throwsException()
@@ -241,8 +227,6 @@ public final class AccountManagementTest {
         }
     }
 
-    @Test
-    @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = AccountManagement.class)
     public void addAccount_withAccountManagementDisabled_throwsException() {
         try (TestAppInstance accountAuthenticatorApp = sAccountManagementApp.install()) {
@@ -255,7 +239,6 @@ public final class AccountManagementTest {
         }
     }
 
-    @Test
     @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = AccountManagement.class)
     public void removeAccount_withAccountManagementDisabled_throwsException()

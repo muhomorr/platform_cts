@@ -70,10 +70,10 @@ public class ImsUtils {
     public static boolean shouldTestImsSingleRegistration() {
         final PackageManager pm = InstrumentationRegistry.getInstrumentation().getContext()
                 .getPackageManager();
-        boolean hasIms = pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_IMS);
+        boolean hasTelephony = pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY);
         boolean hasSingleReg = pm.hasSystemFeature(
                 PackageManager.FEATURE_TELEPHONY_IMS_SINGLE_REGISTRATION);
-        return hasIms && hasSingleReg;
+        return hasTelephony && hasSingleReg;
     }
 
     public static int getPreferredActiveSubId() {

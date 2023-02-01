@@ -124,12 +124,19 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     }
 
     @Test
+    public void testOverrideApn() throws Exception {
+        assumeHasTelephonyFeature();
+
+        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".OverrideApnTest",
+                "testAddGetRemoveOverrideApn", mProfileUserId);
+        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".OverrideApnTest",
+                "testUpdateOverrideApn", mProfileUserId);
+    }
+
+    @Test
     public void testCannotCallMethodsOnParentProfile() throws Exception {
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".ParentProfileTest",
                 "testCannotWipeParentProfile", mProfileUserId);
-
-        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".ParentProfileTest",
-                "testCannotCallAutoTimeMethodsOnParentProfile", mProfileUserId);
 
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".ParentProfileTest",
                 "testCannotCallSetDefaultSmsApplicationOnParentProfile", mProfileUserId);
@@ -162,21 +169,6 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
                 "Expected SecurityException when starting the activity "
                         + addRestrictionCommandOutput,
                 addRestrictionCommandOutput.contains("SecurityException"));
-    }
-
-    // Test the bluetooth API from a managed profile.
-    @Test
-    public void testBluetooth() throws Exception {
-        assumeHasBluetoothFeature();
-
-        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".BluetoothTest",
-                "testEnableDisable", mProfileUserId);
-        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".BluetoothTest",
-                "testGetAddress", mProfileUserId);
-        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".BluetoothTest",
-                "testListenUsingRfcommWithServiceRecord", mProfileUserId);
-        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".BluetoothTest",
-                "testGetRemoteDevice", mProfileUserId);
     }
 
     @Test
@@ -532,6 +524,10 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
                     "addCrossProfileIntents", mProfileUserId);
             runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".CrossProfileSharingTest",
                     "startSwitchToOtherProfileIntent", mProfileUserId);
+
+            // TODO(b/223178698): Investigate potential increase in latency
+            Thread.sleep(30000);
+
             assertResolverActivityInForeground(mProfileUserId);
         } finally {
             pressHome();
@@ -572,6 +568,9 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
                     "addCrossProfileIntents", mProfileUserId);
             runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".CrossProfileSharingTest",
                     "startSwitchToOtherProfileIntent_chooser", mProfileUserId);
+
+            Thread.sleep(30000);
+
             assertChooserActivityInForeground(mProfileUserId);
         } finally {
             pressHome();
@@ -585,13 +584,23 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     }
 
     private void assertChooserActivityInForeground(int userId)
-            throws DeviceNotAvailableException {
-        assertActivityInForeground("android/com.android.internal.app.ChooserActivity", userId);
+            throws Exception {
+        try {
+            assertActivityInForeground("android/com.android.internal.app.ChooserActivity", userId);
+        } catch (AssertionError e) {
+            CLog.v("ChooserActivity is not the default: " + e);
+            assertActivityInForeground(resolveActivity("android.intent.action.CHOOSER"), userId);
+        }
     }
 
     private void assertResolverActivityInForeground(int userId)
-            throws DeviceNotAvailableException {
-        assertActivityInForeground("android/com.android.internal.app.ResolverActivity", userId);
+            throws Exception {
+        try {
+            assertActivityInForeground("android/com.android.internal.app.ResolverActivity", userId);
+        } catch (AssertionError e) {
+            CLog.v("ResolverActivity is not the default: " + e);
+            assertActivityInForeground(resolveActivity("android.intent.action.SEND"), userId);
+        }
     }
 
     private void assertActivityInForeground(String fullActivityName, int userId)
@@ -621,5 +630,18 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     private String changeUserRestriction(String key, boolean value, int userId)
             throws DeviceNotAvailableException {
         return changeUserRestriction(key, value, userId, MANAGED_PROFILE_PKG);
+    }
+
+    private String resolveActivity(String action) throws Exception  {
+        // Template output of 'pm resolve-activity -a {action} --brief' :
+        // priority=0 preferredOrder=0 match=0x0 specificIndex=-1 isDefault=false
+        // com.bar/.foo or com.bar/com.bar.foo
+        final String[] outputs = getDevice().executeShellCommand(
+                    "pm resolve-activity -a " + action + " --brief").split("\n");
+
+        assertTrue("Result of shell command: 'pm resolve-activity -a " + action
+                   + " --brief' is " + outputs[0], outputs.length >= 2);
+
+        return outputs[1];
     }
 }

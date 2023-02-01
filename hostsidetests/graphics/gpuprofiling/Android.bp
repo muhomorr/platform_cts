@@ -20,14 +20,23 @@ java_test_host {
     name: "CtsGpuProfilingDataTestCases",
     srcs: ["src/**/*.java"],
     // tag this module as a cts test artifact
-    test_suites: ["cts", "general-tests"],
+    test_suites: [
+        "cts",
+        "general-tests",
+    ],
     libs: [
         "cts-tradefed",
         "tradefed",
         "compatibility-host-util",
     ],
     static_libs: [
+        "host-libprotobuf-java-full",
         "perfetto_config-full",
         "platform-test-annotations-host",
     ],
+    data: [
+        ":CtsGraphicsProfilingDataApp",
+    ],
+    data_device_bins_both: ["ctsgraphicsgpucountersinit"],
+    per_testcase_directory: true,
 }

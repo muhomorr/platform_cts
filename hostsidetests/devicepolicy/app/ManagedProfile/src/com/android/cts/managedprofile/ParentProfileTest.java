@@ -102,6 +102,8 @@ public class ParentProfileTest extends BaseManagedProfileTest {
             .add("setDefaultSmsApplication")
             .add("getPermittedInputMethods")
             .add("setPermittedInputMethods")
+            .add("getDevicePolicyManagementRoleHolderPackage")
+            .add("getResources")
             .build();
 
     private static final String LOG_TAG = "ParentProfileTest";
@@ -170,15 +172,6 @@ public class ParentProfileTest extends BaseManagedProfileTest {
     public void testCannotWipeParentProfile() {
         assertThrows(SecurityException.class,
                 () -> mParentDevicePolicyManager.wipeData(0));
-    }
-
-    public void testCannotCallAutoTimeMethodsOnParentProfile() {
-        assertThrows(SecurityException.class,
-                () -> mParentDevicePolicyManager.setAutoTimeEnabled(ADMIN_RECEIVER_COMPONENT,
-                        true));
-
-        assertThrows(SecurityException.class,
-                () -> mParentDevicePolicyManager.getAutoTimeEnabled(ADMIN_RECEIVER_COMPONENT));
     }
 
     public void testCannotCallSetDefaultSmsApplicationOnParentProfile() {

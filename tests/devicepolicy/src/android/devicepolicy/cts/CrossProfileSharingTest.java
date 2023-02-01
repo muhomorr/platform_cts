@@ -23,8 +23,7 @@ import static android.app.admin.DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAG
 import static android.content.pm.PackageManager.MATCH_DEFAULT_ONLY;
 import static android.os.UserManager.DISALLOW_SHARE_INTO_MANAGED_PROFILE;
 
-import static com.android.bedstead.harrier.DeviceState.UserType.PRIMARY_USER;
-import static com.android.bedstead.harrier.DeviceState.UserType.WORK_PROFILE;
+import static com.android.bedstead.harrier.UserType.WORK_PROFILE;
 import static com.android.bedstead.remotedpc.RemoteDpc.DPC_COMPONENT_NAME;
 import static com.android.queryable.queries.ActivityQuery.activity;
 import static com.android.queryable.queries.IntentFilterQuery.intentFilter;
@@ -47,7 +46,6 @@ import com.android.bedstead.nene.users.UserReference;
 import com.android.bedstead.remotedpc.RemoteDpc;
 import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppInstance;
-import com.android.bedstead.testapp.TestAppProvider;
 import com.android.compatibility.common.util.BlockingBroadcastReceiver;
 
 import org.junit.ClassRule;
@@ -56,6 +54,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RunWith(BedsteadJUnit4.class)
 public final class CrossProfileSharingTest {
@@ -63,15 +62,13 @@ public final class CrossProfileSharingTest {
     @Rule
     public static final DeviceState sDeviceState = new DeviceState();
 
-    private static final Context sContext = TestApis.context().instrumentedContext();
-    private static final TestAppProvider sTestAppProvider = new TestAppProvider();
-
-    private static final TestApp sTestApp = sTestAppProvider.query().whereActivities().contains(
-            activity().intentFilters().contains(
-                    intentFilter().actions().contains("com.android.testapp.SOME_ACTION"),
-                    intentFilter().actions().contains("android.intent.action.PICK")
-            )
-    ).get();
+    private static final TestApp sTestApp = sDeviceState.testApps().query()
+            .whereActivities().contains(
+                    activity().where().intentFilters().contains(
+                            intentFilter().where().actions().contains("com.android.testapp.SOME_ACTION"),
+                            intentFilter().where().actions().contains("android.intent.action.PICK"),
+                            intentFilter().where().actions().contains("android.intent.action.SEND_MULTIPLE")
+                    )).get();
 
     // Known action that is handled in the opposite profile, used to query forwarder activity.
     private static final String CROSS_PROFILE_ACTION = "com.android.testapp.SOME_ACTION";
@@ -143,7 +140,7 @@ public final class CrossProfileSharingTest {
 
     @Test
     @Postsubmit(reason = "new test")
-    @EnsureHasWorkProfile(forUser = PRIMARY_USER)
+    @EnsureHasWorkProfile
     public void sharingFromPersonalToWork_disallowShareIntoProfile_restrictionApplied() {
         ResolveInfo personalToWorkForwarder = getPersonalToWorkForwarder();
 
@@ -162,17 +159,19 @@ public final class CrossProfileSharingTest {
 
     @Test
     @Postsubmit(reason = "new test")
-    @EnsureHasWorkProfile(forUser = PRIMARY_USER)
+    @EnsureHasWorkProfile
     public void sharingFromPersonalToWork_disallowShareIntoProfile_restrictionRemoved() {
-        ResolveInfo personalToWorkForwarder = getPersonalToWorkForwarder();
+        try (TestAppInstance testApp = sTestApp.install(sDeviceState.workProfile())) {
+            ResolveInfo personalToWorkForwarder = getPersonalToWorkForwarder();
 
-        // Enforce the restriction and wait for it to be applied, then remove it and wait again.
-        setSharingIntoProfileEnabled(false);
-        setSharingIntoProfileEnabled(true);
+            // Enforce the restriction and wait for it to be applied, then remove it and wait again.
+            setSharingIntoProfileEnabled(false);
+            setSharingIntoProfileEnabled(true);
 
-        // Verify that sharing intent gets resolved into profile forwarder successfully.
-        assertCrossProfileIntentsResolvability(
-                SHARING_INTENTS, personalToWorkForwarder, /* expectForwardable */ true);
+            // Verify that sharing intent gets resolved into profile forwarder successfully.
+            assertCrossProfileIntentsResolvability(
+                    SHARING_INTENTS, personalToWorkForwarder, /* expectForwardable */ true);
+        }
     }
 
     private ResolveInfo getPersonalToWorkForwarder() {
@@ -208,13 +207,14 @@ public final class CrossProfileSharingTest {
 
     private ResolveInfo getCrossProfileIntentForwarder(Intent intent) {
         List<ResolveInfo> result = TestApis.context().instrumentedContext().getPackageManager()
-                .queryIntentActivities(intent, MATCH_DEFAULT_ONLY);
+                .queryIntentActivities(intent, MATCH_DEFAULT_ONLY)
+                .stream().filter(ResolveInfo::isCrossProfileIntentForwarderActivity)
+                .collect(Collectors.toList());
+
         assertWithMessage("Failed to get intent forwarder component")
                 .that(result.size()).isEqualTo(1);
-        ResolveInfo forwarder = result.get(0);
-        assertWithMessage("Forwarder doesn't consider itself as such")
-                .that(forwarder.isCrossProfileIntentForwarderActivity()).isTrue();
-        return forwarder;
+
+        return result.get(0);
     }
 
     private void setSharingIntoProfileEnabled(boolean enabled) {

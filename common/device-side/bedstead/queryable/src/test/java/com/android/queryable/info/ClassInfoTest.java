@@ -16,6 +16,8 @@
 
 package com.android.queryable.info;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import org.junit.Test;
@@ -23,7 +25,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
-public class ClassInfoTest {
+public final class ClassInfoTest {
 
     private static final Class<?> TEST_CLASS = ClassInfoTest.class;
     private static final String TEST_CLASS_NAME = ClassInfoTest.class.getName();
@@ -56,5 +58,12 @@ public class ClassInfoTest {
         ClassInfo classInfo = new ClassInfo(TEST_CLASS_NAME);
 
         assertThat(classInfo.simpleName()).isEqualTo(TEST_CLASS_SIMPLE_NAME);
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        ClassInfo classInfo = new ClassInfo(TEST_CLASS_NAME);
+
+        assertParcelsCorrectly(ClassInfo.class, classInfo);
     }
 }

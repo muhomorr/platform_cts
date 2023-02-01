@@ -39,18 +39,15 @@ import androidx.core.content.FileProvider
 import androidx.test.InstrumentationRegistry
 import androidx.test.rule.ActivityTestRule
 import com.android.compatibility.common.util.FutureResultActivity
-import org.junit.After
-import org.junit.Assert
-import org.junit.Assume.assumeFalse
-import org.junit.Assume.assumeTrue
-import org.junit.Before
-import org.junit.Rule
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import org.junit.After
+import org.junit.Assert
+import org.junit.Before
+import org.junit.Rule
 
-const val TEST_APK_NAME = "CtsEmptyTestApp.apk"
 const val TEST_APK_PACKAGE_NAME = "android.packageinstaller.emptytestapp.cts"
 const val TEST_APK_EXTERNAL_LOCATION = "/data/local/tmp/cts/packageinstaller"
 const val INSTALL_ACTION_CB = "PackageInstallerTestBase.install_cb"
@@ -66,6 +63,10 @@ const val APP_OP_STR = "REQUEST_INSTALL_PACKAGES"
 const val INSTALL_INSTANT_APP = 0x00000800
 
 open class PackageInstallerTestBase {
+    companion object {
+        const val TEST_APK_NAME = "CtsEmptyTestApp.apk"
+    }
+
     @get:Rule
     val installDialogStarter = ActivityTestRule(FutureResultActivity::class.java)
 
@@ -138,6 +139,19 @@ open class PackageInstallerTestBase {
     }
 
     protected fun startInstallationViaSession(installFlags: Int): CompletableFuture<Int> {
+        return startInstallationViaSession(installFlags, TEST_APK_NAME)
+    }
+
+    protected fun startInstallationViaSessionWithPackageSource(packageSource: Int?):
+            CompletableFuture<Int> {
+        return startInstallationViaSession(0 /* installFlags */, TEST_APK_NAME, packageSource)
+    }
+
+    private fun createSession(
+        installFlags: Int,
+        isMultiPackage: Boolean,
+        packageSource: Int?
+    ): Pair<Int, PackageInstaller.Session> {
         val pi = pm.packageInstaller
 
         // Create session
@@ -146,20 +160,34 @@ open class PackageInstallerTestBase {
         if (installFlags and INSTALL_INSTANT_APP != 0) {
             sessionParam.setInstallAsInstantApp(true)
         }
+        if (isMultiPackage) {
+            sessionParam.setMultiPackage()
+        }
+        if (packageSource != null) {
+            sessionParam.setPackageSource(packageSource)
+        }
 
         val sessionId = pi.createSession(sessionParam)
         val session = pi.openSession(sessionId)!!
 
+        return Pair(sessionId, session)
+    }
+
+    private fun writeSession(session: PackageInstaller.Session, apkName: String) {
+        val apkFile = File(context.filesDir, apkName)
         // Write data to session
         apkFile.inputStream().use { fileOnDisk ->
-            session.openWrite(TEST_APK_NAME, 0, -1).use { sessionFile ->
+            session.openWrite(apkName, 0, -1).use { sessionFile ->
                 fileOnDisk.copyTo(sessionFile)
             }
         }
+    }
 
+    private fun commitSession(session: PackageInstaller.Session): CompletableFuture<Int> {
         // Commit session
         val dialog = FutureResultActivity.doAndAwaitStart {
-            val pendingIntent = PendingIntent.getBroadcast(context, 0, Intent(INSTALL_ACTION_CB),
+            val pendingIntent = PendingIntent.getBroadcast(
+                    context, 0, Intent(INSTALL_ACTION_CB),
                     FLAG_UPDATE_CURRENT or FLAG_MUTABLE)
             session.commit(pendingIntent.intentSender)
         }
@@ -168,6 +196,36 @@ open class PackageInstallerTestBase {
         Assert.assertEquals(STATUS_PENDING_USER_ACTION, getInstallSessionResult())
 
         return dialog
+    }
+
+    protected fun startInstallationViaSession(
+        installFlags: Int,
+        apkName: String
+    ): CompletableFuture<Int> {
+        return startInstallationViaSession(installFlags, apkName, null)
+    }
+
+    protected fun startInstallationViaSession(
+        installFlags: Int,
+        apkName: String,
+        packageSource: Int?
+    ): CompletableFuture<Int> {
+        val (sessionId, session) = createSession(installFlags, false, packageSource)
+        writeSession(session, apkName)
+        return commitSession(session)
+    }
+
+    protected fun startInstallationViaMultiPackageSession(
+        installFlags: Int,
+        vararg apkNames: String
+    ): CompletableFuture<Int> {
+        val (sessionId, session) = createSession(installFlags, true, null)
+        for (apkName in apkNames) {
+            val (childSessionId, childSession) = createSession(installFlags, false, null)
+            writeSession(childSession, apkName)
+            session.addChildSessionId(childSessionId)
+        }
+        return commitSession(session)
     }
 
     /**
@@ -228,17 +286,5 @@ open class PackageInstallerTestBase {
     @After
     fun uninstallTestPackage() {
         uiDevice.executeShellCommand("pm uninstall $TEST_APK_PACKAGE_NAME")
-    }
-
-    fun assumeWatch() {
-        assumeTrue("Test only valid for watch", hasFeatureWatch())
-    }
-
-    fun assumeNotWatch() {
-        assumeFalse("Installing APKs not supported on watch", hasFeatureWatch())
-    }
-
-    private fun hasFeatureWatch(): Boolean {
-        return pm.hasSystemFeature(PackageManager.FEATURE_WATCH)
     }
 }

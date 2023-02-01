@@ -19,6 +19,9 @@ package com.android.bedstead.nene.users;
 import static android.Manifest.permission.CREATE_USERS;
 import static android.Manifest.permission.INTERACT_ACROSS_USERS;
 import static android.Manifest.permission.INTERACT_ACROSS_USERS_FULL;
+import static android.app.ActivityManager.STOP_USER_ON_SWITCH_DEFAULT;
+import static android.app.ActivityManager.STOP_USER_ON_SWITCH_FALSE;
+import static android.app.ActivityManager.STOP_USER_ON_SWITCH_TRUE;
 import static android.os.Build.VERSION.SDK_INT;
 import static android.os.Build.VERSION_CODES.S;
 import static android.os.Build.VERSION_CODES.S_V2;
@@ -34,16 +37,19 @@ import android.content.pm.UserInfo;
 import android.os.Build;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.util.Log;
 
 import androidx.annotation.CheckResult;
 import androidx.annotation.Nullable;
 
 import com.android.bedstead.nene.TestApis;
+import com.android.bedstead.nene.annotations.Experimental;
 import com.android.bedstead.nene.exceptions.AdbException;
 import com.android.bedstead.nene.exceptions.AdbParseException;
 import com.android.bedstead.nene.exceptions.NeneException;
 import com.android.bedstead.nene.permissions.PermissionContext;
 import com.android.bedstead.nene.permissions.Permissions;
+import com.android.bedstead.nene.types.OptionalBoolean;
 import com.android.bedstead.nene.utils.Poll;
 import com.android.bedstead.nene.utils.ShellCommand;
 import com.android.bedstead.nene.utils.Versions;
@@ -58,11 +64,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class Users {
+
+    private static final String LOG_TAG = "Users";
 
     static final int SYSTEM_USER_ID = 0;
     private static final Duration WAIT_FOR_USER_TIMEOUT = Duration.ofMinutes(4);
@@ -73,6 +82,7 @@ public final class Users {
     private final AdbUserParser mParser;
     private static final UserManager sUserManager =
             TestApis.context().instrumentedContext().getSystemService(UserManager.class);
+    private Map<Integer, UserReference> mUsers = new ConcurrentHashMap<>();
 
     public static final Users sInstance = new Users();
 
@@ -89,7 +99,7 @@ public final class Users {
         }
 
         return users().map(
-                ui -> new UserReference(ui.id)
+                ui -> find(ui.id)
         ).collect(Collectors.toSet());
     }
 
@@ -104,8 +114,16 @@ public final class Users {
         }
         if (TestApis.packages().features().contains("android.hardware.type.automotive")) {
             try {
-                return ShellCommand.builder("cmd car_service get-initial-user")
+                UserReference user =
+                        ShellCommand.builder("cmd car_service get-initial-user")
                         .executeAndParseOutput(i -> find(Integer.parseInt(i.trim())));
+
+                if (user.exists()) {
+                    return user;
+                } else {
+                    Log.d(LOG_TAG, "Initial user " + user + " does not exist."
+                            + "Finding first non-system full user");
+                }
             } catch (AdbException e) {
                 throw new NeneException("Error finding initial user on Auto", e);
             }
@@ -115,9 +133,14 @@ public final class Users {
         users.sort(Comparator.comparingInt(UserReference::id));
 
         for (UserReference user : users) {
-            if (user.parent() == null) {
-                return user;
+            if (user.parent() != null) {
+                continue;
             }
+            if (user.id() == 0) {
+                continue;
+            }
+
+            return user;
         }
 
         throw new NeneException("No initial user available");
@@ -152,12 +175,15 @@ public final class Users {
 
     /** Get a {@link UserReference} by {@code id}. */
     public UserReference find(int id) {
-        return new UserReference(id);
+        if (!mUsers.containsKey(id)) {
+            mUsers.put(id, new UserReference(id));
+        }
+        return mUsers.get(id);
     }
 
     /** Get a {@link UserReference} by {@code userHandle}. */
     public UserReference find(UserHandle userHandle) {
-        return new UserReference(userHandle.getIdentifier());
+        return find(userHandle.getIdentifier());
     }
 
     /** Get all supported {@link UserType}s. */
@@ -187,7 +213,13 @@ public final class Users {
         }
 
         return all().stream()
-                .filter(u -> u.type().equals(userType))
+                .filter(u -> {
+                    try {
+                        return u.type().equals(userType);
+                    } catch (NeneException e) {
+                        return false;
+                    }
+                })
                 .collect(Collectors.toSet());
     }
 
@@ -328,7 +360,7 @@ public final class Users {
             id++;
         }
 
-        return new UserReference(id);
+        return find(id);
     }
 
     private void fillCache() {
@@ -444,14 +476,20 @@ public final class Users {
      *
      * <p>This affects if background users will be swapped when switched away from on some devices.
      */
-    public void setStopBgUsersOnSwitch(int value) {
+    public void setStopBgUsersOnSwitch(OptionalBoolean value) {
+        int intValue =
+                (value == OptionalBoolean.TRUE)
+                        ? STOP_USER_ON_SWITCH_TRUE
+                        : (value == OptionalBoolean.FALSE)
+                                ? STOP_USER_ON_SWITCH_FALSE
+                                : STOP_USER_ON_SWITCH_DEFAULT;
         if (!Versions.meetsMinimumSdkVersionRequirement(S_V2)) {
             return;
         }
         Context context = TestApis.context().instrumentedContext();
         try (PermissionContext p = TestApis.permissions()
                 .withPermission(INTERACT_ACROSS_USERS)) {
-            context.getSystemService(ActivityManager.class).setStopUserOnSwitch(value);
+            context.getSystemService(ActivityManager.class).setStopUserOnSwitch(intValue);
         }
     }
 
@@ -459,6 +497,11 @@ public final class Users {
     AdbUser fetchUser(int id) {
         fillCache();
         return mCachedUsers.get(id);
+    }
+
+    @Experimental
+    public boolean supportsMultipleUsers() {
+        return UserManager.supportsMultipleUsers();
     }
 
     static Stream<UserInfo> users() {

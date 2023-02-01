@@ -16,24 +16,56 @@
 
 package com.android.queryable.queries;
 
+import android.os.Parcel;
+import android.os.Parcelable;
+
 import com.android.queryable.Queryable;
+import com.android.queryable.QueryableBaseWithMatch;
 import com.android.queryable.info.DeviceAdminReceiverInfo;
+
+import java.util.Objects;
 
 /** Implementation of {@link DeviceAdminReceiverQuery}. */
 public final class DeviceAdminReceiverQueryHelper<E extends Queryable>
         implements DeviceAdminReceiverQuery<E> {
 
-    private final E mQuery;
+    private final transient E mQuery;
     private final BroadcastReceiverQueryHelper<E> mBroadcastReceiverQueryHelper;
 
-    DeviceAdminReceiverQueryHelper() {
-        mQuery = (E) this;
-        mBroadcastReceiverQueryHelper = new BroadcastReceiverQueryHelper<>(mQuery);
+    public static final class DeviceAdminReceiverQueryBase extends
+            QueryableBaseWithMatch<DeviceAdminReceiverInfo,
+                    DeviceAdminReceiverQueryHelper<DeviceAdminReceiverQueryBase>> {
+        DeviceAdminReceiverQueryBase() {
+            super();
+            setQuery(new DeviceAdminReceiverQueryHelper<>(this));
+        }
+
+        DeviceAdminReceiverQueryBase(Parcel in) {
+            super(in);
+        }
+
+        public static final Parcelable.Creator<DeviceAdminReceiverQueryHelper.DeviceAdminReceiverQueryBase> CREATOR =
+                new Parcelable.Creator<>() {
+                    public DeviceAdminReceiverQueryHelper.DeviceAdminReceiverQueryBase createFromParcel(Parcel in) {
+                        return new DeviceAdminReceiverQueryHelper.DeviceAdminReceiverQueryBase(in);
+                    }
+
+                    public DeviceAdminReceiverQueryHelper.DeviceAdminReceiverQueryBase[] newArray(
+                            int size) {
+                        return new DeviceAdminReceiverQueryHelper.DeviceAdminReceiverQueryBase[size];
+                    }
+                };
     }
 
     public DeviceAdminReceiverQueryHelper(E query) {
         mQuery = query;
         mBroadcastReceiverQueryHelper = new BroadcastReceiverQueryHelper<>(query);
+    }
+
+    private DeviceAdminReceiverQueryHelper(Parcel in) {
+        mQuery = null;
+        mBroadcastReceiverQueryHelper = in.readParcelable(
+                DeviceAdminReceiverQueryHelper.class.getClassLoader());
     }
 
     @Override
@@ -52,5 +84,40 @@ public final class DeviceAdminReceiverQueryHelper<E extends Queryable>
         return Queryable.joinQueryStrings(
                 mBroadcastReceiverQueryHelper.describeQuery(fieldName + ".broadcastReceiver")
         );
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+        out.writeParcelable(mBroadcastReceiverQueryHelper, flags);
+    }
+
+    public static final Parcelable.Creator<DeviceAdminReceiverQueryHelper> CREATOR =
+            new Parcelable.Creator<DeviceAdminReceiverQueryHelper>() {
+                public DeviceAdminReceiverQueryHelper createFromParcel(Parcel in) {
+                    return new DeviceAdminReceiverQueryHelper(in);
+                }
+
+                public DeviceAdminReceiverQueryHelper[] newArray(int size) {
+                    return new DeviceAdminReceiverQueryHelper[size];
+                }
+    };
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof DeviceAdminReceiverQueryHelper)) return false;
+        DeviceAdminReceiverQueryHelper<?> that = (DeviceAdminReceiverQueryHelper<?>) o;
+        return Objects.equals(mBroadcastReceiverQueryHelper,
+                that.mBroadcastReceiverQueryHelper);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(mBroadcastReceiverQueryHelper);
     }
 }

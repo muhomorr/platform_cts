@@ -16,9 +16,6 @@
 
 package android.cts.statsdatom.wifi;
 
-import static android.cts.statsdatom.statsd.AtomTestCase.FEATURE_PC;
-import static android.cts.statsdatom.statsd.AtomTestCase.FEATURE_WIFI;
-
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -49,6 +46,8 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
     private IBuildInfo mCtsBuild;
 
     private static final int WIFI_CONNECT_TIMEOUT_MILLIS = 30_000;
+    private static final String FEATURE_PC = "android.hardware.type.pc";
+    private static final String FEATURE_WIFI = "android.hardware.wifi";
 
     @Override
     protected void setUp() throws Exception {
@@ -93,7 +92,7 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
         List<Set<Integer>> stateSet = Arrays.asList(lockOn, lockOff);
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
+        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
                 atom -> atom.getWifiLockStateChanged().getState().getNumber());
 
         for (StatsLog.EventMetricData event : data) {
@@ -122,7 +121,7 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
         List<Set<Integer>> stateSet = Arrays.asList(lockOn, lockOff);
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
+        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
                 atom -> atom.getWifiLockStateChanged().getState().getNumber());
 
         for (StatsLog.EventMetricData event : data) {
@@ -154,7 +153,7 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
         List<Set<Integer>> stateSet = Arrays.asList(lockOn, lockOff);
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
+        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
                 atom -> atom.getWifiMulticastLockStateChanged().getState().getNumber());
 
         for (StatsLog.EventMetricData event : data) {

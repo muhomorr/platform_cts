@@ -17,6 +17,7 @@
 package android.bluetooth.cts;
 
 import static android.Manifest.permission.BLUETOOTH_CONNECT;
+import static android.Manifest.permission.BLUETOOTH_PRIVILEGED;
 
 import static org.junit.Assert.assertThrows;
 
@@ -35,18 +36,17 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Build;
-import android.sysprop.BluetoothProperties;
+import android.os.Bundle;
 import android.test.AndroidTestCase;
 import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
-import com.android.compatibility.common.util.CddTest;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executor;
@@ -90,8 +90,6 @@ public class BluetoothAdapterTest extends AndroidTestCase {
     @Override
     public void tearDown() throws Exception {
         if (mHasBluetooth) {
-            mUiAutomation.adoptShellPermissionIdentity(BLUETOOTH_CONNECT);
-            assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
             mUiAutomation.dropShellPermissionIdentity();
         }
     }
@@ -366,12 +364,21 @@ public class BluetoothAdapterTest extends AndroidTestCase {
             // Skip the test if bluetooth is not present.
             return;
         }
-        assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
-        assertEquals(-1, mAdapter.getDiscoverableTimeout());
-        assertTrue(BTAdapterUtils.enableAdapter(mAdapter, mContext));
 
-        mUiAutomation.dropShellPermissionIdentity();
-        assertEquals(120, mAdapter.getDiscoverableTimeout());
+        Duration minutes = Duration.ofMinutes(2);
+
+        assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
+        assertEquals(null, mAdapter.getDiscoverableTimeout());
+        assertEquals(BluetoothStatusCodes.ERROR_BLUETOOTH_NOT_ENABLED,
+                mAdapter.setDiscoverableTimeout(minutes));
+
+        assertTrue(BTAdapterUtils.enableAdapter(mAdapter, mContext));
+        TestUtils.adoptPermissionAsShellUid(BLUETOOTH_CONNECT, BLUETOOTH_PRIVILEGED);
+        assertThrows(IllegalArgumentException.class, () -> mAdapter.setDiscoverableTimeout(
+                Duration.ofDays(25000)));
+        assertEquals(BluetoothStatusCodes.SUCCESS,
+                mAdapter.setDiscoverableTimeout(minutes));
+        assertEquals(minutes, mAdapter.getDiscoverableTimeout());
     }
 
     public void test_getConnectionState() {
@@ -436,7 +443,7 @@ public class BluetoothAdapterTest extends AndroidTestCase {
 
     public void test_BluetoothConnectionCallback_disconnectReasonText() {
         assertEquals("Reason unknown", BluetoothAdapter.BluetoothConnectionCallback
-                .disconnectReasonText(BluetoothStatusCodes.ERROR_UNKNOWN));
+                .disconnectReasonToString(BluetoothStatusCodes.ERROR_UNKNOWN));
     }
 
     public void test_registerBluetoothConnectionCallback() {
@@ -475,25 +482,6 @@ public class BluetoothAdapterTest extends AndroidTestCase {
                 mAdapter.unregisterBluetoothConnectionCallback(callback));
     }
 
-    public void test_registerServiceLifecycleCallback() {
-        if (!mHasBluetooth) return;
-
-        BluetoothAdapter.ServiceLifecycleCallback callback =
-                new BluetoothAdapter.ServiceLifecycleCallback() {
-                    @Override
-                    public void onBluetoothServiceUp() {}
-                    @Override
-                    public void onBluetoothServiceDown() {}
-                };
-
-        // Verify parameter
-        assertThrows(NullPointerException.class,
-                () -> mAdapter.registerServiceLifecycleCallback(null));
-
-        assertThrows(NullPointerException.class,
-                () -> mAdapter.unregisterServiceLifecycleCallback(null));
-    }
-
     public void test_requestControllerActivityEnergyInfo() {
         if (!mHasBluetooth) return;
 
@@ -529,75 +517,6 @@ public class BluetoothAdapterTest extends AndroidTestCase {
         assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
         // Verify throws RuntimeException when trying to save sysprop for later (permission denied)
         assertThrows(RuntimeException.class, () -> mAdapter.clearBluetooth());
-    }
-
-    @CddTest(requirements = {"3.5/C-0-9"})
-    public void test_getProfileProxy() {
-        if (!mHasBluetooth) return;
-
-        BluetoothProfile.ServiceListener listener = new BluetoothProfile.ServiceListener() {
-            @Override
-            public void onServiceConnected(int profile, BluetoothProfile proxy) { }
-            @Override
-            public void onServiceDisconnected(int profile) { }
-        };
-
-        assertFalse(mAdapter.getProfileProxy(mContext, null, BluetoothProfile.HEADSET));
-        assertFalse(mAdapter.getProfileProxy(null, listener, BluetoothProfile.HEADSET));
-
-        // Profiles in BluetoothProperties that are not changed by Developer options in Settings app
-        assertEquals(BluetoothProperties.isProfileHfpAgEnabled().orElse(false).booleanValue(),
-                mAdapter.getProfileProxy(mContext, listener, BluetoothProfile.HEADSET));
-        assertEquals(BluetoothProperties.isProfileA2dpSourceEnabled().orElse(false).booleanValue(),
-                mAdapter.getProfileProxy(mContext, listener, BluetoothProfile.A2DP));
-        assertEquals(BluetoothProperties.isProfileA2dpSinkEnabled().orElse(false).booleanValue(),
-                mAdapter.getProfileProxy(mContext, listener, BluetoothProfile.A2DP_SINK));
-        assertEquals(
-                BluetoothProperties.isProfileAvrcpControllerEnabled().orElse(false).booleanValue(),
-                mAdapter.getProfileProxy(mContext, listener, BluetoothProfile.AVRCP_CONTROLLER));
-        assertEquals(BluetoothProperties.isProfileHidHostEnabled().orElse(false).booleanValue(),
-                mAdapter.getProfileProxy(mContext, listener, BluetoothProfile.HID_HOST));
-        assertEquals(BluetoothProperties.isProfilePanNapEnabled().orElse(false)
-                || BluetoothProperties.isProfilePanPanuEnabled().orElse(false),
-                mAdapter.getProfileProxy(mContext, listener, BluetoothProfile.PAN));
-        assertEquals(BluetoothProperties.isProfilePbapServerEnabled().orElse(false).booleanValue(),
-                mAdapter.getProfileProxy(mContext, listener, BluetoothProfile.PBAP));
-        assertEquals(BluetoothProperties.isProfileMapServerEnabled().orElse(false).booleanValue(),
-                mAdapter.getProfileProxy(mContext, listener, BluetoothProfile.MAP));
-        assertEquals(BluetoothProperties.isProfileHfpHfEnabled().orElse(false).booleanValue(),
-                mAdapter.getProfileProxy(mContext, listener, BluetoothProfile.HEADSET_CLIENT));
-        assertEquals(BluetoothProperties.isProfileSapServerEnabled().orElse(false).booleanValue(),
-                mAdapter.getProfileProxy(mContext, listener, BluetoothProfile.SAP));
-        assertEquals(BluetoothProperties.isProfilePbapClientEnabled().orElse(false).booleanValue(),
-                mAdapter.getProfileProxy(mContext, listener, BluetoothProfile.PBAP_CLIENT));
-        assertEquals(BluetoothProperties.isProfileMapClientEnabled().orElse(false).booleanValue(),
-                mAdapter.getProfileProxy(mContext, listener, BluetoothProfile.MAP_CLIENT));
-        assertEquals(BluetoothProperties.isProfileHidDeviceEnabled().orElse(false).booleanValue(),
-                mAdapter.getProfileProxy(mContext, listener, BluetoothProfile.HID_DEVICE));
-        assertEquals(
-                BluetoothProperties.isProfileAshaCentralEnabled().orElse(false).booleanValue(),
-                mAdapter.getProfileProxy(mContext, listener, BluetoothProfile.HEARING_AID));
-
-        boolean leAudioBroadcastSourceSupported = (mAdapter.isLeAudioBroadcastSourceSupported()
-                == BluetoothStatusCodes.FEATURE_SUPPORTED);
-        assertEquals(leAudioBroadcastSourceSupported,
-                mAdapter.getProfileProxy(mContext, listener, BluetoothProfile.LE_AUDIO_BROADCAST));
-
-        boolean leAudioBroadcastAssistantSupported =
-                mAdapter.isLeAudioBroadcastAssistantSupported()
-                        == BluetoothStatusCodes.FEATURE_SUPPORTED;
-        assertEquals(leAudioBroadcastAssistantSupported, mAdapter.getProfileProxy(
-                mContext, listener, BluetoothProfile.LE_AUDIO_BROADCAST_ASSISTANT));
-
-        // Profiles in BluetoothProperties that can be changed by Developer options in Settings app
-        boolean leAudioSupported = (mAdapter.isLeAudioSupported()
-                == BluetoothStatusCodes.FEATURE_SUPPORTED);
-        assertEquals(leAudioSupported, mAdapter.getProfileProxy(
-                mContext, listener, BluetoothProfile.LE_AUDIO));
-        assertEquals(leAudioSupported, mAdapter.getProfileProxy(
-                mContext, listener, BluetoothProfile.VOLUME_CONTROL));
-        assertEquals(leAudioSupported, mAdapter.getProfileProxy(
-                mContext, listener, BluetoothProfile.CSIP_SET_COORDINATOR));
     }
 
     public void test_BluetoothProfile_getConnectionStateName() {
@@ -672,6 +591,140 @@ public class BluetoothAdapterTest extends AndroidTestCase {
                 BluetoothProfile.getProfileName(BluetoothProfile.LE_AUDIO_BROADCAST));
         assertEquals("LE_AUDIO_BROADCAST_ASSISTANT",
                 BluetoothProfile.getProfileName(BluetoothProfile.LE_AUDIO_BROADCAST_ASSISTANT));
+    }
+
+    public void test_getSetBluetoothHciSnoopLoggingMode() {
+        if (!mHasBluetooth) {
+            return;
+        }
+
+        assertThrows(SecurityException.class, () -> mAdapter
+                .setBluetoothHciSnoopLoggingMode(BluetoothAdapter.BT_SNOOP_LOG_MODE_FULL));
+        assertThrows(SecurityException.class, () -> mAdapter
+                .getBluetoothHciSnoopLoggingMode());
+
+        TestUtils.adoptPermissionAsShellUid(BLUETOOTH_PRIVILEGED);
+
+        assertThrows(IllegalArgumentException.class, () -> mAdapter
+                .setBluetoothHciSnoopLoggingMode(-1));
+
+        assertEquals(BluetoothStatusCodes.SUCCESS, mAdapter
+                .setBluetoothHciSnoopLoggingMode(BluetoothAdapter.BT_SNOOP_LOG_MODE_FULL));
+        assertEquals(mAdapter.getBluetoothHciSnoopLoggingMode(),
+                BluetoothAdapter.BT_SNOOP_LOG_MODE_FULL);
+
+        assertEquals(BluetoothStatusCodes.SUCCESS, mAdapter
+                .setBluetoothHciSnoopLoggingMode(BluetoothAdapter.BT_SNOOP_LOG_MODE_FILTERED));
+        assertEquals(mAdapter.getBluetoothHciSnoopLoggingMode(),
+                BluetoothAdapter.BT_SNOOP_LOG_MODE_FILTERED);
+
+        assertEquals(BluetoothStatusCodes.SUCCESS, mAdapter
+                .setBluetoothHciSnoopLoggingMode(BluetoothAdapter.BT_SNOOP_LOG_MODE_DISABLED));
+        assertEquals(mAdapter.getBluetoothHciSnoopLoggingMode(),
+                BluetoothAdapter.BT_SNOOP_LOG_MODE_DISABLED);
+
+    }
+
+    public void test_setPreferredAudioProfiles_getPreferredAudioProfiles() {
+        if (!mHasBluetooth) {
+            // Skip the test if bluetooth or companion device are not present.
+            return;
+        }
+        assertTrue(BTAdapterUtils.enableAdapter(mAdapter, mContext));
+        String deviceAddress = "00:11:22:AA:BB:CC";
+        BluetoothDevice device = mAdapter.getRemoteDevice(deviceAddress);
+
+        Bundle preferences = new Bundle();
+        preferences.putInt(BluetoothAdapter.AUDIO_MODE_OUTPUT_ONLY, BluetoothProfile.HEADSET);
+
+        // Test invalid input
+        assertThrows(NullPointerException.class, () ->
+                mAdapter.setPreferredAudioProfiles(device, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> mAdapter.setPreferredAudioProfiles(device, preferences));
+        assertThrows(NullPointerException.class, () -> mAdapter.getPreferredAudioProfiles(null));
+
+        preferences.putInt(BluetoothAdapter.AUDIO_MODE_OUTPUT_ONLY, BluetoothProfile.HID_HOST);
+        assertThrows(IllegalArgumentException.class,
+                () -> mAdapter.setPreferredAudioProfiles(device, preferences));
+
+        preferences.putInt(BluetoothAdapter.AUDIO_MODE_OUTPUT_ONLY, BluetoothProfile.LE_AUDIO);
+        preferences.putInt(BluetoothAdapter.AUDIO_MODE_DUPLEX, BluetoothProfile.A2DP);
+        assertThrows(IllegalArgumentException.class,
+                () -> mAdapter.setPreferredAudioProfiles(device, preferences));
+
+        preferences.putInt(BluetoothAdapter.AUDIO_MODE_DUPLEX, BluetoothProfile.GATT);
+        assertThrows(IllegalArgumentException.class,
+                () -> mAdapter.setPreferredAudioProfiles(device, preferences));
+
+        preferences.putInt(BluetoothAdapter.AUDIO_MODE_DUPLEX, BluetoothProfile.HEADSET);
+
+        assertThrows(NullPointerException.class, () ->
+                mAdapter.setPreferredAudioProfiles(null, preferences));
+
+        // Check what happens when the device is not bonded
+        assertTrue(mAdapter.getPreferredAudioProfiles(device).isEmpty());
+        assertEquals(BluetoothStatusCodes.ERROR_DEVICE_NOT_BONDED,
+                mAdapter.setPreferredAudioProfiles(device, preferences));
+    }
+
+    public void test_preferredAudioProfileCallbacks() {
+        if (!mHasBluetooth) {
+            // Skip the test if bluetooth or companion device are not present.
+            return;
+        }
+        assertTrue(BTAdapterUtils.enableAdapter(mAdapter, mContext));
+        String deviceAddress = "00:11:22:AA:BB:CC";
+        BluetoothDevice device = mAdapter.getRemoteDevice(deviceAddress);
+
+        Executor executor = mContext.getMainExecutor();
+        BluetoothAdapter.PreferredAudioProfilesChangedCallback callback =
+                new BluetoothAdapter.PreferredAudioProfilesChangedCallback() {
+            @Override
+            public void onPreferredAudioProfilesChanged(
+                    @androidx.annotation.NonNull BluetoothDevice device,
+                    @androidx.annotation.NonNull Bundle preferredAudioProfiles, int status) {}
+        };
+
+        callback.onPreferredAudioProfilesChanged(device, Bundle.EMPTY,
+                BluetoothStatusCodes.SUCCESS);
+
+        assertThrows(NullPointerException.class, () ->
+                mAdapter.registerPreferredAudioProfilesChangedCallback(null, callback));
+        assertThrows(NullPointerException.class, () ->
+                mAdapter.registerPreferredAudioProfilesChangedCallback(executor, null));
+        assertThrows(NullPointerException.class, () ->
+                mAdapter.unregisterPreferredAudioProfilesChangedCallback(null));
+
+        // This should throw a SecurityException because no BLUETOOTH_PRIVILEGED permission
+        assertThrows(SecurityException.class, () ->
+                mAdapter.registerPreferredAudioProfilesChangedCallback(executor, callback));
+        assertThrows(IllegalArgumentException.class, () ->
+                mAdapter.unregisterPreferredAudioProfilesChangedCallback(callback));
+
+        mUiAutomation.adoptShellPermissionIdentity(BLUETOOTH_CONNECT, BLUETOOTH_PRIVILEGED);
+
+        // Try the happy path
+        assertEquals(BluetoothStatusCodes.SUCCESS,
+                mAdapter.registerPreferredAudioProfilesChangedCallback(executor, callback));
+        assertEquals(BluetoothStatusCodes.SUCCESS,
+                mAdapter.unregisterPreferredAudioProfilesChangedCallback(callback));
+    }
+
+    public void test_notifyPreferredAudioProfileChangeApplied() {
+        if (!mHasBluetooth) {
+            // Skip the test if bluetooth or companion device are not present.
+            return;
+        }
+        assertTrue(BTAdapterUtils.enableAdapter(mAdapter, mContext));
+        String deviceAddress = "00:11:22:AA:BB:CC";
+        BluetoothDevice device = mAdapter.getRemoteDevice(deviceAddress);
+
+        assertThrows(NullPointerException.class, () ->
+                mAdapter.notifyPreferredAudioProfileChangeApplied(null));
+
+        assertEquals(BluetoothStatusCodes.ERROR_BLUETOOTH_NOT_ALLOWED,
+                mAdapter.notifyPreferredAudioProfileChangeApplied(device));
     }
 
     private static void sleep(long t) {

@@ -64,7 +64,6 @@ import android.server.wm.CommandSession.ActivitySession;
 import android.server.wm.CommandSession.ActivitySessionClient;
 import android.server.wm.app.Components;
 
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -200,8 +199,7 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
         assumeTrue(supportsLockScreen());
 
         final LockScreenSession lockScreenSession = createManagedLockScreenSession();
-        final boolean notSupportsInsecureLock = !supportsInsecureLock();
-        if (notSupportsInsecureLock) {
+        if (!supportsInsecureLock()) {
             lockScreenSession.setLockCredential();
         }
         final ActivitySessionClient activityClient = createManagedActivityClientSession();
@@ -209,11 +207,25 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
                 true /* useWindowFlags */);
         testTurnScreenOnActivity(lockScreenSession, activityClient,
                 false /* useWindowFlags */);
-        if (notSupportsInsecureLock) {
-            // In the platform without InsecureLock, we just test if the display is on with
-            // TurnScreenOnActivity.
-            mObjectTracker.close(lockScreenSession);
-        }
+
+        // Start TURN_SCREEN_ON_ACTIVITY
+        launchActivity(TURN_SCREEN_ON_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
+        mWmState.assertVisibility(TURN_SCREEN_ON_ACTIVITY, true);
+        assertTrue("Display turns on", isDisplayOn(DEFAULT_DISPLAY));
+
+        // Start another activity on top and put device to sleep
+        final ActivitySession activity = activityClient.startActivity(
+                getLaunchActivityBuilder().setUseInstrumentation()
+                        .setWaitForLaunched(false).setTargetActivity(TOP_ACTIVITY));
+        waitAndAssertActivityState(TOP_ACTIVITY, STATE_STOPPED, "Activity must be stopped.");
+        lockScreenSession.sleepDevice();
+
+        // Finish the top activity and make sure the device still in sleep
+        activity.finish();
+        waitAndAssertActivityState(TURN_SCREEN_ON_ACTIVITY, STATE_STOPPED,
+                "Activity must be stopped");
+        mWmState.assertVisibility(TURN_SCREEN_ON_ACTIVITY, false);
+        assertFalse("Display must be remained OFF", isDisplayOn(DEFAULT_DISPLAY));
     }
 
     @Test
@@ -502,7 +514,8 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
         // Bring launching activity back to the foreground
         launchActivityNoWait(LAUNCHING_ACTIVITY);
         // Wait for the most front activity of the task.
-        mWmState.waitForValidState(ALT_LAUNCHING_ACTIVITY);
+        mWmState.waitForFocusedActivity("Waiting for Alt Launching Activity to be focused",
+                ALT_LAUNCHING_ACTIVITY);
 
         // Ensure the alternate launching activity is still in focus.
         mWmState.assertFocusedActivity("Alt Launching Activity must be focused",
@@ -511,7 +524,8 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
         pressBackButton();
 
         // Wait for the bottom activity back to the foreground.
-        mWmState.waitForValidState(LAUNCHING_ACTIVITY);
+        mWmState.waitForFocusedActivity("Waiting for Launching Activity to be focused",
+                LAUNCHING_ACTIVITY);
 
         // Ensure launching activity was brought forward.
         mWmState.assertFocusedActivity("Launching Activity must be focused",
@@ -619,7 +633,6 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
     }
 
     @Test
-    @Ignore("Unable to disable AOD for some devices")
     public void testTurnScreenOnWithAttr_Freeform() {
         assumeTrue(supportsLockScreen());
         assumeTrue(supportsFreeform());

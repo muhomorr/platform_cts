@@ -37,11 +37,14 @@ _ANGLE_JUMP_90 = 60  # 90 - 2*ANGLE_90_MASK - 2*5 degree slop on top/bottom
 _ANGULAR_DIFF_THRESH_API30 = 10  # degrees
 _ANGULAR_DIFF_THRESH_CALIBRATED = 1.8  # degrees (180 deg / 1000 ms * 10 ms)
 _ANGULAR_MOVEMENT_THRESHOLD = 35  # degrees
+_ARDUINO_ANGLES = (0, 90)
+_ARDUINO_MOVE_TIME = 2  # seconds
+_ARDUINO_SERVO_SPEED = 20
 _FRAMES_WITH_SQUARES_MIN = 20  # min number of frames with angles extracted
 _NAME = os.path.basename(__file__).split('.')[0]
 _NUM_CAPTURES = 100
 _NUM_ROTATIONS = 10
-_ROT_INIT_WAIT_TIME = 2  # seconds
+_ROT_INIT_WAIT_TIME = 4  # seconds
 _CHART_DISTANCE_SF = 25  # cm
 _CM_TO_M = 1/100.0
 
@@ -175,7 +178,8 @@ class MultiCameraFrameSyncTest(its_base_test.ItsBaseTest):
     # Start camera rotation & sleep shortly to let rotations start
     p = multiprocessing.Process(
         target=sensor_fusion_utils.rotation_rig,
-        args=(rot_rig['cntl'], rot_rig['ch'], _NUM_ROTATIONS,))
+        args=(rot_rig['cntl'], rot_rig['ch'], _NUM_ROTATIONS,
+              _ARDUINO_ANGLES, _ARDUINO_SERVO_SPEED, _ARDUINO_MOVE_TIME,))
     p.start()
     time.sleep(_ROT_INIT_WAIT_TIME)
 
@@ -241,10 +245,21 @@ class MultiCameraFrameSyncTest(its_base_test.ItsBaseTest):
         hidden_physical_id=self.hidden_physical_id) as cam:
       props = cam.get_camera_properties()
       props = cam.override_with_hidden_physical_camera_props(props)
+      unavailable_physical_cameras = cam.get_unavailable_physical_cameras(
+          self.camera_id)
+      unavailable_physical_ids = unavailable_physical_cameras['unavailablePhysicalCamerasArray']
+      # find available physical camera IDs
+      all_physical_ids = camera_properties_utils.logical_multi_camera_physical_ids(
+          props)
+      for i in unavailable_physical_ids:
+        if i in all_physical_ids:
+          all_physical_ids.remove(i)
 
+      logging.debug('available physical ids: %s', all_physical_ids)
       # Check SKIP conditions.
       camera_properties_utils.skip_unless(
-          camera_properties_utils.multi_camera_frame_sync_capable(props))
+          camera_properties_utils.multi_camera_frame_sync_capable(props) and
+          len(all_physical_ids) >= 2)
 
       # Get first API level & multi camera sync type
       first_api_level = its_session_utils.get_first_api_level(self.dut.serial)

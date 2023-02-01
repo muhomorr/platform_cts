@@ -18,6 +18,8 @@ package com.android.bedstead.remotedpc;
 
 import static android.os.UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES;
 
+import static com.android.bedstead.nene.users.UserType.MANAGED_PROFILE_TYPE_NAME;
+
 import android.content.ComponentName;
 import android.os.Build;
 import android.os.UserHandle;
@@ -25,6 +27,7 @@ import android.os.UserHandle;
 import androidx.annotation.Nullable;
 
 import com.android.bedstead.nene.TestApis;
+import com.android.bedstead.nene.annotations.Experimental;
 import com.android.bedstead.nene.devicepolicy.DeviceOwner;
 import com.android.bedstead.nene.devicepolicy.DevicePolicyController;
 import com.android.bedstead.nene.devicepolicy.ProfileOwner;
@@ -35,15 +38,15 @@ import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppProvider;
 
 /** Entry point to RemoteDPC. */
-public final class RemoteDpc extends RemotePolicyManager {
+public class RemoteDpc extends RemotePolicyManager {
 
     public static final ComponentName DPC_COMPONENT_NAME = new ComponentName(
-            "com.android.RemoteDPC",
+            "com.android.cts.RemoteDPC",
             "com.android.bedstead.testapp.BaseTestAppDeviceAdminReceiver"
     );
 
     private static final TestAppProvider sTestAppProvider = new TestAppProvider();
-    private static final TestApp sTestApp = sTestAppProvider.query()
+    public static final TestApp REMOTE_DPC_TEST_APP = sTestAppProvider.query()
             .wherePackageName().isEqualTo(DPC_COMPONENT_NAME.getPackageName())
             .get();
 
@@ -225,14 +228,40 @@ public final class RemoteDpc extends RemotePolicyManager {
         return remoteDpc;
     }
 
+    /**
+     * Create a work profile with RemoteDpc as the profile owner.
+     *
+     * <p>If called for Android versions prior to Q an exception will be thrown
+     */
+    @Experimental
+    public static RemoteDpc createWorkProfile(UserReference parent) {
+        // It'd be ideal if this method could be in TestApis.devicePolicy() but the dependency
+        // direction wouldn't allow it
+        if (parent == null) {
+            throw new NullPointerException();
+        }
+
+        if (!Versions.meetsMinimumSdkVersionRequirement(Build.VERSION_CODES.Q)) {
+            throw new NeneException("Cannot use RemoteDPC across users prior to Q");
+        }
+
+        UserReference profile = TestApis.users().createUser()
+                .type(TestApis.users().supportedType(MANAGED_PROFILE_TYPE_NAME))
+                .parent(parent)
+                .createAndStart();
+
+        return setAsProfileOwner(profile);
+    }
+
     private static void ensureInstalled(UserReference user) {
-        sTestApp.install(user);
+        REMOTE_DPC_TEST_APP.install(user);
     }
 
     private final DevicePolicyController mDevicePolicyController;
 
-    private RemoteDpc(DevicePolicyController devicePolicyController) {
-        super(sTestApp, devicePolicyController == null ? null : devicePolicyController.user());
+    RemoteDpc(DevicePolicyController devicePolicyController) {
+        super(REMOTE_DPC_TEST_APP, devicePolicyController == null ? null
+                : devicePolicyController.user());
         mDevicePolicyController = devicePolicyController;
     }
 

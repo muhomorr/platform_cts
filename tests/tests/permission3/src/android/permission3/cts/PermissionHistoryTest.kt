@@ -18,16 +18,19 @@ package android.permission3.cts
 
 import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager.FEATURE_LEANBACK
-import android.content.pm.PackageManager.FEATURE_AUTOMOTIVE
 import android.os.Build
+import android.provider.DeviceConfig
+import android.provider.DeviceConfig.NAMESPACE_PRIVACY
 import android.support.test.uiautomator.By
 import androidx.test.filters.SdkSuppress
 import com.android.compatibility.common.util.SystemUtil
+import com.android.modules.utils.build.SdkLevel
 import org.junit.After
 import org.junit.Assume.assumeFalse
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Test
+import java.util.regex.Pattern
 
 private const val APP_LABEL_1 = "CtsMicAccess"
 private const val APP_LABEL_2 = "CtsMicAccess2"
@@ -37,22 +40,29 @@ private const val PERMISSION_CONTROLLER_PACKAGE_ID_PREFIX = "com.android.permiss
 private const val HISTORY_PREFERENCE_ICON = "permission_history_icon"
 private const val HISTORY_PREFERENCE_TIME = "permission_history_time"
 private const val SHOW_SYSTEM = "Show system"
+private const val SHOW_7_DAYS = "Show 7 days"
+private const val SHOW_24_HOURS = "Show 24 hours"
 private const val MORE_OPTIONS = "More options"
+private const val DASHBOARD_7_DAYS_DESCRIPTION_REGEX = "^.*7.*days$"
+private const val DASHBOARD_TIME_DESCRIPTION_REGEX = "^[0-2]?[0-9]:[0-5][0-9].*"
+private const val PRIV_DASH_7_DAY_ENABLED = "privacy_dashboard_7_day_toggle"
+private const val REFRESH = "Refresh"
 
 @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
-class PermissionHistoryTest : BasePermissionTest() {
+class PermissionHistoryTest : BasePermissionHubTest() {
     private val micLabel = packageManager.getPermissionGroupInfo(
             Manifest.permission_group.MICROPHONE, 0).loadLabel(packageManager).toString()
+    private var was7DayToggleEnabled = false
 
     // Permission history is not available on TV devices.
     @Before
-    fun assumeNotTv() =
-            assumeFalse(packageManager.hasSystemFeature(FEATURE_LEANBACK))
+    fun assumeNotTv() = assumeFalse(isTv)
 
-    // Permission history is not available on Auto devices.
+    // Permission history is not available on Auto devices running S or below.
     @Before
-    fun assumeNotAuto() =
-            assumeFalse(packageManager.hasSystemFeature(FEATURE_AUTOMOTIVE))
+    fun assumeNotAutoBelowT() {
+        assumeFalse(isAutomotive && !SdkLevel.isAtLeastT())
+    }
 
     @Before
     fun installApps() {
@@ -68,20 +78,52 @@ class PermissionHistoryTest : BasePermissionTest() {
         uninstallPackage(APP2_PACKAGE_NAME, requireSuccess = false)
     }
 
+    @Before
+    fun setUpTest() {
+        SystemUtil.runWithShellPermissionIdentity {
+            was7DayToggleEnabled = DeviceConfig.getBoolean(NAMESPACE_PRIVACY,
+                    PRIV_DASH_7_DAY_ENABLED, false)
+            DeviceConfig.setProperty(NAMESPACE_PRIVACY,
+                    PRIV_DASH_7_DAY_ENABLED, true.toString(), false)
+        }
+    }
+
+    @After
+    fun tearDownTest() {
+        SystemUtil.runWithShellPermissionIdentity {
+            DeviceConfig.setProperty(NAMESPACE_PRIVACY,
+                    PRIV_DASH_7_DAY_ENABLED, was7DayToggleEnabled.toString(), false)
+        }
+    }
+
     @Test
     fun testMicrophoneAccessShowsUpOnPrivacyDashboard() {
         openMicrophoneApp(INTENT_ACTION_1)
         waitFindObject(By.textContains(APP_LABEL_1))
 
         openPermissionDashboard()
-        waitFindObject(By.res("android:id/title").textContains("Microphone")).click()
-        waitFindObject(By.descContains(micLabel))
-        waitFindObject(By.textContains(APP_LABEL_1))
+
+        SystemUtil.eventually {
+            try {
+                waitFindObject(By.hasChild(By.textContains("Microphone"))
+                        .hasChild(By.textStartsWith("Used by")))
+                        .click()
+                waitFindObject(By.textContains(micLabel))
+                waitFindObject(By.textContains(APP_LABEL_1))
+            } catch (e: Exception) {
+                // Sometimes the dashboard was in the state from previous failed tests.
+                // Clicking the refresh button to get the most recent access.
+                waitFindObject(By.descContains(REFRESH)).click()
+                throw e
+            }
+        }
+
         pressBack()
         pressBack()
     }
 
     @Test
+    @Ignore
     fun testToggleSystemApps() {
         // I had some hard time mocking a system app.
         // Hence here I am only testing if the toggle is there.
@@ -91,30 +133,120 @@ class PermissionHistoryTest : BasePermissionTest() {
         waitFindObject(By.textContains(APP_LABEL_1))
 
         openMicrophoneTimeline()
-        val menuView = waitFindObject(By.descContains(MORE_OPTIONS))
-        menuView.click()
+        // Auto doesn't show the "Show system" action when it is disabled. If a system app ends up
+        // being installed for this test, then the Auto logic should be tested too.
+        if (!isAutomotive) {
+            SystemUtil.eventually {
+                try {
+                    val menuView = waitFindObject(By.descContains(MORE_OPTIONS))
+                    menuView.click()
+                    waitFindObject(By.text(SHOW_SYSTEM))
+                } catch (e: Exception) {
+                    // Sometimes the dashboard was in the state from previous failed tests.
+                    // Clicking the refresh button to get the most recent access.
+                    waitFindObject(By.descContains(REFRESH)).click()
+                    throw e
+                }
+            }
+        }
 
-        waitFindObject(By.text(SHOW_SYSTEM))
         pressBack()
         pressBack()
     }
 
     @Test
+    fun testToggleFrom24HoursTo7Days() {
+        // Auto doesn't support the 7 day view
+        assumeFalse(isAutomotive)
+
+        openMicrophoneApp(INTENT_ACTION_1)
+        waitFindObject(By.textContains(APP_LABEL_1))
+
+        openPermissionDashboard()
+        waitFindObject(By.descContains(MORE_OPTIONS)).click()
+        try {
+            waitFindObject(By.text(SHOW_7_DAYS)).click()
+        } catch (exception: RuntimeException) {
+            // If privacy dashboard was set to 7d instead of 24h,
+            // it will not be able to find the "Show 7 days" option.
+            // This block is to toggle it back to 24h if that happens.
+            waitFindObject(By.text(SHOW_24_HOURS)).click()
+            waitFindObject(By.descContains(MORE_OPTIONS)).click()
+            waitFindObject(By.text(SHOW_7_DAYS)).click()
+        }
+
+        SystemUtil.eventually {
+            try {
+                waitFindObject(By.hasChild(By.textContains("Microphone"))
+                        .hasChild(By.textStartsWith("Used by")))
+            } catch (e: Exception) {
+                // Sometimes the dashboard was in the state from previous failed tests.
+                // Clicking the refresh button to get the most recent access.
+                waitFindObject(By.descContains(REFRESH)).click()
+                throw e
+            }
+        }
+
+        waitFindObject(By.text(Pattern.compile(DASHBOARD_7_DAYS_DESCRIPTION_REGEX, Pattern.DOTALL)))
+
+        pressBack()
+    }
+
+    @Test
+    @Ignore
+    fun testToggleFrom24HoursTo7DaysInTimeline() {
+        // Auto doesn't support the 7 day view
+        assumeFalse(isAutomotive)
+
+        openMicrophoneApp(INTENT_ACTION_1)
+        waitFindObject(By.textContains(APP_LABEL_1))
+
+        openMicrophoneTimeline()
+        waitFindObject(By.descContains(MORE_OPTIONS)).click()
+        try {
+            waitFindObject(By.text(SHOW_7_DAYS)).click()
+        } catch (exception: RuntimeException) {
+            // If privacy dashboard was set to 7d instead of 24h,
+            // it will not be able to find the "Show 7 days" option.
+            // This block is to toggle it back to 24h if that happens.
+            waitFindObject(By.text(SHOW_24_HOURS)).click()
+            waitFindObject(By.descContains(MORE_OPTIONS)).click()
+            waitFindObject(By.text(SHOW_7_DAYS)).click()
+        }
+
+        waitFindObject(By.descContains(micLabel))
+        waitFindObject(By.textContains(APP_LABEL_1))
+        waitFindObject(By.text(Pattern.compile(DASHBOARD_7_DAYS_DESCRIPTION_REGEX, Pattern.DOTALL)))
+
+        pressBack()
+    }
+
+    @Test
+    @Ignore
     fun testMicrophoneTimelineWithOneApp() {
         openMicrophoneApp(INTENT_ACTION_1)
         waitFindObject(By.textContains(APP_LABEL_1))
 
         openMicrophoneTimeline()
-        waitFindObject(By.descContains(micLabel))
+        waitFindObject(By.textContains(micLabel))
         waitFindObject(By.textContains(APP_LABEL_1))
-        waitFindObject(By.res(
-                PERMISSION_CONTROLLER_PACKAGE_ID_PREFIX + HISTORY_PREFERENCE_ICON))
-        waitFindObject(By.res(
-                PERMISSION_CONTROLLER_PACKAGE_ID_PREFIX + HISTORY_PREFERENCE_TIME))
+        if (isAutomotive) {
+            // Automotive views don't have the same ids as phones - find an example of the time
+            // usage instead. Specify the package name to avoid matching with the system UI time.
+            waitFindObject(
+                By.text(Pattern.compile(DASHBOARD_TIME_DESCRIPTION_REGEX, Pattern.DOTALL))
+                    .pkg(context.packageManager.permissionControllerPackageName))
+        } else {
+            waitFindObject(By.res(
+                    PERMISSION_CONTROLLER_PACKAGE_ID_PREFIX + HISTORY_PREFERENCE_ICON))
+            waitFindObject(By.res(
+                    PERMISSION_CONTROLLER_PACKAGE_ID_PREFIX + HISTORY_PREFERENCE_TIME))
+        }
         pressBack()
     }
 
     @Test
+    @Ignore
     fun testCameraTimelineWithMultipleApps() {
         openMicrophoneApp(INTENT_ACTION_1)
         waitFindObject(By.textContains(APP_LABEL_1))
@@ -123,7 +255,7 @@ class PermissionHistoryTest : BasePermissionTest() {
         waitFindObject(By.textContains(APP_LABEL_2))
 
         openMicrophoneTimeline()
-        waitFindObject(By.descContains(micLabel))
+        waitFindObject(By.textContains(micLabel))
         waitFindObject(By.textContains(APP_LABEL_1))
         waitFindObject(By.textContains(APP_LABEL_2))
         pressBack()
@@ -133,15 +265,6 @@ class PermissionHistoryTest : BasePermissionTest() {
         context.startActivity(Intent(intentAction).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
-    }
-
-    private fun openMicrophoneTimeline() {
-        SystemUtil.runWithShellPermissionIdentity {
-            context.startActivity(Intent(Intent.ACTION_REVIEW_PERMISSION_HISTORY).apply {
-                putExtra(Intent.EXTRA_PERMISSION_GROUP_NAME, Manifest.permission_group.MICROPHONE)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            })
-        }
     }
 
     private fun openPermissionDashboard() {

@@ -140,6 +140,7 @@ def parse(manifest_content, file_name):
 
     application_element = find_single_element(root.children, "application")
     android_app.test_only = application_element.attributes.get("testOnly", "false") == "true"
+    android_app.label = application_element.attributes.get("label", "")
 
     parse_activities(application_element, android_app)
     parse_services(application_element, android_app)
@@ -181,6 +182,7 @@ def parse_activities(application_element, android_app):
             continue # Special case: androidx adds non-logging activities
 
         activity.exported = activity_element.attributes.get("exported", "false") == "true"
+        activity.permission = activity_element.attributes.get("permission", "")
 
         parse_intent_filters(activity_element, activity)
         android_app.activities.append(activity)

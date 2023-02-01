@@ -55,8 +55,8 @@ import androidx.test.filters.MediumTest;
 import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
-import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.WidgetTestUtils;
+import com.android.compatibility.common.util.WindowUtil;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -79,7 +79,7 @@ public class ExpandableListViewTest {
     public void setup() {
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
         mActivity = mActivityRule.getActivity();
-        PollingCheck.waitFor(mActivity::hasWindowFocus);
+        WindowUtil.waitForFocus(mActivity);
         mExpandableListView = mActivity.getExpandableListView();
     }
 
@@ -363,8 +363,8 @@ public class ExpandableListViewTest {
             mExpandableListView.getFlatListPosition(ExpandableListView.PACKED_POSITION_VALUE_NULL);
         } catch (NullPointerException e) {
         }
-        assertEquals(0, mExpandableListView.getFlatListPosition(
-                ExpandableListView.PACKED_POSITION_TYPE_CHILD<<32));
+        assertEquals(1, mExpandableListView.getFlatListPosition(
+                ((long) ExpandableListView.PACKED_POSITION_TYPE_CHILD)<<32L));
         // 0x8000000100000000L means this is a child and group position is 1.
         assertEquals(1, mExpandableListView.getFlatListPosition(0x8000000100000000L));
     }

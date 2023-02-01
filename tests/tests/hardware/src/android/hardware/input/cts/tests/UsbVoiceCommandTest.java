@@ -31,7 +31,6 @@ import android.hardware.cts.R;
 import android.hardware.input.cts.InputAssistantActivity;
 import android.server.wm.WindowManagerStateHelper;
 import android.speech.RecognizerIntent;
-import android.support.test.uiautomator.UiDevice;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -50,8 +49,6 @@ import java.util.List;
 public class UsbVoiceCommandTest extends InputHidTestCase {
     private static final String TAG = "UsbVoiceCommandTest";
 
-    private final UiDevice mUiDevice =
-            UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
     private final UiAutomation mUiAutomation =
             InstrumentationRegistry.getInstrumentation().getUiAutomation();
     private final PackageManager mPackageManager =
@@ -93,8 +90,7 @@ public class UsbVoiceCommandTest extends InputHidTestCase {
 
         for (int i = 0; i < list.size(); i++) {
             ResolveInfo info = list.get(i);
-            if (!info.activityInfo.packageName.equals(
-                    mActivityRule.getActivity().getPackageName())) {
+            if (!info.activityInfo.packageName.equals(mTestActivity.getPackageName())) {
                 mExcludedPackages.add(info.activityInfo.packageName);
             }
         }
@@ -146,7 +142,7 @@ public class UsbVoiceCommandTest extends InputHidTestCase {
 
         /* InputAssistantActivity should be visible */
         final ComponentName inputAssistant =
-                new ComponentName(mActivityRule.getActivity().getPackageName(),
+                new ComponentName(mTestActivity.getPackageName(),
                         InputAssistantActivity.class.getName());
         wmStateHelper.waitForValidState(inputAssistant);
         wmStateHelper.assertActivityDisplayed(inputAssistant);
