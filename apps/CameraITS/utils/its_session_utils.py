@@ -453,6 +453,24 @@ class ItsSession(object):
     self.sock.settimeout(self.SOCK_TIMEOUT)
     return data['objValue']
 
+  def get_unavailable_physical_cameras(self, camera_id):
+    """Get the unavailable physical cameras ids.
+
+    Args:
+      camera_id: int; device id
+    Returns:
+      List of all physical camera ids which are unavailable.
+    """
+    cmd = {'cmdName': 'doGetUnavailablePhysicalCameras',
+           'cameraId': camera_id}
+    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
+    timeout = self.SOCK_TIMEOUT + self.EXTRA_SOCK_TIMEOUT
+    self.sock.settimeout(timeout)
+    data, _ = self.__read_response_from_socket()
+    if data['tag'] != 'unavailablePhysicalCameras':
+      raise error_util.CameraItsError('Invalid command response')
+    return data['objValue']
+
   def is_hlg10_recording_supported(self, profile_id):
     """Query whether the camera device supports HLG10 video recording.
 
@@ -616,6 +634,47 @@ class ItsSession(object):
       raise error_util.CameraItsError('No supported preview sizes')
     return data['strValue'].split(';')
 
+  def get_display_size(self):
+    """ Get the display size of the screen.
+
+    Returns:
+      The size of the display resolution in pixels.
+    """
+    cmd = {
+        'cmdName': 'getDisplaySize'
+    }
+    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
+    timeout = self.SOCK_TIMEOUT + self.EXTRA_SOCK_TIMEOUT
+    self.sock.settimeout(timeout)
+    data, _ = self.__read_response_from_socket()
+    if data['tag'] != 'displaySize':
+      raise error_util.CameraItsError('Invalid command response')
+    if not data['strValue']:
+      raise error_util.CameraItsError('No display size')
+    return data['strValue'].split('x')
+
+  def get_max_camcorder_profile_size(self, camera_id):
+    """ Get the maximum camcorder profile size for this camera device.
+
+    Args:
+      camera_id: int; device id
+    Returns:
+      The maximum size among all camcorder profiles supported by this camera.
+    """
+    cmd = {
+        'cmdName': 'getMaxCamcorderProfileSize',
+        'cameraId': camera_id
+    }
+    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
+    timeout = self.SOCK_TIMEOUT + self.EXTRA_SOCK_TIMEOUT
+    self.sock.settimeout(timeout)
+    data, _ = self.__read_response_from_socket()
+    if data['tag'] != 'maxCamcorderProfileSize':
+      raise error_util.CameraItsError('Invalid command response')
+    if not data['strValue']:
+      raise error_util.CameraItsError('No max camcorder profile size')
+    return data['strValue'].split('x')
+
   def do_capture_with_flash(self,
                             preview_request_start,
                             preview_request_idle,
@@ -672,7 +731,7 @@ class ItsSession(object):
     ncap = 1
     capture_results_returned = False
     yuv_bufs = {}
-    while not capture_results_returned:
+    while (nbufs < ncap) or (not capture_results_returned):
       json_obj, buf = self.__read_response_from_socket()
       if json_obj['tag'] in ItsSession.IMAGE_FORMAT_LIST_1 and buf is not None:
         fmt = json_obj['tag'][:-5]
