@@ -35,6 +35,7 @@ import error_util
 import image_processing_utils
 import opencv_processing_utils
 
+ANDROID13_API_LEVEL = 33
 LOAD_SCENE_DELAY_SEC = 3
 SUB_CAMERA_SEPARATOR = '.'
 _VALIDATE_LIGHTING_PATCH_H = 0.05
@@ -133,10 +134,10 @@ class ItsSession(object):
       try:
         socket_lock.bind((ItsSession.IPADDR, ItsSession.LOCK_PORT))
         break
-      except (socket.error, socket.timeout):
+      except (socket.error, socket.timeout) as socket_issue:
         if i == num_retries - 1:
-          raise error_util.CameraItsError(self._device_id,
-                                          'socket lock returns error')
+          raise error_util.CameraItsError(
+              self._device_id, 'socket lock returns error') from socket_issue
         else:
           time.sleep(retry_wait_time_sec)
 
@@ -195,8 +196,8 @@ class ItsSession(object):
     """
     if check_port not in used_ports:
       # Try to run "adb forward" with the port
-      command = '%s forward tcp:%d tcp:%d' % \
-                       (self.adb, check_port, self.REMOTE_PORT)
+      command = ('%s forward tcp:%d tcp:%d' %
+                 (self.adb, check_port, self.REMOTE_PORT))
       proc = subprocess.Popen(
           command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
       error = proc.communicate()[1]
@@ -452,6 +453,303 @@ class ItsSession(object):
     self.sock.settimeout(self.SOCK_TIMEOUT)
     return data['objValue']
 
+  def get_unavailable_physical_cameras(self, camera_id):
+    """Get the unavailable physical cameras ids.
+
+    Args:
+      camera_id: int; device id
+    Returns:
+      List of all physical camera ids which are unavailable.
+    """
+    cmd = {'cmdName': 'doGetUnavailablePhysicalCameras',
+           'cameraId': camera_id}
+    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
+    timeout = self.SOCK_TIMEOUT + self.EXTRA_SOCK_TIMEOUT
+    self.sock.settimeout(timeout)
+    data, _ = self.__read_response_from_socket()
+    if data['tag'] != 'unavailablePhysicalCameras':
+      raise error_util.CameraItsError('Invalid command response')
+    return data['objValue']
+
+  def is_hlg10_recording_supported(self, profile_id):
+    """Query whether the camera device supports HLG10 video recording.
+
+    Args:
+      profile_id: int; profile id corresponding to the quality level.
+    Returns:
+      Boolean: True, if device supports HLG10 video recording, False in
+      all other cases.
+    """
+    cmd = {}
+    cmd['cmdName'] = 'isHLG10Supported'
+    cmd['cameraId'] = self._camera_id
+    cmd['profileId'] = profile_id
+    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
+
+    data, _ = self.__read_response_from_socket()
+    if data['tag'] != 'hlg10Response':
+      raise error_util.CameraItsError('Failed to query HLG10 support')
+    return data['strValue'] == 'true'
+
+  def do_basic_recording(self, profile_id, quality, duration,
+                         video_stabilization_mode=0, hlg10_enabled=False):
+    """Issue a recording request and read back the video recording object.
+
+    The recording will be done with the format specified in quality. These
+    quality levels correspond to the profiles listed in CamcorderProfile.
+    The duration is the time in seconds for which the video will be recorded.
+    The recorded object consists of a path on the device at which the
+    recorded video is saved.
+
+    Args:
+      profile_id: int; profile id corresponding to the quality level.
+      quality: Video recording quality such as High, Low, VGA.
+      duration: The time in seconds for which the video will be recorded.
+      video_stabilization_mode: Video stabilization mode ON/OFF. Value can be
+      0: 'OFF', 1: 'ON', 2: 'PREVIEW'
+      hlg10_enabled: boolean: True Enable 10-bit HLG video recording, False
+      record using the regular SDR profile
+    Returns:
+      video_recorded_object: The recorded object returned from ItsService which
+      contains path at which the recording is saved on the device, quality of
+      the recorded video, video size of the recorded video, video frame rate
+      and 'hlg10' if 'hlg10_enabled' is set to True.
+      Ex:
+      VideoRecordingObject: {
+        'tag': 'recordingResponse',
+        'objValue': {
+          'recordedOutputPath':
+            '/storage/emulated/0/Android/data/com.android.cts.verifier'
+            '/files/VideoITS/VID_20220324_080414_0_CIF_352x288.mp4',
+          'quality': 'CIF',
+          'videoFrameRate': 30,
+          'videoSize': '352x288'
+        }
+      }
+    """
+    cmd = {'cmdName': 'doBasicRecording', 'cameraId': self._camera_id,
+           'profileId': profile_id, 'quality': quality,
+           'recordingDuration': duration,
+           'videoStabilizationMode': video_stabilization_mode,
+           'hlg10Enabled': hlg10_enabled}
+    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
+    timeout = self.SOCK_TIMEOUT + self.EXTRA_SOCK_TIMEOUT
+    self.sock.settimeout(timeout)
+    data, _ = self.__read_response_from_socket()
+    if data['tag'] != 'recordingResponse':
+      raise error_util.CameraItsError(
+          f'Invalid response for command: {cmd["cmdName"]}')
+    logging.debug('VideoRecordingObject: %s', data)
+    return data['objValue']
+
+  def do_preview_recording(self, video_size, duration, stabilize):
+    """Issue a preview request and read back the preview recording object.
+
+    The resolution of the preview and its recording will be determined by
+    video_size. The duration is the time in seconds for which the preview will
+    be recorded. The recorded object consists of a path on the device at
+    which the recorded video is saved.
+
+    Args:
+      video_size: str; Preview resolution at which to record. ex. "1920x1080"
+      duration: int; The time in seconds for which the video will be recorded.
+      stabilize: boolean; Whether the preview should be stabilized or not
+    Returns:
+      video_recorded_object: The recorded object returned from ItsService which
+      contains path at which the recording is saved on the device, quality of
+      the recorded video which is always set to "preview", video size of the
+      recorded video, video frame rate.
+      Ex:
+      VideoRecordingObject: {
+        'tag': 'recordingResponse',
+        'objValue': {
+          'recordedOutputPath': '/storage/emulated/0/Android/data/'
+                                'com.android.cts.verifier/files/VideoITS/'
+                                'VID_20220324_080414_0_CIF_352x288.mp4',
+          'quality': 'preview',
+          'videoSize': '352x288'
+        }
+      }
+    """
+
+    cmd = {
+        'cmdName': 'doPreviewRecording',
+        'cameraId': self._camera_id,
+        'videoSize': video_size,
+        'recordingDuration': duration,
+        'stabilize': stabilize
+    }
+    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
+    timeout = self.SOCK_TIMEOUT + self.EXTRA_SOCK_TIMEOUT
+    self.sock.settimeout(timeout)
+
+    data, _ = self.__read_response_from_socket()
+    logging.debug('VideoRecordingObject: %s', str(data))
+    if data['tag'] != 'recordingResponse':
+      raise error_util.CameraItsError(
+          f'Invalid response from command{cmd["cmdName"]}')
+    return data['objValue']
+
+  def get_supported_video_qualities(self, camera_id):
+    """Get all supported video qualities for this camera device.
+
+    ie. ['480:4', '1080:6', '2160:8', '720:5', 'CIF:3', 'HIGH:1', 'LOW:0',
+         'QCIF:2', 'QVGA:7']
+
+    Args:
+      camera_id: device id
+    Returns:
+      List of all supported video qualities and corresponding profileIds.
+    """
+    cmd = {}
+    cmd['cmdName'] = 'getSupportedVideoQualities'
+    cmd['cameraId'] = camera_id
+    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
+    data, _ = self.__read_response_from_socket()
+    if data['tag'] != 'supportedVideoQualities':
+      raise error_util.CameraItsError('Invalid command response')
+    return data['strValue'].split(';')[:-1]  # remove the last appended ';'
+
+  def get_supported_preview_sizes(self, camera_id):
+    """Get all supported preview resolutions for this camera device.
+
+    ie. ['640x480', '800x600', '1280x720', '1440x1080', '1920x1080']
+
+    Args:
+      camera_id: int; device id
+    Returns:
+      List of all supported video resolutions in ascending order.
+    """
+    cmd = {
+        'cmdName': 'getSupportedPreviewSizes',
+        'cameraId': camera_id
+    }
+    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
+    timeout = self.SOCK_TIMEOUT + self.EXTRA_SOCK_TIMEOUT
+    self.sock.settimeout(timeout)
+    data, _ = self.__read_response_from_socket()
+    if data['tag'] != 'supportedPreviewSizes':
+      raise error_util.CameraItsError('Invalid command response')
+    if not data['strValue']:
+      raise error_util.CameraItsError('No supported preview sizes')
+    return data['strValue'].split(';')
+
+  def do_capture_with_flash(self,
+                            preview_request_start,
+                            preview_request_idle,
+                            still_capture_req,
+                            out_surface):
+    """Issue capture request with flash and read back the image and metadata.
+
+    Captures a single image with still_capture_req as capture request
+    with flash. It triggers the precapture sequence with preview request
+    preview_request_start with capture intent preview by setting aePrecapture
+    trigger to Start. This is followed by repeated preview requests
+    preview_request_idle with aePrecaptureTrigger set to IDLE.
+    Once the AE is converged, a single image is captured still_capture_req
+    during which the flash must be fired.
+    Note: The part where we read output data from socket is cloned from
+    do_capture and will be consolidated in U.
+
+    Args:
+      preview_request_start: Preview request with aePrecaptureTrigger set to
+        Start
+      preview_request_idle: Preview request with aePrecaptureTrigger set to Idle
+      still_capture_req: Single still capture request.
+      out_surface: Specifications of the output image formats and
+        sizes to use for capture.
+    Returns:
+      An object which contains following fields:
+      * data: the image data as a numpy array of bytes.
+      * width: the width of the captured image.
+      * height: the height of the captured image.
+      * format: image format
+      * metadata: the capture result object
+    """
+    cmd = {}
+    cmd['cmdName'] = 'doCaptureWithFlash'
+    cmd['previewRequestStart'] = [preview_request_start]
+    cmd['previewRequestIdle'] = [preview_request_idle]
+    cmd['stillCaptureRequest'] = [still_capture_req]
+    cmd['outputSurfaces'] = [out_surface]
+
+    cam_ids = self._camera_id
+    self.sock.settimeout(self.SOCK_TIMEOUT + self.EXTRA_SOCK_TIMEOUT)
+    logging.debug('Capturing image with ON_AUTO_FLASH.')
+    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
+
+    bufs = {}
+    bufs[self._camera_id] = {'jpeg': []}
+    formats = ['jpeg']
+    rets = []
+    nbufs = 0
+    mds = []
+    physical_mds = []
+    widths = None
+    heights = None
+    ncap = 1
+    capture_results_returned = False
+    yuv_bufs = {}
+    while (nbufs < ncap) or (not capture_results_returned):
+      json_obj, buf = self.__read_response_from_socket()
+      if json_obj['tag'] in ItsSession.IMAGE_FORMAT_LIST_1 and buf is not None:
+        fmt = json_obj['tag'][:-5]
+        bufs[self._camera_id][fmt].append(buf)
+        nbufs += 1
+      elif json_obj['tag'] == 'captureResults':
+        capture_results_returned = True
+        mds.append(json_obj['objValue']['captureResult'])
+        physical_mds.append(json_obj['objValue']['physicalResults'])
+        outputs = json_obj['objValue']['outputs']
+        widths = [out['width'] for out in outputs]
+        heights = [out['height'] for out in outputs]
+      else:
+        tag_string = unicodedata.normalize('NFKD', json_obj['tag']).encode(
+            'ascii', 'ignore')
+        for x in ItsSession.IMAGE_FORMAT_LIST_2:
+          x = bytes(x, encoding='utf-8')
+          if tag_string.startswith(x):
+            if x == b'yuvImage':
+              physical_id = json_obj['tag'][len(x):]
+              if physical_id in cam_ids:
+                buf_size = numpy.product(buf.shape)
+                yuv_bufs[physical_id][buf_size].append(buf)
+                nbufs += 1
+            else:
+              physical_id = json_obj['tag'][len(x):]
+              if physical_id in cam_ids:
+                fmt = x[:-5].decode('UTF-8')
+                bufs[physical_id][fmt].append(buf)
+                nbufs += 1
+    rets = []
+    for j, fmt in enumerate(formats):
+      objs = []
+      if 'physicalCamera' in cmd['outputSurfaces'][j]:
+        cam_id = cmd['outputSurfaces'][j]['physicalCamera']
+      else:
+        cam_id = self._camera_id
+      for i in range(ncap):
+        obj = {}
+        obj['width'] = widths[j]
+        obj['height'] = heights[j]
+        obj['format'] = fmt
+        if cam_id == self._camera_id:
+          obj['metadata'] = mds[i]
+        else:
+          for physical_md in physical_mds[i]:
+            if cam_id in physical_md:
+              obj['metadata'] = physical_md[cam_id]
+              break
+        obj['data'] = bufs[cam_id][fmt][i]
+        objs.append(obj)
+      rets.append(objs if ncap > 1 else objs[0])
+    self.sock.settimeout(self.SOCK_TIMEOUT)
+    if len(rets) > 1 or (isinstance(rets[0], dict) and
+                         isinstance(still_capture_req, list)):
+      return rets
+    else:
+      return rets[0]
+
   def do_capture(self,
                  cap_request,
                  out_surfaces=None,
@@ -476,9 +774,11 @@ class ItsSession(object):
     "dng", "raw", "raw10", "raw12", "rawStats" or "y8". The default is a
     YUV420 frame ("yuv") corresponding to a full sensor frame.
 
-    Optionally the out_surfaces field can specify physical camera id(s) if
+    1. Optionally the out_surfaces field can specify physical camera id(s) if
     the current camera device is a logical multi-camera. The physical camera
     id must refer to a physical camera backing this logical camera device.
+    2. Optionally The output_surfaces field can also specify the use case(s) if
+    the current camera device has STREAM_USE_CASE capability.
 
     Note that one or more surfaces can be specified, allowing a capture to
     request images back in multiple formats (e.g.) raw+yuv, raw+jpeg,
@@ -879,6 +1179,7 @@ class ItsSession(object):
             lock_awb=False,
             get_results=False,
             ev_comp=0,
+            auto_flash=False,
             mono_camera=False):
     """Perform a 3A operation on the device.
 
@@ -899,6 +1200,7 @@ class ItsSession(object):
       lock_awb: Request AWB lock after convergence, and wait for it.
       get_results: Return the 3A results from this function.
       ev_comp: An EV compensation value to use when running AE.
+      auto_flash: AE control boolean to enable auto flash.
       mono_camera: Boolean for monochrome camera.
 
       Region format in args:
@@ -933,6 +1235,8 @@ class ItsSession(object):
       cmd['awbLock'] = True
     if ev_comp != 0:
       cmd['evComp'] = ev_comp
+    if auto_flash:
+      cmd['autoFlash'] = True
     if self._hidden_physical_id:
       cmd['physicalId'] = self._hidden_physical_id
     self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
@@ -1096,8 +1400,8 @@ class ItsSession(object):
                                       ' support')
     return data['strValue'] == 'true'
 
-  def is_performance_class_primary_camera(self):
-    """Query whether the camera device is an R or S performance class primary camera.
+  def is_primary_camera(self):
+    """Query whether the camera device is a primary rear/front camera.
 
     A primary rear/front facing camera is a camera device with the lowest
     camera Id for that facing.
@@ -1106,14 +1410,28 @@ class ItsSession(object):
       Boolean
     """
     cmd = {}
-    cmd['cmdName'] = 'isPerformanceClassPrimaryCamera'
+    cmd['cmdName'] = 'isPrimaryCamera'
     cmd['cameraId'] = self._camera_id
     self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
 
     data, _ = self.__read_response_from_socket()
-    if data['tag'] != 'performanceClassPrimaryCamera':
-      raise error_util.CameraItsError('Failed to query performance class '
-                                      'primary camera')
+    if data['tag'] != 'primaryCamera':
+      raise error_util.CameraItsError('Failed to query primary camera')
+    return data['strValue'] == 'true'
+
+  def is_performance_class(self):
+    """Query whether the mobile device is an R or S performance class device.
+
+    Returns:
+      Boolean
+    """
+    cmd = {}
+    cmd['cmdName'] = 'isPerformanceClass'
+    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
+
+    data, _ = self.__read_response_from_socket()
+    if data['tag'] != 'performanceClass':
+      raise error_util.CameraItsError('Failed to query performance class')
     return data['strValue'] == 'true'
 
   def measure_camera_launch_ms(self):
@@ -1206,7 +1524,7 @@ def do_capture_with_latency(cam, req, sync_latency, fmt=None):
   return caps[-1]
 
 
-def load_scene(cam, props, scene, tablet, chart_distance):
+def load_scene(cam, props, scene, tablet, chart_distance, lighting_check=True):
   """Load the scene for the camera based on the FOV.
 
   Args:
@@ -1215,6 +1533,7 @@ def load_scene(cam, props, scene, tablet, chart_distance):
     scene: scene to be loaded
     tablet: tablet to load scene on
     chart_distance: distance to tablet
+    lighting_check: Boolean for lighting check enabled
   """
   if not tablet:
     logging.info('Manual run: no tablet to load scene on.')
@@ -1239,7 +1558,7 @@ def load_scene(cam, props, scene, tablet, chart_distance):
           chart_distance,
           opencv_processing_utils.CHART_DISTANCE_WFOV, rtol=0.1) and
       float(camera_fov) > opencv_processing_utils.FOV_THRESH_WFOV)
-  if rfov_camera_in_rfov_box or wfov_camera_in_wfov_box:
+  if (rfov_camera_in_rfov_box or wfov_camera_in_wfov_box) and lighting_check:
     cam.do_3a()
     cap = cam.do_capture(
         capture_request_utils.auto_capture_request(), cam.CAP_YUV)
@@ -1247,12 +1566,14 @@ def load_scene(cam, props, scene, tablet, chart_distance):
     validate_lighting(y_plane, scene)
 
 
-def validate_lighting(y_plane, scene):
+def validate_lighting(y_plane, scene, state='ON'):
   """Validates the lighting level in scene corners based on empirical values.
 
   Args:
     y_plane: Y plane of YUV image
     scene: scene name
+    state: string 'ON' or 'OFF'
+
   Returns:
     boolean True if lighting validated, else raise AssertionError
   """
@@ -1265,11 +1586,25 @@ def validate_lighting(y_plane, scene):
         _VALIDATE_LIGHTING_PATCH_W, _VALIDATE_LIGHTING_PATCH_H)
     y_mean = image_processing_utils.compute_image_means(patch)[0]
     logging.debug('%s corner Y mean: %.3f', location, y_mean)
-    if y_mean > _VALIDATE_LIGHTING_THRESH:
-      logging.debug('Lights ON in test rig.')
-      return True
-  image_processing_utils.write_image(y_plane, f'validate_lighting_{scene}.jpg')
-  raise AssertionError('Lights OFF in test rig. Please turn ON and retry.')
+    if state == 'ON':
+      if y_mean > _VALIDATE_LIGHTING_THRESH:
+        logging.debug('Lights ON in test rig.')
+        return True
+      else:
+        image_processing_utils.write_image(
+            y_plane, f'validate_lighting_{scene}.jpg')
+        raise AssertionError('Lights OFF in test rig. Turn ON and retry.')
+    elif state == 'OFF':
+      if y_mean < _VALIDATE_LIGHTING_THRESH:
+        logging.debug('Lights OFF in test rig.')
+        return True
+      else:
+        image_processing_utils.write_image(
+            y_plane, f'validate_lighting_{scene}.jpg')
+        raise AssertionError('Lights ON in test rig. Turn OFF and retry.')
+    else:
+      raise AssertionError('Invalid lighting state string. '
+                           "Valid strings: 'ON', 'OFF'.")
 
 
 def get_build_sdk_version(device_id):
@@ -1278,8 +1613,8 @@ def get_build_sdk_version(device_id):
   try:
     build_sdk_version = int(subprocess.check_output(cmd.split()).rstrip())
     logging.debug('Build SDK version: %d', build_sdk_version)
-  except (subprocess.CalledProcessError, ValueError):
-    raise AssertionError('No build_sdk_version.')
+  except (subprocess.CalledProcessError, ValueError) as exp_errors:
+    raise AssertionError('No build_sdk_version.') from exp_errors
   return build_sdk_version
 
 
@@ -1293,6 +1628,18 @@ def get_first_api_level(device_id):
     logging.error('No first_api_level. Setting to build version.')
     first_api_level = get_build_sdk_version(device_id)
   return first_api_level
+
+
+def get_vendor_api_level(device_id):
+  """Return the int value for the vendor API level of the device."""
+  cmd = 'adb -s %s shell getprop ro.vendor.api_level' % device_id
+  try:
+    vendor_api_level = int(subprocess.check_output(cmd.split()).rstrip())
+    logging.debug('First vendor API level: %d', vendor_api_level)
+  except (subprocess.CalledProcessError, ValueError):
+    logging.error('No vendor_api_level. Setting to build version.')
+    vendor_api_level = get_build_sdk_version(device_id)
+  return vendor_api_level
 
 
 class ItsSessionUtilsTests(unittest.TestCase):

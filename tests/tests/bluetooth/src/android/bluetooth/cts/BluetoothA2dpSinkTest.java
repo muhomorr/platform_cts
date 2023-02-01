@@ -88,10 +88,6 @@ public class BluetoothA2dpSinkTest extends AndroidTestCase {
             mBluetoothA2dpSink = null;
             mIsProfileReady = false;
         }
-        mUiAutomation.adoptShellPermissionIdentity(BLUETOOTH_CONNECT);
-        if (mAdapter != null) {
-            assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
-        }
         mUiAutomation.dropShellPermissionIdentity();
         mAdapter = null;
     }
@@ -133,6 +129,63 @@ public class BluetoothA2dpSinkTest extends AndroidTestCase {
         mUiAutomation.dropShellPermissionIdentity();
         assertThrows(SecurityException.class,
                 () -> mBluetoothA2dpSink.getConnectionState(testDevice));
+    }
+
+    public void test_getConnectionPolicy() {
+        if (!(mHasBluetooth && mIsA2dpSinkSupported)) return;
+
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mBluetoothA2dpSink);
+
+        BluetoothDevice testDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
+
+        // Verify returns false when invalid input is given
+        assertEquals(BluetoothProfile.CONNECTION_POLICY_FORBIDDEN,
+                mBluetoothA2dpSink.getConnectionPolicy(null));
+
+        assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
+
+        // Verify returns false if bluetooth is not enabled
+        assertEquals(BluetoothProfile.CONNECTION_POLICY_FORBIDDEN,
+                mBluetoothA2dpSink.getConnectionPolicy(testDevice));
+    }
+
+    public void test_setConnectionPolicy() {
+        if (!(mHasBluetooth && mIsA2dpSinkSupported)) return;
+
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mBluetoothA2dpSink);
+
+        BluetoothDevice testDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
+
+        // Verify returns false when invalid input is given
+        assertFalse(mBluetoothA2dpSink.setConnectionPolicy(
+                testDevice, BluetoothProfile.CONNECTION_POLICY_UNKNOWN));
+        assertFalse(mBluetoothA2dpSink.setConnectionPolicy(
+                null, BluetoothProfile.CONNECTION_POLICY_ALLOWED));
+
+        assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
+
+        // Verify returns false if bluetooth is not enabled
+        assertFalse(mBluetoothA2dpSink.setConnectionPolicy(
+                testDevice, BluetoothProfile.CONNECTION_POLICY_FORBIDDEN));
+    }
+
+    public void test_isAudioPlaying() {
+        if (!(mHasBluetooth && mIsA2dpSinkSupported)) return;
+
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mBluetoothA2dpSink);
+
+        BluetoothDevice testDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
+
+        // Verify returns false when invalid input is given
+        assertFalse(mBluetoothA2dpSink.isAudioPlaying(null));
+
+        assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
+
+        // Verify returns false if bluetooth is not enabled
+        assertFalse(mBluetoothA2dpSink.isAudioPlaying(testDevice));
     }
 
     private boolean waitForProfileConnect() {

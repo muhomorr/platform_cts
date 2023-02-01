@@ -27,7 +27,10 @@ android_test {
         "libcore-expectations-knownfailures-jar",
     ],
     libs: ["testng"],
-    dxflags: ["--core-library"],
+    dxflags: [
+        "--core-library",
+        "--android-platform-build",
+    ],
     dex_preopt: {
         enabled: false,
     },
@@ -37,6 +40,8 @@ android_test {
     // Include both the 32 and 64 bit versions of libjavacoretests,
     // where applicable.
     compile_multilib: "both",
+    min_sdk_version: "31",
+    target_sdk_version: "31",
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",

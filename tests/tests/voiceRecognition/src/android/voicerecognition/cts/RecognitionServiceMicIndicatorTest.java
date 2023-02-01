@@ -21,6 +21,7 @@ import static com.android.compatibility.common.util.SystemUtil.runWithShellPermi
 
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import android.Manifest;
@@ -64,6 +65,7 @@ public final class RecognitionServiceMicIndicatorTest {
     // Th notification privacy indicator
     private final String PRIVACY_CHIP_PACKAGE_NAME = "com.android.systemui";
     private final String PRIVACY_CHIP_ID = "privacy_chip";
+    private final String CAR_MIC_PRIVACY_CHIP_ID = "mic_privacy_chip";
     private final String PRIVACY_DIALOG_PACKAGE_NAME = "com.android.systemui";
     private final String PRIVACY_DIALOG_CONTENT_ID = "text";
     private final String CAR_PRIVACY_DIALOG_CONTENT_ID = "qc_title";
@@ -113,6 +115,10 @@ public final class RecognitionServiceMicIndicatorTest {
                     DeviceConfig.getProperty(DeviceConfig.NAMESPACE_PRIVACY, INDICATORS_FLAG);
             Log.v(TAG, "setup(): mOriginalIndicatorsState=" + mOriginalIndicatorsState);
         });
+
+        // TODO(http://b/259941077): Remove once privacy indicators are implemented.
+        assumeFalse("Privacy indicators not supported", isWatch());
+
         setIndicatorsEnabledState(Boolean.toString(true));
         // Wait for any privacy indicator to disappear to avoid the test becoming flaky.
         SystemClock.sleep(INDICATOR_DISMISS_TIMEOUT);
@@ -217,8 +223,9 @@ public final class RecognitionServiceMicIndicatorTest {
         mUiDevice.openQuickSettings();
         SystemClock.sleep(UI_WAIT_TIMEOUT);
 
+        String chipId = isCar() ? CAR_MIC_PRIVACY_CHIP_ID : PRIVACY_CHIP_ID;
         final UiObject2 privacyChip =
-                mUiDevice.findObject(By.res(PRIVACY_CHIP_PACKAGE_NAME, PRIVACY_CHIP_ID));
+                mUiDevice.findObject(By.res(PRIVACY_CHIP_PACKAGE_NAME, chipId));
         assertWithMessage("Can not find mic indicator").that(privacyChip).isNotNull();
 
         // Click the privacy indicator and verify the calling app name display status in the dialog.
@@ -283,5 +290,10 @@ public final class RecognitionServiceMicIndicatorTest {
     private boolean isCar() {
         PackageManager pm = mContext.getPackageManager();
         return pm.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE);
+    }
+
+    private boolean isWatch() {
+        PackageManager pm = mContext.getPackageManager();
+        return pm.hasSystemFeature(PackageManager.FEATURE_WATCH);
     }
 }

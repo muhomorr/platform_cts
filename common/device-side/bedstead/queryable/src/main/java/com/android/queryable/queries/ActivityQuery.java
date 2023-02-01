@@ -25,13 +25,17 @@ import com.android.queryable.info.ActivityInfo;
 /** Query for an {@link Activity}. */
 public interface ActivityQuery<E extends Queryable> extends Query<ActivityInfo>  {
 
-    static ActivityQuery<ActivityQuery<?>> activity() {
-        return new ActivityQueryHelper<>();
+    /** Queries a {@link Activity}*/
+    static ActivityQueryHelper.ActivityQueryBase activity() {
+        return new ActivityQueryHelper.ActivityQueryBase();
     }
 
     ClassQuery<E> activityClass();
     BooleanQuery<E> exported();
 
+    /** Query the permission to launch an activity. */
+    StringQuery<E> permission();
+
     /** Query the intent-filters on an activity. */
-    SetQuery<E, IntentFilter, IntentFilterQuery<?>> intentFilters();
+    SetQuery<E, IntentFilter> intentFilters();
 }

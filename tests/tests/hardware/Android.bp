@@ -16,6 +16,32 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
+aidl_interface {
+    name: "ctshardware-aidl",
+    srcs: [
+        "aidl/**/*.aidl",
+    ],
+    local_include_dir: "aidl",
+    include_dirs: [
+        "frameworks/base/core/java",
+    ],
+    unstable: true,
+    backend: {
+        java: {
+            enabled: true,
+        },
+        cpp: {
+            enabled: false,
+        },
+        ndk: {
+            enabled: true,
+            additional_shared_libraries: [
+                "libnativewindow",
+            ],
+        },
+    },
+}
+
 android_test {
     name: "CtsHardwareTestCases",
     defaults: ["cts_defaults"],
@@ -39,12 +65,15 @@ android_test {
         "cts-wm-util",
         "mockito-target-minus-junit4",
         "platform-test-annotations",
-        "ub-uiautomator",
+        "ctshardware-aidl-java",
     ],
     jni_libs: [
         "libctshardware_jni",
         "libnativehelper_compat_libc++",
     ],
-    srcs: ["src/**/*.java"],
+    srcs: [
+        "src/**/*.java",
+        "src/**/*.kt",
+    ],
     sdk_version: "test_current",
 }

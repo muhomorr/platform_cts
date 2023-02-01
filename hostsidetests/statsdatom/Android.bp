@@ -33,9 +33,11 @@ java_test_host {
         "src/**/cpu/*.java",
         "src/**/devicepower/*.java",
         "src/**/devicestate/*.java",
+        "src/**/gamemanager/*.java",
         "src/**/gnss/*.java",
         "src/**/jobscheduler/*.java",
         "src/**/integrity/*.java",
+        "src/**/media/*.java",
         "src/**/memory/*.java",
         "src/**/net/*.java",
         "src/**/notification/*.java",
@@ -76,6 +78,8 @@ java_test_host {
         ":CtsAppExitTestCases",
         ":CtsExternalServiceService",
         ":CtsSimpleApp",
+        ":CtsStatsdAlarmHelper",
+        ":CtsStatsdAlarmHelper2",
     ],
     per_testcase_directory: true,
 }
@@ -83,11 +87,13 @@ java_test_host {
 java_library_host {
     name: "cts-statsd-atom-host-test-utils",
     srcs: ["src/**/lib/*.java"],
+    static_libs: [
+        "platformprotos",
+        "host-libprotobuf-java-full",
+    ],
     libs: [
         "compatibility-host-util",
         "cts-tradefed",
-        "host-libprotobuf-java-full",
-        "platformprotos",
         "tradefed",
         "truth-prebuilt",
     ],

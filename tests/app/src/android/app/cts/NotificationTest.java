@@ -22,6 +22,7 @@ import static android.graphics.drawable.Icon.TYPE_RESOURCE;
 
 import android.app.Notification;
 import android.app.Notification.Action.Builder;
+import android.app.Notification.CallStyle;
 import android.app.Notification.MessagingStyle;
 import android.app.Notification.MessagingStyle.Message;
 import android.app.NotificationChannel;
@@ -253,8 +254,11 @@ public class NotificationTest extends AndroidTestCase {
 
     public void testBuilder() {
         final Intent intent = new Intent();
-        final PendingIntent contentIntent = PendingIntent.getBroadcast(mContext, 0, intent, PendingIntent.FLAG_MUTABLE_UNAUDITED);
+        final PendingIntent contentIntent =
+                PendingIntent.getBroadcast(mContext, 0, intent, PendingIntent.FLAG_IMMUTABLE);
         Notification.BubbleMetadata bubble = makeBubbleMetadata();
+        final PendingIntent actionIntent =
+                PendingIntent.getBroadcast(mContext, 0, intent, PendingIntent.FLAG_IMMUTABLE);
         mNotification = new Notification.Builder(mContext, CHANNEL.getId())
                 .setSmallIcon(1)
                 .setContentTitle(CONTENT_TITLE)
@@ -267,6 +271,12 @@ public class NotificationTest extends AndroidTestCase {
                 .setGroupAlertBehavior(Notification.GROUP_ALERT_SUMMARY)
                 .setBubbleMetadata(bubble)
                 .setAllowSystemGeneratedContextualActions(ALLOW_SYS_GEN_CONTEXTUAL_ACTIONS)
+                .addAction(new Notification.Action.Builder(0, ACTION_TITLE, actionIntent)
+                        .setContextual(true)
+                        .build())
+                .addAction(new Notification.Action.Builder(0, "not contextual", actionIntent)
+                        .setContextual(false)
+                        .build())
                 .build();
         assertEquals(CONTENT_TEXT, mNotification.extras.getString(Notification.EXTRA_TEXT));
         assertEquals(CONTENT_TITLE, mNotification.extras.getString(Notification.EXTRA_TITLE));
@@ -281,6 +291,8 @@ public class NotificationTest extends AndroidTestCase {
         assertEquals(bubble, mNotification.getBubbleMetadata());
         assertEquals(ALLOW_SYS_GEN_CONTEXTUAL_ACTIONS,
                 mNotification.getAllowSystemGeneratedContextualActions());
+        assertEquals(1, mNotification.getContextualActions().size());
+        assertEquals(ACTION_TITLE, mNotification.getContextualActions().get(0).title);
     }
 
     public void testBuilder_getStyle() {
@@ -968,6 +980,20 @@ public class NotificationTest extends AndroidTestCase {
                     .build();
 
         assertFalse(mNotification.hasImage());
+    }
+
+    public void testCallStyle_setsChronometerExtra() {
+        Person person = new Person.Builder().setName("Test name").build();
+        PendingIntent pendingIntent = PendingIntent.getActivity(mContext, 0,
+                new Intent(), PendingIntent.FLAG_MUTABLE_UNAUDITED);
+        CallStyle cs = CallStyle.forIncomingCall(person, pendingIntent, pendingIntent);
+        Notification.Builder builder = new Notification.Builder(mContext, CHANNEL.getId())
+                .setStyle(cs)
+                .setUsesChronometer(true);
+
+        Notification notification = builder.build();
+        Bundle extras = notification.extras;
+        assertTrue(extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER));
     }
 
     private static void assertMessageEquals(

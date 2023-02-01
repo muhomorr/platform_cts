@@ -16,6 +16,7 @@
 
 package android.media.decoder.cts;
 
+import static android.media.MediaCodecInfo.CodecCapabilities.FEATURE_TunneledPlayback;
 import static android.media.MediaCodecInfo.CodecProfileLevel.AVCLevel31;
 import static android.media.MediaCodecInfo.CodecProfileLevel.AVCLevel32;
 import static android.media.MediaCodecInfo.CodecProfileLevel.AVCLevel4;
@@ -36,14 +37,11 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.ImageFormat;
-import android.hardware.display.DisplayManager;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTimestamp;
-import android.media.AudioTrack;
 import android.media.Image;
 import android.media.MediaCodec;
-import android.media.MediaCodec.BufferInfo;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecInfo.CodecCapabilities;
 import android.media.MediaCodecList;
@@ -55,34 +53,33 @@ import android.media.cts.MediaCodecWrapper;
 import android.media.cts.MediaHeavyPresubmitTest;
 import android.media.cts.MediaTestBase;
 import android.media.cts.NdkMediaCodec;
-import android.media.cts.NonMediaMainlineTest;
-import android.media.cts.Preconditions;
 import android.media.cts.SdkMediaCodec;
+import android.media.cts.TestUtils;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.HandlerThread;
 import android.os.ParcelFileDescriptor;
 import android.platform.test.annotations.AppModeFull;
 import android.util.Log;
-import android.view.Display;
 import android.view.Surface;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SdkSuppress;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
+import com.android.compatibility.common.util.ApiTest;
 import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.DeviceReportLog;
 import com.android.compatibility.common.util.DynamicConfigDeviceSide;
 import com.android.compatibility.common.util.MediaUtils;
+import com.android.compatibility.common.util.NonMainlineTest;
+import com.android.compatibility.common.util.Preconditions;
 import com.android.compatibility.common.util.ResultType;
 import com.android.compatibility.common.util.ResultUnit;
 
 import com.google.common.collect.ImmutableList;
 
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -99,11 +96,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 
 @MediaHeavyPresubmitTest
@@ -113,6 +107,9 @@ public class DecoderTest extends MediaTestBase {
     private static final String TAG = "DecoderTest";
     private static final String REPORT_LOG_NAME = "CtsMediaDecoderTestCases";
     private static boolean mIsAtLeastR = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.R);
+    private static boolean sIsBeforeS = ApiLevelUtil.isBefore(Build.VERSION_CODES.S);
+    private static boolean sIsAfterT = ApiLevelUtil.isAfter(Build.VERSION_CODES.TIRAMISU)
+            || ApiLevelUtil.codenameEquals("UpsideDownCake");
 
     private static final int RESET_MODE_NONE = 0;
     private static final int RESET_MODE_RECONFIGURE = 1;
@@ -124,10 +121,10 @@ public class DecoderTest extends MediaTestBase {
     private static final int CONFIG_MODE_NONE = 0;
     private static final int CONFIG_MODE_QUEUE = 1;
 
-    private static final int CODEC_ALL = 0; // All codecs must support
-    private static final int CODEC_ANY = 1; // At least one codec must support
-    private static final int CODEC_DEFAULT = 2; // Default codec must support
-    private static final int CODEC_OPTIONAL = 3; // Codec support is optional
+    public static final int CODEC_ALL = 0; // All codecs must support
+    public static final int CODEC_ANY = 1; // At least one codec must support
+    public static final int CODEC_DEFAULT = 2; // Default codec must support
+    public static final int CODEC_OPTIONAL = 3; // Codec support is optional
 
     short[] mMasterBuffer;
     static final String mInpPrefix = WorkDir.getMediaDirString();
@@ -140,8 +137,6 @@ public class DecoderTest extends MediaTestBase {
     private DynamicConfigDeviceSide dynamicConfig;
 
     static final Map<String, String> sDefaultDecoders = new HashMap<>();
-
-    private static boolean mIsAtLeastS = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S);
 
     protected static AssetFileDescriptor getAssetFileDescriptorFor(final String res)
             throws FileNotFoundException {
@@ -1489,6 +1484,11 @@ public class DecoderTest extends MediaTestBase {
 
     protected static List<String> codecsFor(String resource, int codecSupportMode)
             throws IOException {
+
+        // CODEC_DEFAULT behaviors started with S
+        if (sIsBeforeS) {
+            codecSupportMode = CODEC_ALL;
+        }
         MediaExtractor ex = new MediaExtractor();
         AssetFileDescriptor fd = getAssetFileDescriptorFor(resource);
         try {
@@ -1508,12 +1508,24 @@ public class DecoderTest extends MediaTestBase {
             try {
                 MediaCodecInfo.CodecCapabilities caps = info.getCapabilitiesForType(mime);
                 if (caps != null) {
+                    // do we test this codec in current mode?
+                    if (!TestUtils.isTestableCodecInCurrentMode(info.getName())) {
+                        Log.i(TAG, "skip codec " + info.getName() + " in current mode");
+                        continue;
+                    }
                     if (codecSupportMode == CODEC_ALL) {
+                        if (sIsAfterT) {
+                            // This is an extractor failure as often as it is a codec failure
+                            assertTrue(info.getName() + " does not declare support for "
+                                    + format.toString(),
+                                    caps.isFormatSupported(format));
+                        }
                         matchingCodecs.add(info.getName());
                     } else if (codecSupportMode == CODEC_DEFAULT) {
                         if (caps.isFormatSupported(format)) {
                             matchingCodecs.add(info.getName());
                         } else if (isDefaultCodec(info.getName(), mime)) {
+                            // This is an extractor failure as often as it is a codec failure
                             fail(info.getName() + " which is a default decoder for mime " + mime
                                    + ", does not declare support for " + format.toString());
                         }
@@ -1525,7 +1537,15 @@ public class DecoderTest extends MediaTestBase {
                 // type is not supported
             }
         }
-        assertTrue("no matching codecs found", matchingCodecs.size() != 0);
+        if (TestUtils.isMtsMode()) {
+            // not fatal in MTS mode
+            Assume.assumeTrue("no MTS-mode codecs found for format " + format.toString(),
+                            matchingCodecs.size() != 0);
+        } else {
+            // but fatal in CTS mode
+            assertTrue("no codecs found for format " + format.toString(),
+                            matchingCodecs.size() != 0);
+        }
         return matchingCodecs;
     }
 
@@ -1619,32 +1639,42 @@ public class DecoderTest extends MediaTestBase {
     protected static class AudioParameter {
 
         public AudioParameter() {
-            this.reset();
+            reset();
         }
 
         public void reset() {
-            this.numChannels = 0;
-            this.samplingRate = 0;
+            mNumChannels = 0;
+            mSamplingRate = 0;
+            mChannelMask = 0;
         }
 
         public int getNumChannels() {
-            return this.numChannels;
+            return mNumChannels;
         }
 
         public int getSamplingRate() {
-            return this.samplingRate;
+            return mSamplingRate;
+        }
+
+        public int getChannelMask() {
+            return mChannelMask;
         }
 
         public void setNumChannels(int numChannels) {
-            this.numChannels = numChannels;
+            mNumChannels = numChannels;
         }
 
         public void setSamplingRate(int samplingRate) {
-            this.samplingRate = samplingRate;
+            mSamplingRate = samplingRate;
         }
 
-        private int numChannels;
-        private int samplingRate;
+        public void setChannelMask(int mask) {
+            mChannelMask = mask;
+        }
+
+        private int mNumChannels;
+        private int mSamplingRate;
+        private int mChannelMask;
     }
 
     private short[] decodeToMemory(String codecName, final String testinput, int resetMode,
@@ -3284,11 +3314,8 @@ public class DecoderTest extends MediaTestBase {
      * TODO(b/182915887): Test all the codecs advertised by the DUT for the provided test content
      */
     private void tunneledVideoPlayback(String mimeType, String videoName) throws Exception {
-        if (!isVideoFeatureSupported(mimeType,
-                CodecCapabilities.FEATURE_TunneledPlayback)) {
-            MediaUtils.skipTest(
-                    TAG,
-                    "No tunneled video playback codec found for MIME " + mimeType);
+        if (!MediaUtils.check(isVideoFeatureSupported(mimeType, FEATURE_TunneledPlayback),
+                    "No tunneled video playback codec found for MIME " + mimeType)) {
             return;
         }
 
@@ -3299,11 +3326,20 @@ public class DecoderTest extends MediaTestBase {
         Uri mediaUri = Uri.fromFile(new File(mInpPrefix, videoName));
         mMediaCodecPlayer.setAudioDataSource(mediaUri, null);
         mMediaCodecPlayer.setVideoDataSource(mediaUri, null);
-        assertTrue("MediaCodecPlayer.start() failed!", mMediaCodecPlayer.start());
         assertTrue("MediaCodecPlayer.prepare() failed!", mMediaCodecPlayer.prepare());
+        mMediaCodecPlayer.startCodec();
 
-        // starts video playback
-        mMediaCodecPlayer.startThread();
+        mMediaCodecPlayer.play();
+        sleepUntil(() ->
+                mMediaCodecPlayer.getCurrentPosition() > CodecState.UNINITIALIZED_TIMESTAMP
+                && mMediaCodecPlayer.getTimestamp() != null
+                && mMediaCodecPlayer.getTimestamp().framePosition > 0,
+                Duration.ofSeconds(1));
+        assertNotEquals("onFrameRendered was not called",
+                mMediaCodecPlayer.getVideoTimeUs(), CodecState.UNINITIALIZED_TIMESTAMP);
+        assertNotEquals("Audio timestamp is null", mMediaCodecPlayer.getTimestamp(), null);
+        assertNotEquals("Audio timestamp has a zero frame position",
+                mMediaCodecPlayer.getTimestamp().framePosition, 0);
 
         final long durationMs = mMediaCodecPlayer.getDuration();
         final long timeOutMs = System.currentTimeMillis() + durationMs + 5 * 1000; // add 5 sec
@@ -3326,8 +3362,9 @@ public class DecoderTest extends MediaTestBase {
     /**
      * Test tunneled video playback mode with HEVC if supported
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTunneledVideoPlaybackHevc() throws Exception {
         tunneledVideoPlayback(MediaFormat.MIMETYPE_VIDEO_HEVC,
                     "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
@@ -3336,8 +3373,9 @@ public class DecoderTest extends MediaTestBase {
     /**
      * Test tunneled video playback mode with AVC if supported
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTunneledVideoPlaybackAvc() throws Exception {
         tunneledVideoPlayback(MediaFormat.MIMETYPE_VIDEO_AVC,
                 "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
@@ -3346,11 +3384,12 @@ public class DecoderTest extends MediaTestBase {
     /**
      * Test tunneled video playback mode with VP9 if supported
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTunneledVideoPlaybackVp9() throws Exception {
         tunneledVideoPlayback(MediaFormat.MIMETYPE_VIDEO_VP9,
-                    "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
+                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
     }
 
     /**
@@ -3359,11 +3398,8 @@ public class DecoderTest extends MediaTestBase {
      * TODO(b/182915887): Test all the codecs advertised by the DUT for the provided test content
      */
     private void testTunneledVideoFlush(String mimeType, String videoName) throws Exception {
-        if (!isVideoFeatureSupported(mimeType,
-                        CodecCapabilities.FEATURE_TunneledPlayback)) {
-            MediaUtils.skipTest(
-                    TAG,
-                    "No tunneled video playback codec found for MIME " + mimeType);
+        if (!MediaUtils.check(isVideoFeatureSupported(mimeType, FEATURE_TunneledPlayback),
+                    "No tunneled video playback codec found for MIME " + mimeType)) {
             return;
         }
 
@@ -3374,12 +3410,21 @@ public class DecoderTest extends MediaTestBase {
         Uri mediaUri = Uri.fromFile(new File(mInpPrefix, videoName));
         mMediaCodecPlayer.setAudioDataSource(mediaUri, null);
         mMediaCodecPlayer.setVideoDataSource(mediaUri, null);
-        assertTrue("MediaCodecPlayer.start() failed!", mMediaCodecPlayer.start());
         assertTrue("MediaCodecPlayer.prepare() failed!", mMediaCodecPlayer.prepare());
+        mMediaCodecPlayer.startCodec();
 
-        // starts video playback
-        mMediaCodecPlayer.startThread();
-        Thread.sleep(SLEEP_TIME_MS);
+        mMediaCodecPlayer.play();
+        sleepUntil(() ->
+                mMediaCodecPlayer.getCurrentPosition() > CodecState.UNINITIALIZED_TIMESTAMP
+                && mMediaCodecPlayer.getTimestamp() != null
+                && mMediaCodecPlayer.getTimestamp().framePosition > 0,
+                Duration.ofSeconds(1));
+        assertNotEquals("onFrameRendered was not called",
+                mMediaCodecPlayer.getVideoTimeUs(), CodecState.UNINITIALIZED_TIMESTAMP);
+        assertNotEquals("Audio timestamp is null", mMediaCodecPlayer.getTimestamp(), null);
+        assertNotEquals("Audio timestamp has a zero frame position",
+                mMediaCodecPlayer.getTimestamp().framePosition, 0);
+
         mMediaCodecPlayer.pause();
         mMediaCodecPlayer.flush();
         // mMediaCodecPlayer.reset() handled in TearDown();
@@ -3388,8 +3433,9 @@ public class DecoderTest extends MediaTestBase {
     /**
      * Test tunneled video playback flush with HEVC if supported
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTunneledVideoFlushHevc() throws Exception {
         testTunneledVideoFlush(MediaFormat.MIMETYPE_VIDEO_HEVC,
                 "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
@@ -3398,8 +3444,9 @@ public class DecoderTest extends MediaTestBase {
     /**
      * Test tunneled video playback flush with AVC if supported
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTunneledVideoFlushAvc() throws Exception {
         testTunneledVideoFlush(MediaFormat.MIMETYPE_VIDEO_AVC,
                 "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
@@ -3408,26 +3455,23 @@ public class DecoderTest extends MediaTestBase {
     /**
      * Test tunneled video playback flush with VP9 if supported
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTunneledVideoFlushVp9() throws Exception {
         testTunneledVideoFlush(MediaFormat.MIMETYPE_VIDEO_VP9,
                 "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
     }
 
     /**
-     * Test tunneled video peek is on by default if supported
+     * Test that the first frame is rendered when video peek is on in tunneled mode.
      *
      * TODO(b/182915887): Test all the codecs advertised by the DUT for the provided test content
      */
-    private void testTunneledVideoPeekDefault(String mimeType, String videoName) throws Exception {
-        if (!MediaUtils.check(mIsAtLeastS, "testTunneledVideoPeekDefault requires Android 12")) {
-            return;
-        }
-
-        if (!MediaUtils.check(isVideoFeatureSupported(mimeType,
-                                CodecCapabilities.FEATURE_TunneledPlayback),
-                        "No tunneled video playback codec found for MIME " + mimeType)){
+    private void testTunneledVideoPeekOn(String mimeType, String videoName, float frameRate)
+            throws Exception {
+        if (!MediaUtils.check(isVideoFeatureSupported(mimeType, FEATURE_TunneledPlayback),
+                    "No tunneled video playback codec found for MIME " + mimeType)) {
             return;
         }
 
@@ -3436,72 +3480,82 @@ public class DecoderTest extends MediaTestBase {
         mMediaCodecPlayer = new MediaCodecTunneledPlayer(
                 mContext, getActivity().getSurfaceHolder(), true, am.generateAudioSessionId());
 
+        // Frame rate is needed by some devices to initialize the display hardware
+        mMediaCodecPlayer.setFrameRate(frameRate);
+
         Uri mediaUri = Uri.fromFile(new File(mInpPrefix, videoName));
         mMediaCodecPlayer.setAudioDataSource(mediaUri, null);
         mMediaCodecPlayer.setVideoDataSource(mediaUri, null);
-        assertTrue("MediaCodecPlayer.start() failed!", mMediaCodecPlayer.start());
         assertTrue("MediaCodecPlayer.prepare() failed!", mMediaCodecPlayer.prepare());
-        mMediaCodecPlayer.start();
+        mMediaCodecPlayer.startCodec();
+        mMediaCodecPlayer.setVideoPeek(true); // Enable video peek
+
+        // Queue the first video frame, which should not be rendered imminently
+        mMediaCodecPlayer.queueOneVideoFrame();
 
         // Assert that onFirstTunnelFrameReady is called
-        mMediaCodecPlayer.queueOneVideoFrame();
-        final int waitTimeMs = 150;
-        Thread.sleep(waitTimeMs);
+        final int waitForFrameReadyMs = 150;
+        Thread.sleep(waitForFrameReadyMs);
         assertTrue(String.format("onFirstTunnelFrameReady not called within %d milliseconds",
-                        waitTimeMs),
+                        waitForFrameReadyMs),
                 mMediaCodecPlayer.isFirstTunnelFrameReady());
+
+        // This is long due to high-latency display pipelines on TV devices
+        final int waitForRenderingMs = 1000;
+        Thread.sleep(waitForRenderingMs);
+
         // Assert that video peek is enabled and working
         assertNotEquals(String.format("First frame not rendered within %d milliseconds",
-                        waitTimeMs), CodecState.UNINITIALIZED_TIMESTAMP,
+                        waitForRenderingMs), CodecState.UNINITIALIZED_TIMESTAMP,
                 mMediaCodecPlayer.getCurrentPosition());
 
         // mMediaCodecPlayer.reset() handled in TearDown();
     }
 
     /**
-     * Test default tunneled video peek with HEVC if supported
+     * Test that the first frame is rendered when video peek is on for HEVC in tunneled mode.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
-    public void testTunneledVideoPeekDefaultHevc() throws Exception {
-        testTunneledVideoPeekDefault(MediaFormat.MIMETYPE_VIDEO_HEVC,
-                "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
+    @ApiTest(apis={"android.media.MediaCodec#PARAMETER_KEY_TUNNEL_PEEK"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    public void testTunneledVideoPeekOnHevc() throws Exception {
+        testTunneledVideoPeekOn(MediaFormat.MIMETYPE_VIDEO_HEVC,
+                "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv", 25);
     }
 
     /**
-     * Test default tunneled video peek with AVC if supported
+     * Test that the first frame is rendered when video peek is on for AVC in tunneled mode.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
-    public void testTunneledVideoPeekDefaultAvc() throws Exception {
-        testTunneledVideoPeekDefault(MediaFormat.MIMETYPE_VIDEO_AVC,
-                "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
+    @ApiTest(apis={"android.media.MediaCodec#PARAMETER_KEY_TUNNEL_PEEK"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    public void testTunneledVideoPeekOnAvc() throws Exception {
+        testTunneledVideoPeekOn(MediaFormat.MIMETYPE_VIDEO_AVC,
+                "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4", 25);
     }
 
     /**
-     * Test default tunneled video peek with VP9 if supported
+     * Test that the first frame is rendered when video peek is on for VP9 in tunneled mode.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
-    public void testTunneledVideoPeekDefaultVp9() throws Exception {
-        testTunneledVideoPeekDefault(MediaFormat.MIMETYPE_VIDEO_VP9,
-                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
+    @ApiTest(apis={"android.media.MediaCodec#PARAMETER_KEY_TUNNEL_PEEK"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    public void testTunneledVideoPeekOnVp9() throws Exception {
+        testTunneledVideoPeekOn(MediaFormat.MIMETYPE_VIDEO_VP9,
+                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm",
+                30);
     }
 
 
     /**
-     * Test tunneled video peek can be turned off then on.
+     * Test that peek off doesn't render the first frame until turned on in tunneled mode.
      *
      * TODO(b/182915887): Test all the codecs advertised by the DUT for the provided test content
      */
-    private void testTunneledVideoPeekOff(String mimeType, String videoName) throws Exception {
-        if (!MediaUtils.check(mIsAtLeastS, "testTunneledVideoPeekOff requires Android 12")) {
-            return;
-        }
-
-        if (!MediaUtils.check(isVideoFeatureSupported(mimeType,
-                                CodecCapabilities.FEATURE_TunneledPlayback),
-                        "No tunneled video playback codec found for MIME " + mimeType)){
+    private void testTunneledVideoPeekOff(String mimeType, String videoName, float frameRate)
+            throws Exception {
+        if (!MediaUtils.check(isVideoFeatureSupported(mimeType, FEATURE_TunneledPlayback),
+                    "No tunneled video playback codec found for MIME " + mimeType)) {
             return;
         }
 
@@ -3510,109 +3564,90 @@ public class DecoderTest extends MediaTestBase {
         mMediaCodecPlayer = new MediaCodecTunneledPlayer(
                 mContext, getActivity().getSurfaceHolder(), true, am.generateAudioSessionId());
 
+        // Frame rate is needed by some devices to initialize the display hardware
+        mMediaCodecPlayer.setFrameRate(frameRate);
+
         Uri mediaUri = Uri.fromFile(new File(mInpPrefix, videoName));
         mMediaCodecPlayer.setAudioDataSource(mediaUri, null);
         mMediaCodecPlayer.setVideoDataSource(mediaUri, null);
-        assertTrue("MediaCodecPlayer.start() failed!", mMediaCodecPlayer.start());
         assertTrue("MediaCodecPlayer.prepare() failed!", mMediaCodecPlayer.prepare());
-        mMediaCodecPlayer.start();
+        mMediaCodecPlayer.startCodec();
         mMediaCodecPlayer.setVideoPeek(false); // Disable video peek
 
-        // Assert that onFirstTunnelFrameReady is called
+        // Queue the first video frame, which should not be rendered yet
         mMediaCodecPlayer.queueOneVideoFrame();
-        final int waitTimeMsStep1 = 150;
-        Thread.sleep(waitTimeMsStep1);
+
+        // Assert that onFirstTunnelFrameReady is called
+        final int waitForFrameReadyMs = 150;
+        Thread.sleep(waitForFrameReadyMs);
         assertTrue(String.format("onFirstTunnelFrameReady not called within %d milliseconds",
-                        waitTimeMsStep1),
+                        waitForFrameReadyMs),
                 mMediaCodecPlayer.isFirstTunnelFrameReady());
-        // Assert that video peek is disabled
+
+        // This is long due to high-latency display pipelines on TV devices
+        final int waitForRenderingMs = 1000;
+        Thread.sleep(waitForRenderingMs);
+
+        // Assert the video frame has not been peeked yet
         assertEquals("First frame rendered while peek disabled", CodecState.UNINITIALIZED_TIMESTAMP,
                 mMediaCodecPlayer.getCurrentPosition());
-        mMediaCodecPlayer.setVideoPeek(true); // Reenable video peek
-        final int waitTimeMsStep2 = 150;
-        Thread.sleep(waitTimeMsStep2);
-        // Assert that video peek is enabled
+
+        // Enable video peek
+        mMediaCodecPlayer.setVideoPeek(true);
+        Thread.sleep(waitForRenderingMs);
+
+        // Assert that the first frame was rendered
         assertNotEquals(String.format(
-                        "First frame not rendered within %d milliseconds while peek enabled",
-                        waitTimeMsStep2), CodecState.UNINITIALIZED_TIMESTAMP,
+                        "First frame not rendered within %d milliseconds after peek is enabled",
+                        waitForRenderingMs), CodecState.UNINITIALIZED_TIMESTAMP,
                 mMediaCodecPlayer.getCurrentPosition());
 
         // mMediaCodecPlayer.reset() handled in TearDown();
     }
 
     /**
-     * Test tunneled video peek can be turned off then on with HEVC if supported
+     * Test that peek off doesn't render the first frame until turned on for HEC in tunneled mode.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
+    @ApiTest(apis={"android.media.MediaCodec#PARAMETER_KEY_TUNNEL_PEEK"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTunneledVideoPeekOffHevc() throws Exception {
         testTunneledVideoPeekOff(MediaFormat.MIMETYPE_VIDEO_HEVC,
-                "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
+                "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv", 25);
     }
 
     /**
-     * Test tunneled video peek can be turned off then on with AVC if supported
+     * Test that peek off doesn't render the first frame until turned on for AVC in tunneled mode.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
+    @ApiTest(apis={"android.media.MediaCodec#PARAMETER_KEY_TUNNEL_PEEK"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTunneledVideoPeekOffAvc() throws Exception {
         testTunneledVideoPeekOff(MediaFormat.MIMETYPE_VIDEO_AVC,
-                "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
+                "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4", 25);
     }
 
     /**
-     * Test tunneled video peek can be turned off then on with VP9 if supported
+     * Test that peek off doesn't render the first frame until turned on for VP9 in tunneled mode.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
+    @ApiTest(apis={"android.media.MediaCodec#PARAMETER_KEY_TUNNEL_PEEK"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTunneledVideoPeekOffVp9() throws Exception {
         testTunneledVideoPeekOff(MediaFormat.MIMETYPE_VIDEO_VP9,
-                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
+                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm",
+                30);
     }
 
-    /**
-     * Test tunneled audio PTS gaps with HEVC if supported.
-     * If there exist PTS Gaps in AudioTrack playback, the framePosition returned by
-     * AudioTrack#getTimestamp must not advance for any silent frames rendered to fill the
-     * gap.
-     */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
-    @Test
-    public void testTunneledAudioPtsGapsHevc() throws Exception {
-        testTunneledAudioPtsGaps(MediaFormat.MIMETYPE_VIDEO_HEVC,
-                "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
-    }
-
-    /**
-     * Test tunneled audio PTS gaps with AVC if supported
-     * If there exist PTS Gaps in AudioTrack playback, the framePosition returned by
-     * AudioTrack#getTimestamp must not advance for any silent frames rendered to fill the
-     * gap.
-     */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
-    @Test
-    public void testTunneledAudioPtsGapsAvc() throws Exception {
-        testTunneledAudioPtsGaps(MediaFormat.MIMETYPE_VIDEO_AVC,
-                "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
-    }
-
-    /**
-     * Test tunneled audio PTS gaps with VP9 if supported
-     * If there exist PTS Gaps in AudioTrack playback, the framePosition returned by
-     * AudioTrack#getTimestamp must not advance for any silent frames rendered to fill the
-     * gap.
-     */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
-    @Test
-    public void testTunneledAudioPtsGapsVp9() throws Exception {
-        testTunneledAudioPtsGaps(MediaFormat.MIMETYPE_VIDEO_VP9,
-                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
-    }
-
-    private void testTunneledAudioPtsGaps(String mimeType, String fileName) throws Exception {
-        if (!MediaUtils.check(isVideoFeatureSupported(mimeType,
-                CodecCapabilities.FEATURE_TunneledPlayback),
-                "No tunneled video playback codec found for MIME " + mimeType)) {
+   /**
+    * Test that audio timestamps don't progress during audio PTS gaps in tunneled mode.
+    *
+    * See: https://source.android.com/docs/devices/tv/multimedia-tunneling#behavior
+    */
+   private void testTunneledAudioProgressWithPtsGaps(String mimeType, String fileName)
+            throws Exception {
+        if (!MediaUtils.check(isVideoFeatureSupported(mimeType, FEATURE_TunneledPlayback),
+                    "No tunneled video playback codec found for MIME " + mimeType)) {
             return;
         }
 
@@ -3623,48 +3658,64 @@ public class DecoderTest extends MediaTestBase {
 
         final Uri mediaUri = Uri.fromFile(new File(mInpPrefix, fileName));
         mMediaCodecPlayer.setAudioDataSource(mediaUri, null);
-
-        assertTrue("MediaCodecPlayer.start() failed!", mMediaCodecPlayer.start());
+        mMediaCodecPlayer.setVideoDataSource(mediaUri, null);
         assertTrue("MediaCodecPlayer.prepare() failed!", mMediaCodecPlayer.prepare());
+        mMediaCodecPlayer.startCodec();
 
-        mMediaCodecPlayer.startThread();
-        sleepUntil(() -> mMediaCodecPlayer.getTimestamp() != null
-                && mMediaCodecPlayer.getTimestamp().framePosition > 0,  Duration.ofSeconds(1));
-        // After 30 ms, Changing the presentation offset for audio track
-        Thread.sleep(30);
+        mMediaCodecPlayer.play();
+        sleepUntil(() ->
+                mMediaCodecPlayer.getCurrentPosition() > CodecState.UNINITIALIZED_TIMESTAMP
+                && mMediaCodecPlayer.getTimestamp() != null
+                && mMediaCodecPlayer.getTimestamp().framePosition > 0,
+                Duration.ofSeconds(1));
+        assertNotEquals("onFrameRendered was not called",
+                mMediaCodecPlayer.getVideoTimeUs(), CodecState.UNINITIALIZED_TIMESTAMP);
+        assertNotEquals("Audio timestamp is null", mMediaCodecPlayer.getTimestamp(), null);
+        assertNotEquals("Audio timestamp has a zero frame position",
+                mMediaCodecPlayer.getTimestamp().framePosition, 0);
 
-        // Requirement: If the audio presentation timestamp header sent by the app is greater than
-        // the current audio clock by less than 100ms, the framePosition returned by
-        // AudioTrack#getTimestamp (per get_presentation_position) must not advance for any silent
-        // frames rendered to fill the gap.
-        // TODO: add link to documentation when available
+        // After 100 ms of playback, simulate a PTS gap of 100 ms
+        Thread.sleep(100);
         mMediaCodecPlayer.setAudioTrackOffsetMs(100);
-        // Wait for 20 ms so that whatever was buffered before offset is played
-        Thread.sleep(20);
-        long initialFramePosition = mMediaCodecPlayer.getTimestamp().framePosition;
 
-        // Verify that the framePosition did not advance after 30 ms. This ensures framePosition
-        // returned by AudioTrack#getTimestamp did not advance for any silent frames rendered to
-        // fill PTS gaps.
-        Thread.sleep(30);
-        assertEquals(
-                "Initial frame position != Final frame position after introducing PTS gaps",
-                initialFramePosition, mMediaCodecPlayer.getTimestamp().framePosition);
-
-        Thread.sleep(500);
-        mMediaCodecPlayer.stopWritingToAudioTrack(true);
-
-        // Sleep till framePosition stabilizes, i.e. playback is complete or till max 3 seconds.
-        long framePosCurrent = 0;
-        int totalSleepMs = 0;
-        while (totalSleepMs < 3000
-                && framePosCurrent != mMediaCodecPlayer.getTimestamp().framePosition) {
-            framePosCurrent = mMediaCodecPlayer.getTimestamp().framePosition;
-            Thread.sleep(500);
-            totalSleepMs += 500;
+        // Verify that at some point in time in the future, the framePosition stopped advancing.
+        // This should happen when the PTS gap is encountered - silence is rendered to fill the
+        // PTS gap, but this silence should not cause framePosition to advance.
+        {
+            final long ptsGapTimeoutMs = 3000;
+            long startTimeMs = System.currentTimeMillis();
+            AudioTimestamp previousTimestamp;
+            do {
+                assertTrue(String.format("No audio PTS gap after %d milliseconds", ptsGapTimeoutMs),
+                        System.currentTimeMillis() - startTimeMs < ptsGapTimeoutMs);
+                previousTimestamp = mMediaCodecPlayer.getTimestamp();
+                Thread.sleep(50);
+            } while (mMediaCodecPlayer.getTimestamp().framePosition
+                    != previousTimestamp.framePosition);
         }
 
-        // Verify if number of frames written and played are same even if PTS Gaps were present
+        // Allow the playback to advance past the PTS gap and back to normal operation
+        Thread.sleep(500);
+
+        // Simulate the end of playback by pretending that we have no more audio data
+        mMediaCodecPlayer.stopDrainingAudioOutputBuffers(true);
+
+        // Sleep till framePosition stabilizes, i.e. playback is complete
+        {
+            long endOfPlayackTimeoutMs = 20000;
+            long startTimeMs = System.currentTimeMillis();
+            AudioTimestamp previousTimestamp;
+            do {
+                assertTrue(String.format("No end of playback after %d milliseconds",
+                                endOfPlayackTimeoutMs),
+                        System.currentTimeMillis() - startTimeMs < endOfPlayackTimeoutMs);
+                previousTimestamp = mMediaCodecPlayer.getTimestamp();
+                Thread.sleep(100);
+            } while (mMediaCodecPlayer.getTimestamp().framePosition
+                    != previousTimestamp.framePosition);
+        }
+
+        // Verify if number of frames written and played are same even if PTS gaps were present
         // in the playback.
         assertEquals("Number of frames written != Number of frames played",
                 mMediaCodecPlayer.getAudioFramesWritten(),
@@ -3672,39 +3723,46 @@ public class DecoderTest extends MediaTestBase {
     }
 
     /**
-     * Test tunneled audioTimestamp progress with underrun, with HEVC if supported
+     * Test that audio timestamps don't progress during audio PTS gaps for HEVC in tunneled mode.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
-    public void testTunneledAudioTimestampProgressWithUnderrunHevc() throws Exception {
-        testTunneledAudioTimestampProgressWithUnderrun(MediaFormat.MIMETYPE_VIDEO_HEVC,
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    public void testTunneledAudioProgressWithPtsGapsHevc() throws Exception {
+        testTunneledAudioProgressWithPtsGaps(MediaFormat.MIMETYPE_VIDEO_HEVC,
                 "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
     }
 
     /**
-     * Test tunneled audioTimestamp progress with underrun, with AVC if supported.
+     * Test that audio timestamps don't progress during audio PTS gaps for AVC in tunneled mode.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
-    public void testTunneledAudioTimestampProgressWithUnderrunAvc() throws Exception {
-        testTunneledAudioTimestampProgressWithUnderrun(MediaFormat.MIMETYPE_VIDEO_AVC,
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    public void testTunneledAudioProgressWithPtsGapsAvc() throws Exception {
+        testTunneledAudioProgressWithPtsGaps(MediaFormat.MIMETYPE_VIDEO_AVC,
                 "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
     }
 
     /**
-     *  Test tunneled audioTimestamp progress with underrun, with VP9 if supported.
+     * Test that audio timestamps don't progress during audio PTS gaps for VP9 in tunneled mode.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
-    public void testTunneledAudioTimestampProgressWithUnderrunVp9() throws Exception {
-        testTunneledAudioTimestampProgressWithUnderrun(MediaFormat.MIMETYPE_VIDEO_VP9,
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    public void testTunneledAudioProgressWithPtsGapsVp9() throws Exception {
+        testTunneledAudioProgressWithPtsGaps(MediaFormat.MIMETYPE_VIDEO_VP9,
                 "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
     }
 
-    private void testTunneledAudioTimestampProgressWithUnderrun(
-            String mimeType, String fileName) throws Exception {
-        if (!MediaUtils.check(isVideoFeatureSupported(mimeType,
-                CodecCapabilities.FEATURE_TunneledPlayback),
+    /**
+     * Test that audio timestamps stop progressing during underrun in tunneled mode.
+     *
+     * See: https://source.android.com/docs/devices/tv/multimedia-tunneling#behavior
+     */
+    private void testTunneledAudioProgressWithUnderrun(String mimeType, String fileName)
+            throws Exception {
+        if (!MediaUtils.check(isVideoFeatureSupported(mimeType, FEATURE_TunneledPlayback),
                 "No tunneled video playback codec found for MIME " + mimeType)) {
             return;
         }
@@ -3716,60 +3774,126 @@ public class DecoderTest extends MediaTestBase {
 
         final Uri mediaUri = Uri.fromFile(new File(mInpPrefix, fileName));
         mMediaCodecPlayer.setAudioDataSource(mediaUri, null);
-
-        assertTrue("MediaCodecPlayer.start() failed!", mMediaCodecPlayer.start());
+        mMediaCodecPlayer.setVideoDataSource(mediaUri, null);
         assertTrue("MediaCodecPlayer.prepare() failed!", mMediaCodecPlayer.prepare());
+        mMediaCodecPlayer.startCodec();
 
-        mMediaCodecPlayer.startThread();
+        mMediaCodecPlayer.play();
+        sleepUntil(() ->
+                mMediaCodecPlayer.getCurrentPosition() > CodecState.UNINITIALIZED_TIMESTAMP
+                && mMediaCodecPlayer.getTimestamp() != null
+                && mMediaCodecPlayer.getTimestamp().framePosition > 0,
+                Duration.ofSeconds(1));
+        assertNotEquals("onFrameRendered was not called",
+                mMediaCodecPlayer.getVideoTimeUs(), CodecState.UNINITIALIZED_TIMESTAMP);
+        assertNotEquals("Audio timestamp is null", mMediaCodecPlayer.getTimestamp(), null);
+        assertNotEquals("Audio timestamp has a zero frame position",
+                mMediaCodecPlayer.getTimestamp().framePosition, 0);
 
-        // Stop writing to the AudioTrack after 200 ms.
+        // After 200 ms of playback, stop writing to the AudioTrack to simulate underrun
         Thread.sleep(200);
-        mMediaCodecPlayer.stopWritingToAudioTrack(true);
+        mMediaCodecPlayer.stopDrainingAudioOutputBuffers(true);
 
-        // Resume writing to the audioTrack after 1 sec. Write only for 200 ms.
-        Thread.sleep(1000);
-        mMediaCodecPlayer.stopWritingToAudioTrack(false);
-        Thread.sleep(200);
-        mMediaCodecPlayer.stopWritingToAudioTrack(true);
-
-        // Sleep till framePosition stabilizes, i.e. playback is complete or till max 3 seconds.
-        long framePosCurrent = 0;
-        int totalSleepMs = 0;
-        while (totalSleepMs < 3000
-                && framePosCurrent != mMediaCodecPlayer.getTimestamp().framePosition) {
-            framePosCurrent = mMediaCodecPlayer.getTimestamp().framePosition;
-            Thread.sleep(500);
-            totalSleepMs += 500;
+        // Sleep till framePosition stabilizes, i.e. AudioTrack is in an underrun condition
+        {
+            long endOfPlayackTimeoutMs = 3000;
+            long startTimeMs = System.currentTimeMillis();
+            AudioTimestamp previousTimestamp;
+            do {
+                assertTrue(String.format("No underrun after %d milliseconds",
+                                endOfPlayackTimeoutMs),
+                        System.currentTimeMillis() - startTimeMs < endOfPlayackTimeoutMs);
+                previousTimestamp = mMediaCodecPlayer.getTimestamp();
+                Thread.sleep(100);
+            } while (mMediaCodecPlayer.getTimestamp().framePosition
+                    != previousTimestamp.framePosition);
         }
 
-        // Verify if number of frames written and played are same. This ensures the
-        // framePosition returned by AudioTrack#getTimestamp progresses correctly in case of
-        // underrun
+        // After 200 ms of starving the AudioTrack, resume writing
+        Thread.sleep(200);
+        mMediaCodecPlayer.stopDrainingAudioOutputBuffers(false);
+
+        // After 200 ms, simulate the end of playback by pretending that we have no more audio data
+        Thread.sleep(200);
+        mMediaCodecPlayer.stopDrainingAudioOutputBuffers(true);
+
+        // Sleep till framePosition stabilizes, i.e. playback is complete
+        {
+            long endOfPlayackTimeoutMs = 3000;
+            long startTimeMs = System.currentTimeMillis();
+            AudioTimestamp previousTimestamp;
+            do {
+                assertTrue(String.format("No end of playback after %d milliseconds",
+                                endOfPlayackTimeoutMs),
+                        System.currentTimeMillis() - startTimeMs < endOfPlayackTimeoutMs);
+                previousTimestamp = mMediaCodecPlayer.getTimestamp();
+                Thread.sleep(100);
+            } while (mMediaCodecPlayer.getTimestamp().framePosition
+                    != previousTimestamp.framePosition);
+        }
+
+        // Verify if number of frames written and played are same even if an underrun condition
+        // occurs.
         assertEquals("Number of frames written != Number of frames played",
                 mMediaCodecPlayer.getAudioFramesWritten(),
                 mMediaCodecPlayer.getTimestamp().framePosition);
     }
 
     /**
-     * Test accurate video rendering after a video MediaCodec flush.
+     * Test that audio timestamps stop progressing during underrun for HEVC in tunneled mode.
+     */
+    @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    public void testTunneledAudioProgressWithUnderrunHevc() throws Exception {
+        testTunneledAudioProgressWithUnderrun(MediaFormat.MIMETYPE_VIDEO_HEVC,
+                "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
+    }
+
+    /**
+     * Test that audio timestamps stop progressing during underrun for AVC in tunneled mode.
+     */
+    @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    public void testTunneledAudioProgressWithUnderrunAvc() throws Exception {
+        testTunneledAudioProgressWithUnderrun(MediaFormat.MIMETYPE_VIDEO_AVC,
+                "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
+    }
+
+    /**
+     * Test that audio timestamps stop progressing during underrun for VP9 in tunneled mode.
+     */
+    @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    public void testTunneledAudioProgressWithUnderrunVp9() throws Exception {
+        testTunneledAudioProgressWithUnderrun(MediaFormat.MIMETYPE_VIDEO_VP9,
+                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
+    }
+
+    /**
+     * Test accurate video rendering after a flush in tunneled mode.
      *
-     * On some devices, queuing content when the player is paused, then triggering a flush, then
-     * queuing more content does not behave as expected. The queued content gets lost and the flush
-     * is really only applied once playback has resumed.
+     * Test On some devices, queuing content when the player is paused, then triggering a flush,
+     * then queuing more content does not behave as expected. The queued content gets lost and the
+     * flush is really only applied once playback has resumed.
      *
      * TODO(b/182915887): Test all the codecs advertised by the DUT for the provided test content
      */
     private void testTunneledAccurateVideoFlush(String mimeType, String videoName)
             throws Exception {
-        if (!MediaUtils.check(mIsAtLeastS, "testTunneledAccurateVideoFlush requires Android 12")) {
+        if (!MediaUtils.check(isVideoFeatureSupported(mimeType, FEATURE_TunneledPlayback),
+                    "No tunneled video playback codec found for MIME " + mimeType)) {
             return;
         }
 
-        if (!MediaUtils.check(isVideoFeatureSupported(mimeType,
-                                CodecCapabilities.FEATURE_TunneledPlayback),
-                        "No tunneled video playback codec found for MIME " + mimeType)){
-            return;
-        }
+        // Below are some timings used throughout this test.
+        //
+        // Maximum allowed time between start of playback and first frame displayed
+        final long maxAllowedTimeToFirstFrameMs = 500;
+        // Maximum allowed time between issuing a pause and the last frame being displayed
+        final long maxDrainTimeMs = 200;
 
         // Setup tunnel mode test media player
         AudioManager am = mContext.getSystemService(AudioManager.class);
@@ -3779,37 +3903,127 @@ public class DecoderTest extends MediaTestBase {
         Uri mediaUri = Uri.fromFile(new File(mInpPrefix, videoName));
         mMediaCodecPlayer.setAudioDataSource(mediaUri, null);
         mMediaCodecPlayer.setVideoDataSource(mediaUri, null);
-        assertTrue("MediaCodecPlayer.start() failed!", mMediaCodecPlayer.start());
         assertTrue("MediaCodecPlayer.prepare() failed!", mMediaCodecPlayer.prepare());
+        mMediaCodecPlayer.startCodec();
+        // Video peek might interfere with the test: we want to ensure that queuing more data during
+        // a pause does not cause displaying more video frames, which is precisely what video peek
+        // does.
+        mMediaCodecPlayer.setVideoPeek(false);
 
-        // start video playback
-        mMediaCodecPlayer.startThread();
-        Thread.sleep(100);
-        assertNotEquals("Video playback stalled", CodecState.UNINITIALIZED_TIMESTAMP,
-                mMediaCodecPlayer.getCurrentPosition());
+        mMediaCodecPlayer.play();
+        sleepUntil(() ->
+                mMediaCodecPlayer.getCurrentPosition() > CodecState.UNINITIALIZED_TIMESTAMP
+                && mMediaCodecPlayer.getTimestamp() != null
+                && mMediaCodecPlayer.getTimestamp().framePosition > 0,
+                Duration.ofSeconds(1));
+        assertNotEquals("onFrameRendered was not called",
+                mMediaCodecPlayer.getVideoTimeUs(), CodecState.UNINITIALIZED_TIMESTAMP);
+        assertNotEquals("Audio timestamp is null", mMediaCodecPlayer.getTimestamp(), null);
+        assertNotEquals("Audio timestamp has a zero frame position",
+                mMediaCodecPlayer.getTimestamp().framePosition, 0);
+
+        // Allow some time for playback to commence
+        Thread.sleep(500);
+
+        // Pause playback
         mMediaCodecPlayer.pause();
-        Thread.sleep(50);
-        final long audioPositionUs = mMediaCodecPlayer.getAudioTrackPositionUs();
-        final long videoPositionUs = mMediaCodecPlayer.getCurrentPosition();
-        assertTrue(String.format("Video pts (%d) is ahead of audio pts (%d)",
-                        videoPositionUs, audioPositionUs),
-                videoPositionUs <= audioPositionUs);
-        mMediaCodecPlayer.videoFlush();
-        mMediaCodecPlayer.videoSeekToBeginning(true /* shouldContinuePts */);
-        Thread.sleep(50);
-        assertEquals("Video frame rendered after flush", CodecState.UNINITIALIZED_TIMESTAMP,
-                mMediaCodecPlayer.getCurrentPosition());
-        // We queue one frame, but expect it not to be rendered
+
+        // Wait for audio to pause
+        AudioTimestamp pauseAudioTimestamp;
+        {
+            AudioTimestamp currentAudioTimestamp = mMediaCodecPlayer.getTimestamp();
+            long startTimeMs = System.currentTimeMillis();
+            do {
+                // If it takes longer to pause, the UX won't feel responsive to the user
+                int audioPauseTimeoutMs = 250;
+                assertTrue(String.format("No audio pause after %d milliseconds",
+                                audioPauseTimeoutMs),
+                        System.currentTimeMillis() - startTimeMs < audioPauseTimeoutMs);
+                pauseAudioTimestamp = currentAudioTimestamp;
+                Thread.sleep(50);
+                currentAudioTimestamp = mMediaCodecPlayer.getTimestamp();
+            } while (currentAudioTimestamp.framePosition != pauseAudioTimestamp.framePosition);
+        }
+        long pauseAudioSystemTimeMs = pauseAudioTimestamp.nanoTime / 1000 / 1000;
+
+        // Wait for video to pause
+        long pauseVideoSystemTimeNs;
+        long pauseVideoPositionUs;
+        {
+            long currentVideoSystemTimeNs = mMediaCodecPlayer.getCurrentRenderedSystemTimeNano();
+            long startTimeMs = System.currentTimeMillis();
+            do {
+                int videoUnderrunTimeoutMs = 2000;
+                assertTrue(String.format("No video pause after %d milliseconds",
+                                videoUnderrunTimeoutMs),
+                        System.currentTimeMillis() - startTimeMs < videoUnderrunTimeoutMs);
+                pauseVideoSystemTimeNs = currentVideoSystemTimeNs;
+                Thread.sleep(250); // onFrameRendered can get delayed in the Framework
+                currentVideoSystemTimeNs = mMediaCodecPlayer.getCurrentRenderedSystemTimeNano();
+            } while (currentVideoSystemTimeNs != pauseVideoSystemTimeNs);
+            pauseVideoPositionUs = mMediaCodecPlayer.getVideoTimeUs();
+        }
+        long pauseVideoSystemTimeMs = pauseVideoSystemTimeNs / 1000 / 1000;
+
+        // Video should not continue running for a long period of time after audio pauses
+        long pauseVideoToleranceMs = 500;
+        assertTrue(String.format(
+                        "Video ran %d milliseconds longer than audio (video:%d audio:%d)",
+                        pauseVideoToleranceMs, pauseVideoSystemTimeMs, pauseAudioSystemTimeMs),
+                pauseVideoSystemTimeMs - pauseAudioSystemTimeMs < pauseVideoToleranceMs);
+
+        // Verify that playback stays paused
+        Thread.sleep(500);
+        assertEquals(mMediaCodecPlayer.getTimestamp().framePosition,
+                pauseAudioTimestamp.framePosition);
+        assertEquals(mMediaCodecPlayer.getCurrentRenderedSystemTimeNano(), pauseVideoSystemTimeNs);
+        assertEquals(mMediaCodecPlayer.getVideoTimeUs(), pauseVideoPositionUs);
+
+        // Verify audio and video are roughly in sync when paused
+        long framePosition = mMediaCodecPlayer.getTimestamp().framePosition;
+        long playbackRateFps = mMediaCodecPlayer.getAudioTrack().getPlaybackRate();
+        long pauseAudioPositionMs = pauseAudioTimestamp.framePosition * 1000 / playbackRateFps;
+        long pauseVideoPositionMs = pauseVideoPositionUs / 1000;
+        long deltaMs = pauseVideoPositionMs - pauseAudioPositionMs;
+        assertTrue(String.format(
+                        "Video is %d milliseconds out of sync from audio (video:%d audio:%d)",
+                        deltaMs, pauseVideoPositionMs, pauseAudioPositionMs),
+                deltaMs > -80 && deltaMs < pauseVideoToleranceMs);
+
+        // Flush both audio and video pipelines
+        mMediaCodecPlayer.flush();
+
+        // The flush should not cause any frame to be displayed.
+        // Wait for the max startup latency to see if one (incorrectly) arrives.
+        Thread.sleep(maxAllowedTimeToFirstFrameMs);
+        assertEquals("Video frame rendered after flush", mMediaCodecPlayer.getVideoTimeUs(),
+                CodecState.UNINITIALIZED_TIMESTAMP);
+
+        // Ensure video peek is disabled before queuing the next frame, otherwise it will
+        // automatically be rendered when queued.
+        mMediaCodecPlayer.setVideoPeek(false);
+
+        // We rewind to the beginning of the stream (to a key frame) and queue one frame, but
+        // pretend like we're seeking 1 second forward in the stream.
+        long presentationTimeOffsetUs = pauseVideoPositionUs + 1000 * 1000;
+        mMediaCodecPlayer.seekToBeginning(presentationTimeOffsetUs);
         Long queuedVideoTimestamp = mMediaCodecPlayer.queueOneVideoFrame();
         assertNotNull("Failed to queue a video frame", queuedVideoTimestamp);
-        Thread.sleep(50); // longer wait to account for buffer manipulation
-        assertEquals("Video frame rendered during pause", CodecState.UNINITIALIZED_TIMESTAMP,
-                mMediaCodecPlayer.getCurrentPosition());
+
+        // The enqueued frame should not be rendered while we're paused.
+        // Wait for the max startup latency to see if it (incorrectly) arrives.
+        Thread.sleep(maxAllowedTimeToFirstFrameMs);
+        assertEquals("Video frame rendered during pause", mMediaCodecPlayer.getVideoTimeUs(),
+                CodecState.UNINITIALIZED_TIMESTAMP);
+
+        // Resume playback
         mMediaCodecPlayer.resume();
-        Thread.sleep(100);
+        Thread.sleep(maxAllowedTimeToFirstFrameMs);
+        // Verify that the first rendered frame was the first queued frame
         ImmutableList<Long> renderedVideoTimestamps =
                 mMediaCodecPlayer.getRenderedVideoFrameTimestampList();
-        assertFalse("No new video timestamps", renderedVideoTimestamps.isEmpty());
+        assertFalse(String.format("No frame rendered after resume within %d ms",
+                        maxAllowedTimeToFirstFrameMs), renderedVideoTimestamps.isEmpty());
         assertEquals("First rendered video frame does not match first queued video frame",
                 renderedVideoTimestamps.get(0), queuedVideoTimestamp);
         // mMediaCodecPlayer.reset() handled in TearDown();
@@ -3818,8 +4032,9 @@ public class DecoderTest extends MediaTestBase {
     /**
      * Test accurate video rendering after a video MediaCodec flush with HEVC if supported
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTunneledAccurateVideoFlushHevc() throws Exception {
         testTunneledAccurateVideoFlush(MediaFormat.MIMETYPE_VIDEO_HEVC,
                 "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
@@ -3828,8 +4043,9 @@ public class DecoderTest extends MediaTestBase {
     /**
      * Test accurate video rendering after a video MediaCodec flush with AVC if supported
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTunneledAccurateVideoFlushAvc() throws Exception {
         testTunneledAccurateVideoFlush(MediaFormat.MIMETYPE_VIDEO_AVC,
                 "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
@@ -3838,52 +4054,21 @@ public class DecoderTest extends MediaTestBase {
     /**
      * Test accurate video rendering after a video MediaCodec flush with VP9 if supported
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTunneledAccurateVideoFlushVp9() throws Exception {
         testTunneledAccurateVideoFlush(MediaFormat.MIMETYPE_VIDEO_VP9,
                 "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
     }
 
     /**
-     * Test tunneled audioTimestamp progress with HEVC if supported
+     * Test that audio timestamps stop progressing during pause in tunneled mode.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
-    @Test
-    public void testTunneledAudioTimestampProgressHevc() throws Exception {
-        testTunneledAudioTimestampProgress(MediaFormat.MIMETYPE_VIDEO_HEVC,
-                "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
-    }
-
-    /**
-     * Test tunneled audioTimestamp progress with AVC if supported
-     */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
-    @Test
-    public void testTunneledAudioTimestampProgressAvc() throws Exception {
-        testTunneledAudioTimestampProgress(MediaFormat.MIMETYPE_VIDEO_AVC,
-                "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
-    }
-
-    /**
-     * Test tunneled audioTimestamp progress with VP9 if supported
-     */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
-    @Test
-    public void testTunneledAudioTimestampProgressVp9() throws Exception {
-        testTunneledAudioTimestampProgress(MediaFormat.MIMETYPE_VIDEO_VP9,
-                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
-    }
-
-    /**
-     * Test that AudioTrack timestamps don't advance after pause.
-     */
-    private void
-    testTunneledAudioTimestampProgress(String mimeType, String videoName) throws Exception
-    {
-        if (!isVideoFeatureSupported(mimeType,
-                CodecCapabilities.FEATURE_TunneledPlayback)) {
-            MediaUtils.skipTest(TAG,"No tunneled video playback codec found for MIME " + mimeType);
+    private void testTunneledAudioProgressWithPause(String mimeType, String videoName)
+            throws Exception {
+        if (!MediaUtils.check(isVideoFeatureSupported(mimeType, FEATURE_TunneledPlayback),
+                    "No tunneled video playback codec found for MIME " + mimeType)) {
             return;
         }
 
@@ -3894,20 +4079,22 @@ public class DecoderTest extends MediaTestBase {
         Uri mediaUri = Uri.fromFile(new File(mInpPrefix, videoName));
         mMediaCodecPlayer.setAudioDataSource(mediaUri, null);
         mMediaCodecPlayer.setVideoDataSource(mediaUri, null);
-        assertTrue("MediaCodecPlayer.start() failed!", mMediaCodecPlayer.start());
         assertTrue("MediaCodecPlayer.prepare() failed!", mMediaCodecPlayer.prepare());
+        mMediaCodecPlayer.startCodec();
 
-        // starts video playback
-        mMediaCodecPlayer.startThread();
-
+        mMediaCodecPlayer.play();
         sleepUntil(() ->
-                mMediaCodecPlayer.getCurrentPosition() > CodecState.UNINITIALIZED_TIMESTAMP,
+                mMediaCodecPlayer.getCurrentPosition() > CodecState.UNINITIALIZED_TIMESTAMP
+                && mMediaCodecPlayer.getTimestamp() != null
+                && mMediaCodecPlayer.getTimestamp().framePosition > 0,
                 Duration.ofSeconds(1));
-        final int firstPosition = mMediaCodecPlayer.getCurrentPosition();
-        assertNotEquals("On frame rendered not called after playback start!",
-                CodecState.UNINITIALIZED_TIMESTAMP, firstPosition);
-        AudioTimestamp firstTimestamp = mMediaCodecPlayer.getTimestamp();
-        assertTrue("Timestamp is null!", firstTimestamp != null);
+        long firstVideoPosition = mMediaCodecPlayer.getVideoTimeUs();
+        assertNotEquals("onFrameRendered was not called",
+                firstVideoPosition, CodecState.UNINITIALIZED_TIMESTAMP);
+        AudioTimestamp firstAudioTimestamp = mMediaCodecPlayer.getTimestamp();
+        assertNotEquals("Audio timestamp is null", firstAudioTimestamp, null);
+        assertNotEquals("Audio timestamp has a zero frame position",
+                firstAudioTimestamp.framePosition, 0);
 
         // Expected stabilization wait is 60ms. We triple to 180ms to prevent flakiness
         // and still test basic functionality.
@@ -3916,31 +4103,60 @@ public class DecoderTest extends MediaTestBase {
         mMediaCodecPlayer.pause();
         // pause might take some time to ramp volume down.
         Thread.sleep(sleepTimeMs);
-        AudioTimestamp timeStampAfterPause = mMediaCodecPlayer.getTimestamp();
+        AudioTimestamp audioTimestampAfterPause = mMediaCodecPlayer.getTimestamp();
         // Verify the video has advanced beyond the first position.
-        assertTrue(mMediaCodecPlayer.getCurrentPosition() > firstPosition);
+        assertTrue(mMediaCodecPlayer.getVideoTimeUs() > firstVideoPosition);
         // Verify that the timestamp has advanced beyond the first timestamp.
-        assertTrue(timeStampAfterPause.nanoTime > firstTimestamp.nanoTime);
+        assertTrue(audioTimestampAfterPause.nanoTime > firstAudioTimestamp.nanoTime);
 
         Thread.sleep(sleepTimeMs);
         // Verify that the timestamp does not advance after pause.
-        assertEquals(timeStampAfterPause.nanoTime, mMediaCodecPlayer.getTimestamp().nanoTime);
+        assertEquals(audioTimestampAfterPause.nanoTime, mMediaCodecPlayer.getTimestamp().nanoTime);
+    }
+
+
+    /**
+     * Test that audio timestamps stop progressing during pause for HEVC in tunneled mode.
+     */
+    @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    public void testTunneledAudioProgressWithPauseHevc() throws Exception {
+        testTunneledAudioProgressWithPause(MediaFormat.MIMETYPE_VIDEO_HEVC,
+                "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
     }
 
     /**
-     * Test tunneled audio underrun, if supported.
-     *
-     * Underrun test with lower pts after underrun.
+     * Test that audio timestamps stop progressing during pause for AVC in tunneled mode.
+     */
+    @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    public void testTunneledAudioProgressWithPauseAvc() throws Exception {
+        testTunneledAudioProgressWithPause(MediaFormat.MIMETYPE_VIDEO_AVC,
+                "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
+    }
+
+    /**
+     * Test that audio timestamps stop progressing during pause for VP9 in tunneled mode.
+     */
+    @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    public void testTunneledAudioProgressWithPauseVp9() throws Exception {
+        testTunneledAudioProgressWithPause(MediaFormat.MIMETYPE_VIDEO_VP9,
+                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
+    }
+
+    /**
+     * Test that audio underrun pauses video and resumes in-sync in tunneled mode.
      *
      * TODO(b/182915887): Test all the codecs advertised by the DUT for the provided test content
      */
-    private void tunneledAudioUnderrun(String mimeType, String videoName, int frameRate)
+    private void tunneledAudioUnderrun(String mimeType, String videoName)
             throws Exception {
-        if (!isVideoFeatureSupported(mimeType,
-                        CodecCapabilities.FEATURE_TunneledPlayback)) {
-            MediaUtils.skipTest(
-                    TAG,
-                    "No tunneled video playback codec found for MIME " + mimeType);
+        if (!MediaUtils.check(isVideoFeatureSupported(mimeType, FEATURE_TunneledPlayback),
+                "No tunneled video playback codec found for MIME " + mimeType)) {
             return;
         }
 
@@ -3951,120 +4167,180 @@ public class DecoderTest extends MediaTestBase {
         Uri mediaUri = Uri.fromFile(new File(mInpPrefix, videoName));
         mMediaCodecPlayer.setAudioDataSource(mediaUri, null);
         mMediaCodecPlayer.setVideoDataSource(mediaUri, null);
-        assertTrue("MediaCodecPlayer.start() failed!", mMediaCodecPlayer.start());
         assertTrue("MediaCodecPlayer.prepare() failed!", mMediaCodecPlayer.prepare());
+        mMediaCodecPlayer.startCodec();
 
-        // Start media playback
-        mMediaCodecPlayer.startThread();
-        final int waitStartMs = 50;
-        Thread.sleep(waitStartMs);
-        assertTrue(String.format("Playback has not started after %d milliseconds", waitStartMs),
-                mMediaCodecPlayer.getVideoTimeUs() != 0);
-        // Keep buffering video content but stop buffering audio content -> audio underrun
-        mMediaCodecPlayer.simulateAudioUnderrun(true);
-        // Loop to wait for audio underrun
-        // TODO(b/200280965): Find a more appropriate delay based on partner feedback
-        final int audioUnderrunTimeoutMs = 1000; // Arbitrary upper time limit on loop time duration
-        long startTimeMs = System.currentTimeMillis();
-        AudioTimestamp previousTimestamp = mMediaCodecPlayer.getTimestamp();
+        mMediaCodecPlayer.play();
+        sleepUntil(() ->
+                mMediaCodecPlayer.getCurrentPosition() > CodecState.UNINITIALIZED_TIMESTAMP
+                && mMediaCodecPlayer.getTimestamp() != null
+                && mMediaCodecPlayer.getTimestamp().framePosition > 0,
+                Duration.ofSeconds(1));
+        assertNotEquals("onFrameRendered was not called",
+                mMediaCodecPlayer.getVideoTimeUs(), CodecState.UNINITIALIZED_TIMESTAMP);
+        assertNotEquals("Audio timestamp is null", mMediaCodecPlayer.getTimestamp(), null);
+        assertNotEquals("Audio timestamp has a zero frame position",
+                mMediaCodecPlayer.getTimestamp().framePosition, 0);
+
+        // Simulate underrun by starving the audio track of data
+        mMediaCodecPlayer.stopDrainingAudioOutputBuffers(true);
+
+        // Wait for audio underrun
         AudioTimestamp underrunAudioTimestamp;
-        while ((underrunAudioTimestamp = mMediaCodecPlayer.getTimestamp()) != previousTimestamp) {
-            assertTrue(String.format("No audio underrun after %d milliseconds",
-                            audioUnderrunTimeoutMs),
-                    System.currentTimeMillis() - startTimeMs < audioUnderrunTimeoutMs);
-            previousTimestamp = underrunAudioTimestamp;
-            Thread.sleep(50);
-        }
-        // Loop to wait until video playback stalls
-        long previousVideoTimeUs = mMediaCodecPlayer.getVideoTimeUs();
-        long underrunVideoTimeUs;
-        startTimeMs = System.currentTimeMillis();
-        // TODO(b/200280965): Find a more appropriate delay based on partner feedback
-        final int videoUnderrunTimeoutMs = 1000;
-        while ((underrunVideoTimeUs = mMediaCodecPlayer.getVideoTimeUs()) != previousVideoTimeUs) {
-            assertTrue(String.format("No video underrun after %d milliseconds",
-                            videoUnderrunTimeoutMs),
-                    System.currentTimeMillis() - startTimeMs < videoUnderrunTimeoutMs);
-            previousVideoTimeUs = underrunVideoTimeUs;
-            Thread.sleep(50);
+        {
+            AudioTimestamp currentAudioTimestamp = mMediaCodecPlayer.getTimestamp();
+            long startTimeMs = System.currentTimeMillis();
+            do {
+                int audioUnderrunTimeoutMs = 1000;
+                assertTrue(String.format("No audio underrun after %d milliseconds",
+                                System.currentTimeMillis() - startTimeMs),
+                        System.currentTimeMillis() - startTimeMs < audioUnderrunTimeoutMs);
+                underrunAudioTimestamp = currentAudioTimestamp;
+                Thread.sleep(50);
+                currentAudioTimestamp = mMediaCodecPlayer.getTimestamp();
+            } while (currentAudioTimestamp.framePosition != underrunAudioTimestamp.framePosition);
         }
 
-        final int underrunVideoRenderedTimestampIndex =
+        // Wait until video playback pauses due to underrunning audio
+        long pausedVideoTimeUs = -1;
+        {
+            long currentVideoTimeUs = mMediaCodecPlayer.getVideoTimeUs();
+            long startTimeMs = System.currentTimeMillis();
+            do {
+                int videoPauseTimeoutMs = 2000;
+                assertTrue(String.format("No video pause after %d milliseconds",
+                                videoPauseTimeoutMs),
+                        System.currentTimeMillis() - startTimeMs < videoPauseTimeoutMs);
+                pausedVideoTimeUs = currentVideoTimeUs;
+                Thread.sleep(250); // onFrameRendered messages can get delayed in the Framework
+                currentVideoTimeUs = mMediaCodecPlayer.getVideoTimeUs();
+            } while (currentVideoTimeUs != pausedVideoTimeUs);
+        }
+
+        // Retrieve index for the video rendered frame at the time of video pausing
+        int pausedVideoRenderedTimestampIndex =
                 mMediaCodecPlayer.getRenderedVideoFrameTimestampList().size() - 1;
-        // Resume audio buffering with a negative offset, in order to simulate a desynchronisation.
+
+        // Resume audio playback with a negative offset, in order to simulate a desynchronisation.
         // TODO(b/202710709): Use timestamp relative to last played video frame before pause
         mMediaCodecPlayer.setAudioTrackOffsetMs(-100);
-        mMediaCodecPlayer.simulateAudioUnderrun(false);
+        mMediaCodecPlayer.stopDrainingAudioOutputBuffers(false);
 
-        // Loop to wait until audio playback resumes
-        startTimeMs = System.currentTimeMillis();
-        AudioTimestamp postResumeTimestamp;
-        while ((postResumeTimestamp = mMediaCodecPlayer.getTimestamp()) == underrunAudioTimestamp) {
-            assertTrue(String.format("Audio has not resumed after %d milliseconds",
-                            audioUnderrunTimeoutMs),
-                    System.currentTimeMillis() - startTimeMs < audioUnderrunTimeoutMs);
-            Thread.sleep(50);
+        // Wait until audio playback resumes
+        AudioTimestamp postResumeAudioTimestamp;
+        {
+            AudioTimestamp previousAudioTimestamp;
+            long startTimeMs = System.currentTimeMillis();
+            do {
+                int audioResumeTimeoutMs = 1000;
+                assertTrue(String.format("Audio has not resumed after %d milliseconds",
+                                audioResumeTimeoutMs),
+                        System.currentTimeMillis() - startTimeMs < audioResumeTimeoutMs);
+                previousAudioTimestamp = mMediaCodecPlayer.getTimestamp();
+                Thread.sleep(50);
+                postResumeAudioTimestamp = mMediaCodecPlayer.getTimestamp();
+            } while (postResumeAudioTimestamp.framePosition
+                    == previousAudioTimestamp.framePosition);
         }
 
-        long resumeAudioSystemTime = interpolateSystemTimeAt(
-                underrunAudioTimestamp.framePosition + 1, postResumeTimestamp,
-                mMediaCodecPlayer.getAudioTrack());
-
-        // Now that audio playback has resumed, loop to wait until video playback resumes
-        // We care about the timestamp of the first output frame, rather than the exact time the
-        // video resumed, which is why we only start polling after we are sure audio playback has
-        // resumed.
-        long resumeVideoTimeUs = 0;
-        startTimeMs = System.currentTimeMillis();
-        while ((resumeVideoTimeUs = mMediaCodecPlayer.getVideoTimeUs()) == underrunVideoTimeUs) {
-            assertTrue(String.format("Video has not resumed after %d milliseconds",
-                            videoUnderrunTimeoutMs),
-                    System.currentTimeMillis() - startTimeMs < videoUnderrunTimeoutMs);
-            Thread.sleep(50);
+        // Now that audio playback has resumed, wait until video playback resumes
+        {
+            // We actually don't care about trying to capture the exact time video resumed, because
+            // we can just look at the historical list of rendered video timestamps
+            long postResumeVideoTimeUs;
+            long previousVideoTimeUs;
+            long startTimeMs = System.currentTimeMillis();
+            do {
+                int videoResumeTimeoutMs = 2000;
+                assertTrue(String.format("Video has not resumed after %d milliseconds",
+                                videoResumeTimeoutMs),
+                        System.currentTimeMillis() - startTimeMs < videoResumeTimeoutMs);
+                previousVideoTimeUs = mMediaCodecPlayer.getVideoTimeUs();
+                Thread.sleep(50);
+                postResumeVideoTimeUs = mMediaCodecPlayer.getVideoTimeUs();
+            } while (postResumeVideoTimeUs == previousVideoTimeUs);
         }
 
-        final ImmutableList<Long> renderedSystemTimeList =
-                mMediaCodecPlayer.getRenderedVideoFrameSystemTimeList();
-        final long resumeVideoFrameSystemTime = mMediaCodecPlayer
-                .getRenderedVideoFrameSystemTimeList().get(underrunVideoRenderedTimestampIndex + 1);
-        final long vsync = (long) (1000 / frameRate);
-        final long avSyncOffset = resumeAudioSystemTime + 100 - resumeVideoFrameSystemTime;
-        assertTrue(String.format("Audio and video tracks are more than %d milliseconds out of sync",
-                        vsync),
-                Math.abs(avSyncOffset) <= vsync);
+        // The system time when rendering the first audio frame after the resume
+        long playbackRateFps = mMediaCodecPlayer.getAudioTrack().getPlaybackRate();
+        long playedFrames = postResumeAudioTimestamp.framePosition
+                - underrunAudioTimestamp.framePosition + 1;
+        double elapsedTimeNs = playedFrames * (1000.0 * 1000.0 * 1000.0 / playbackRateFps);
+        long resumeAudioSystemTimeNs = postResumeAudioTimestamp.nanoTime - (long) elapsedTimeNs;
+        long resumeAudioSystemTimeMs = resumeAudioSystemTimeNs / 1000 / 1000;
+
+        // The system time when rendering the first video frame after video playback resumes
+        long resumeVideoSystemTimeMs = mMediaCodecPlayer.getRenderedVideoFrameSystemTimeList()
+                .get(pausedVideoRenderedTimestampIndex + 1) / 1000 / 1000;
+
+        // Verify that video resumes in a reasonable amount of time after audio resumes
+        // Note: Because a -100ms PTS gap is introduced, the video should resume 100ms later
+        resumeAudioSystemTimeMs += 100;
+        long resumeDeltaMs = resumeVideoSystemTimeMs - resumeAudioSystemTimeMs;
+        assertTrue(String.format("Video started %s milliseconds before audio resumed "
+                        + "(video:%d audio:%d)", resumeDeltaMs * -1, resumeVideoSystemTimeMs,
+                        resumeAudioSystemTimeMs),
+                resumeDeltaMs > 0); // video is expected to start after audio resumes
+        assertTrue(String.format(
+                        "Video started %d milliseconds after audio resumed (video:%d audio:%d)",
+                        resumeDeltaMs, resumeVideoSystemTimeMs, resumeAudioSystemTimeMs),
+                resumeDeltaMs <= 600); // video starting 300ms after audio is barely noticeable
+
+        // Determine the system time of the audio frame that matches the presentation timestamp of
+        // the resumed video frame
+        long resumeVideoPresentationTimeUs = mMediaCodecPlayer.getRenderedVideoFrameTimestampList()
+                .get(pausedVideoRenderedTimestampIndex + 1);
+        long matchingAudioFramePosition =
+                resumeVideoPresentationTimeUs * playbackRateFps / 1000 / 1000;
+        playedFrames = matchingAudioFramePosition - postResumeAudioTimestamp.framePosition;
+        elapsedTimeNs = playedFrames * (1000.0 * 1000.0 * 1000.0 / playbackRateFps);
+        long matchingAudioSystemTimeNs = postResumeAudioTimestamp.nanoTime + (long) elapsedTimeNs;
+        long matchingAudioSystemTimeMs = matchingAudioSystemTimeNs / 1000 / 1000;
+
+        // Verify that video and audio are in sync at the time when video resumes
+        // Note: Because a -100ms PTS gap is introduced, the video should resume 100ms later
+        matchingAudioSystemTimeMs += 100;
+        long avSyncOffsetMs =  resumeVideoSystemTimeMs - matchingAudioSystemTimeMs;
+        assertTrue(String.format("Video is %d milliseconds out of sync of audio after resuming "
+                        + "(video:%d, audio:%d)", avSyncOffsetMs, resumeVideoSystemTimeMs,
+                        matchingAudioSystemTimeMs),
+                // some leniency in AV sync is required because Android TV STB/OTT OEMs often have
+                // to tune for imperfect downstream TVs (that have processing delays on the video)
+                // by knowingly producing HDMI output that has audio and video mildly out of sync
+                Math.abs(avSyncOffsetMs) <= 80);
     }
 
     /**
-     * Test tunneled audio underrun with HEVC if supported
+     * Test that audio underrun pauses video and resumes in-sync for HEVC in tunneled mode.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTunneledAudioUnderrunHevc() throws Exception {
         tunneledAudioUnderrun(MediaFormat.MIMETYPE_VIDEO_HEVC,
-                "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv",
-                25);
+                "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
     }
 
     /**
-     * Test tunneled audio underrun with AVC if supported
+     * Test that audio underrun pauses video and resumes in-sync for AVC in tunneled mode.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTunneledAudioUnderrunAvc() throws Exception {
         tunneledAudioUnderrun(MediaFormat.MIMETYPE_VIDEO_AVC,
-                "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4",
-                25);
+                "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
     }
 
     /**
-     * Test tunneled audio underrun with VP9 if supported
+     * Test that audio underrun pauses video and resumes in-sync for VP9 in tunneled mode.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
+    @ApiTest(apis={"android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback"})
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTunneledAudioUnderrunVp9() throws Exception {
         tunneledAudioUnderrun(MediaFormat.MIMETYPE_VIDEO_VP9,
-                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm",
-                30);
+                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
     }
 
     private void sleepUntil(Supplier<Boolean> supplier, Duration maxWait) throws Exception {
@@ -4072,18 +4348,6 @@ public class DecoderTest extends MediaTestBase {
         do {
             Thread.sleep(50);
         } while (!supplier.get() && System.currentTimeMillis() < deadLineMs);
-    }
-
-    /**
-     * Returns the system time of the frame {@code framePosition} from {@code timestamp}, for a
-     * specific {@code AudioTrack}.
-     */
-    private static long interpolateSystemTimeAt(long framePosition, AudioTimestamp timestamp,
-            AudioTrack audioTrack) {
-        final long playbackRateFps = audioTrack.getPlaybackRate();  // Frames per second
-        final long playedFrames = timestamp.framePosition - framePosition;
-        final double elapsedTimeNs = playedFrames * (1000000000.0 / playbackRateFps);
-        return timestamp.nanoTime - (long) elapsedTimeNs;
     }
 
     /**
@@ -4251,7 +4515,7 @@ public class DecoderTest extends MediaTestBase {
                 true /* useNdk */);
     }
 
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @Test
     public void testLowLatencyAVCAt1280x720() throws Exception {
         testLowLatencyVideo(
@@ -4262,7 +4526,7 @@ public class DecoderTest extends MediaTestBase {
                 true /* useNdk */);
     }
 
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @Test
     public void testLowLatencyHEVCAt480x360() throws Exception {
         testLowLatencyVideo(

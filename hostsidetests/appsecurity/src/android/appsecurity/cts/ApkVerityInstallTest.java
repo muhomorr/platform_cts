@@ -16,13 +16,14 @@
 
 package android.appsecurity.cts;
 
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
-
 import static com.android.compatibility.common.util.PropertyUtil.getFirstApiLevel;
 import static com.android.compatibility.common.util.PropertyUtil.getVendorApiLevel;
 
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
+
 import android.platform.test.annotations.AppModeFull;
+import android.platform.test.annotations.Presubmit;
 
 import com.android.compatibility.common.util.CddTest;
 import com.android.tradefed.device.DeviceNotAvailableException;
@@ -35,10 +36,11 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.util.HashMap;
+import java.util.Map;
 
 import junitparams.Parameters;
 
+@Presubmit
 @RunWith(DeviceParameterizedRunner.class)
 @AppModeFull
 public final class ApkVerityInstallTest extends BaseAppSecurityTest {
@@ -61,12 +63,11 @@ public final class ApkVerityInstallTest extends BaseAppSecurityTest {
     private static final boolean SUPPORTED = true;
     private static final boolean UNSUPPORTED = false;
 
-    private static final HashMap<String, String> ORIGINAL_TO_INSTALL_NAME = new HashMap<>() {{
-        put(BASE_APK, "base.apk");
-        put(BASE_APK_DM, "base.dm");
-        put(SPLIT_APK, "split_feature_x.apk");
-        put(SPLIT_APK_DM, "split_feature_x.dm");
-    }};
+    private static final Map<String, String> ORIGINAL_TO_INSTALL_NAME = Map.of(
+            BASE_APK, "base.apk",
+            BASE_APK_DM, "base.dm",
+            SPLIT_APK, "split_feature_x.apk",
+            SPLIT_APK_DM, "split_feature_x.dm");
 
     private boolean mDmRequireFsVerity;
 

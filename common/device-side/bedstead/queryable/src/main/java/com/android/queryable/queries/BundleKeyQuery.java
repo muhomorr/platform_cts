@@ -17,13 +17,16 @@
 package com.android.queryable.queries;
 
 import android.os.Bundle;
+import android.os.Parcelable;
 
 import androidx.annotation.CheckResult;
 
 import com.android.queryable.Queryable;
 
+import java.io.Serializable;
+
 /** Query for a single key in a {@link Bundle}. */
-public interface BundleKeyQuery<E extends Queryable> extends Queryable {
+public interface BundleKeyQuery<E extends Queryable> extends Queryable, Serializable, Parcelable {
 
     /** Require that the key exists. */
     E exists();
@@ -62,11 +65,11 @@ public interface BundleKeyQuery<E extends Queryable> extends Queryable {
      * The string list value of the key/
      */
     @CheckResult
-    ListQuery<E, String, StringQuery<E>> stringListValue();
+    ListQuery<E, String> stringListValue();
 
     /**
      * The integer list value of the key/
      */
     @CheckResult
-    ListQuery<E, Integer, IntegerQuery<E>> integerListValue();
+    ListQuery<E, Integer> integerListValue();
 }

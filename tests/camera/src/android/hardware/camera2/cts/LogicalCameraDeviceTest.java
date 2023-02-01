@@ -16,7 +16,28 @@
 
 package android.hardware.camera2.cts;
 
-import static android.hardware.camera2.cts.CameraTestUtils.*;
+import static android.hardware.camera2.cts.CameraTestUtils.ImageDropperListener;
+import static android.hardware.camera2.cts.CameraTestUtils.PREVIEW_SIZE_BOUND;
+import static android.hardware.camera2.cts.CameraTestUtils.SESSION_CONFIGURE_TIMEOUT_MS;
+import static android.hardware.camera2.cts.CameraTestUtils.SessionConfigSupport;
+import static android.hardware.camera2.cts.CameraTestUtils.SimpleCaptureCallback;
+import static android.hardware.camera2.cts.CameraTestUtils.SimpleImageReaderListener;
+import static android.hardware.camera2.cts.CameraTestUtils.assertFalse;
+import static android.hardware.camera2.cts.CameraTestUtils.assertNotNull;
+import static android.hardware.camera2.cts.CameraTestUtils.assertTrue;
+import static android.hardware.camera2.cts.CameraTestUtils.configureCameraSessionWithConfig;
+import static android.hardware.camera2.cts.CameraTestUtils.fail;
+import static android.hardware.camera2.cts.CameraTestUtils.getCropRegionForZoom;
+import static android.hardware.camera2.cts.CameraTestUtils.getMaxPreviewSize;
+import static android.hardware.camera2.cts.CameraTestUtils.getPreviewSizeBound;
+import static android.hardware.camera2.cts.CameraTestUtils.getSupportedPreviewSizes;
+import static android.hardware.camera2.cts.CameraTestUtils.isSessionConfigSupported;
+
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
 
 import android.content.Context;
 import android.content.Intent;
@@ -24,24 +45,19 @@ import android.content.IntentFilter;
 import android.graphics.ImageFormat;
 import android.graphics.PointF;
 import android.graphics.Rect;
-import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
-import android.hardware.camera2.CameraMetadata;
+import android.hardware.camera2.CaptureFailure;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
-import android.hardware.camera2.CaptureFailure;
-import android.hardware.camera2.cts.CaptureResultTest;
 import android.hardware.camera2.cts.helpers.StaticMetadata;
-import android.hardware.camera2.cts.helpers.StaticMetadata.CheckLevel;
 import android.hardware.camera2.cts.testcases.Camera2SurfaceViewTestCase;
 import android.hardware.camera2.params.OutputConfiguration;
 import android.hardware.camera2.params.SessionConfiguration;
 import android.hardware.camera2.params.StreamConfigurationMap;
-import android.media.CamcorderProfile;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.BatteryManager;
@@ -52,29 +68,24 @@ import android.util.Pair;
 import android.util.Range;
 import android.util.Size;
 import android.util.SizeF;
-import android.view.Display;
-import android.view.Surface;
 import android.view.WindowManager;
 
 import com.android.compatibility.common.util.CddTest;
-import com.android.compatibility.common.util.Stat;
 import com.android.ex.camera2.blocking.BlockingSessionCallback;
 import com.android.ex.camera2.utils.StateWaiter;
 
-import java.util.Arrays;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+
 import java.util.ArrayList;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import org.junit.runners.Parameterized;
-import org.junit.runner.RunWith;
-import org.junit.Test;
-
-import static org.mockito.Mockito.*;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * Tests exercising logical camera setup, configuration, and usage.
@@ -176,7 +187,7 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
      */
     @Test
     public void testBasicPhysicalStreaming() throws Exception {
-
+        Set<Pair<String, String>> unavailablePhysicalCameras = getUnavailablePhysicalCameras();
         for (String id : mCameraIdsUnderTest) {
             try {
                 Log.i(TAG, "Testing Camera " + id);
@@ -198,7 +209,8 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
 
                 // Figure out preview size and physical cameras to use.
                 ArrayList<String> dualPhysicalCameraIds = new ArrayList<String>();
-                Size previewSize= findCommonPreviewSize(id, dualPhysicalCameraIds);
+                Size previewSize = findCommonPreviewSize(id, dualPhysicalCameraIds,
+                        unavailablePhysicalCameras);
                 if (previewSize == null) {
                     Log.i(TAG, "Camera " + id + ": No matching physical preview streams, skipping");
                     continue;
@@ -218,7 +230,7 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
      */
     @Test
     public void testBasicLogicalPhysicalStreamCombination() throws Exception {
-
+        Set<Pair<String, String>> unavailablePhysicalCameras = getUnavailablePhysicalCameras();
         for (String id : mCameraIdsUnderTest) {
             try {
                 Log.i(TAG, "Testing Camera " + id);
@@ -240,7 +252,8 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
 
                 // Figure out yuv size and physical cameras to use.
                 List<String> dualPhysicalCameraIds = new ArrayList<String>();
-                Size yuvSize= findCommonPreviewSize(id, dualPhysicalCameraIds);
+                Size yuvSize = findCommonPreviewSize(id, dualPhysicalCameraIds,
+                        unavailablePhysicalCameras);
                 if (yuvSize == null) {
                     Log.i(TAG, "Camera " + id + ": No matching physical YUV streams, skipping");
                     continue;
@@ -346,7 +359,7 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
      */
     @Test
     public void testBasicPhysicalRequests() throws Exception {
-
+        Set<Pair<String, String>> unavailablePhysicalCameras = getUnavailablePhysicalCameras();
         for (String id : mCameraIdsUnderTest) {
             try {
                 Log.i(TAG, "Testing Camera " + id);
@@ -368,7 +381,8 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
 
                 // Figure out yuv size and physical cameras to use.
                 List<String> dualPhysicalCameraIds = new ArrayList<String>();
-                Size yuvSize= findCommonPreviewSize(id, dualPhysicalCameraIds);
+                Size yuvSize = findCommonPreviewSize(id, dualPhysicalCameraIds,
+                        unavailablePhysicalCameras);
                 if (yuvSize == null) {
                     Log.i(TAG, "Camera " + id + ": No matching physical YUV streams, skipping");
                     continue;
@@ -483,7 +497,7 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
      */
     @Test
     public void testInvalidPhysicalCameraRequests() throws Exception {
-
+        Set<Pair<String, String>> unavailablePhysicalCameras = getUnavailablePhysicalCameras();
         for (String id : mCameraIdsUnderTest) {
             try {
                 Log.i(TAG, "Testing Camera " + id);
@@ -549,7 +563,8 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
                 if (mStaticInfo.isLogicalMultiCamera()) {
                     // Figure out yuv size to use.
                     List<String> dualPhysicalCameraIds = new ArrayList<String>();
-                    Size sharedSize= findCommonPreviewSize(id, dualPhysicalCameraIds);
+                    Size sharedSize = findCommonPreviewSize(id, dualPhysicalCameraIds,
+                            unavailablePhysicalCameras);
                     if (sharedSize == null) {
                         Log.i(TAG, "Camera " + id + ": No matching physical YUV streams, skipping");
                         continue;
@@ -724,12 +739,7 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
         }
     }
 
-    /**
-     * Test that for logical multi-camera, the activePhysicalId is valid, and is the same
-     * for all capture templates.
-     */
-    @Test
-    public void testActivePhysicalId() throws Exception {
+    private Set<Pair<String, String>> getUnavailablePhysicalCameras() throws Exception {
         final int AVAILABILITY_TIMEOUT_MS = 10;
         final LinkedBlockingQueue<Pair<String, String>> unavailablePhysicalCamEventQueue =
                 new LinkedBlockingQueue<>();
@@ -752,6 +762,17 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
                 java.util.concurrent.TimeUnit.MILLISECONDS);
         }
         mCameraManager.unregisterAvailabilityCallback(ac);
+
+        return unavailablePhysicalCameras;
+    }
+
+    /**
+     * Test that for logical multi-camera, the activePhysicalId is valid, and is the same
+     * for all capture templates.
+     */
+    @Test
+    public void testActivePhysicalId() throws Exception {
+        Set<Pair<String, String>> unavailablePhysicalCameras = getUnavailablePhysicalCameras();
 
         for (String id : mCameraIdsUnderTest) {
             try {
@@ -921,8 +942,8 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
      * two of the underlying physical cameras.
      */
     private Size findCommonPreviewSize(String cameraId,
-            List<String> dualPhysicalCameraIds) throws Exception {
-
+            List<String> dualPhysicalCameraIds,
+            Set<Pair<String, String>> unavailablePhysicalCameras) throws Exception {
         Set<String> physicalCameraIds =
                 mStaticInfo.getCharacteristics().getPhysicalCameraIds();
         assertTrue("Logical camera must contain at least 2 physical camera ids",
@@ -933,6 +954,9 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
         HashMap<String, List<Size>> physicalPreviewSizesMap = new HashMap<String, List<Size>>();
         HashMap<String, StreamConfigurationMap> physicalConfigs = new HashMap<>();
         for (String physicalCameraId : physicalCameraIds) {
+            if (unavailablePhysicalCameras.contains(new Pair<>(cameraId, physicalCameraId))) {
+                continue;
+            }
             CameraCharacteristics properties =
                     mCameraManager.getCameraCharacteristics(physicalCameraId);
             assertNotNull("Can't get camera characteristics!", properties);
@@ -941,24 +965,24 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
                 continue;
             }
             StreamConfigurationMap configMap =
-                properties.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+                    properties.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             physicalConfigs.put(physicalCameraId, configMap);
             physicalPreviewSizesMap.put(physicalCameraId,
                     getSupportedPreviewSizes(physicalCameraId, mCameraManager, PREVIEW_SIZE_BOUND));
         }
 
         // Find display size from window service.
-        Context context = mActivityRule.getActivity().getApplicationContext();
+        Context context = mActivityRule.getActivity();
         WindowManager windowManager =
                 (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
-        Display display = windowManager.getDefaultDisplay();
+        Rect windowBounds = windowManager.getCurrentWindowMetrics().getBounds();
 
-        int displayWidth = display.getWidth();
-        int displayHeight = display.getHeight();
+        int windowWidth = windowBounds.width();
+        int windowHeight = windowBounds.height();
 
-        if (displayHeight > displayWidth) {
-            displayHeight = displayWidth;
-            displayWidth = display.getHeight();
+        if (windowHeight > windowWidth) {
+            windowHeight = windowWidth;
+            windowWidth = windowBounds.height();
         }
 
         StreamConfigurationMap config = mStaticInfo.getCharacteristics().get(
@@ -966,27 +990,27 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
         for (Size previewSize : previewSizes) {
             dualPhysicalCameraIds.clear();
             // Skip preview sizes larger than screen size
-            if (previewSize.getWidth() > displayWidth ||
-                    previewSize.getHeight() > displayHeight) {
+            if (previewSize.getWidth() > windowWidth
+                    || previewSize.getHeight() > windowHeight) {
                 continue;
             }
 
             final long minFrameDuration = config.getOutputMinFrameDuration(
-                   ImageFormat.YUV_420_888, previewSize);
+                    ImageFormat.YUV_420_888, previewSize);
 
             ArrayList<String> supportedPhysicalCameras = new ArrayList<String>();
             for (String physicalCameraId : physicalCameraIds) {
                 List<Size> physicalPreviewSizes = physicalPreviewSizesMap.get(physicalCameraId);
                 if (physicalPreviewSizes != null && physicalPreviewSizes.contains(previewSize)) {
-                   long minDurationPhysical =
-                           physicalConfigs.get(physicalCameraId).getOutputMinFrameDuration(
-                           ImageFormat.YUV_420_888, previewSize);
-                   if (minDurationPhysical <= minFrameDuration) {
+                    long minDurationPhysical =
+                            physicalConfigs.get(physicalCameraId).getOutputMinFrameDuration(
+                                    ImageFormat.YUV_420_888, previewSize);
+                    if (minDurationPhysical <= minFrameDuration) {
                         dualPhysicalCameraIds.add(physicalCameraId);
                         if (dualPhysicalCameraIds.size() == 2) {
                             return previewSize;
                         }
-                   }
+                    }
                 }
             }
         }
@@ -1024,7 +1048,7 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
             Float physicalFocalLength = physicalResult.get(CaptureResult.LENS_FOCAL_LENGTH);
             Float physicalZoomRatio = physicalResult.get(CaptureResult.CONTROL_ZOOM_RATIO);
             Rect physicalActiveArraySize = physicalStaticInfo.getActiveArraySizeChecked();
-            SizeF physicalSensorSize = mStaticInfo.getValueFromKeyNonNull(
+            SizeF physicalSensorSize = physicalStaticInfo.getValueFromKeyNonNull(
                     CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE);
 
             // Physical result metadata's ZOOM_RATIO is 1.0f.
@@ -1308,10 +1332,9 @@ public final class LogicalCameraDeviceTest extends Camera2SurfaceViewTestCase {
     }
 
     private double getScreenSizeInInches() {
-        DisplayMetrics dm = new DisplayMetrics();
-        mWindowManager.getDefaultDisplay().getMetrics(dm);
-        double widthInInchesSquared = Math.pow(dm.widthPixels/dm.xdpi,2);
-        double heightInInchesSquared = Math.pow(dm.heightPixels/dm.ydpi,2);
+        DisplayMetrics dm = mContext.getResources().getDisplayMetrics();
+        double widthInInchesSquared = Math.pow(dm.widthPixels / dm.xdpi, 2);
+        double heightInInchesSquared = Math.pow(dm.heightPixels / dm.ydpi, 2);
         return Math.sqrt(widthInInchesSquared + heightInInchesSquared);
     }
 }

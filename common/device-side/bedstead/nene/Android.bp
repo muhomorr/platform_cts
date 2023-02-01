@@ -2,6 +2,22 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
+java_library_host {
+    name: "NeneCommon",
+    srcs: [
+        "common/src/main/java/**/*.java"
+    ],
+}
+
+android_library {
+    name: "NeneCommonAndroid",
+    srcs: [
+        "common/src/main/java/**/*.java"
+    ],
+    manifest: "src/main/AndroidManifestInternal.xml",
+    min_sdk_version: "29"
+}
+
 // TODO(b/203507664): Remove NeneInternal once we no longer need QUERY_ALL_PACKAGES to install
 android_library {
     name: "NeneInternal",
@@ -14,9 +30,11 @@ android_library {
         "compatibility-device-util-axt",
         "guava",
         "Queryable",
-        "RemoteFrameworkClasses"
+        "NeneCommonAndroid",
+        "RemoteFrameworkClasses",
+        "androidx.test.uiautomator_uiautomator",
     ],
-    min_sdk_version: "27"
+    min_sdk_version: "29"
 }
 
 android_library {
@@ -30,15 +48,17 @@ android_library {
         "compatibility-device-util-axt",
         "guava",
         "Queryable",
-        "RemoteFrameworkClasses"
+        "NeneCommonAndroid",
+        "RemoteFrameworkClasses",
+        "androidx.test.uiautomator_uiautomator",
     ],
-    min_sdk_version: "27"
+    min_sdk_version: "29"
 }
 
 android_test {
     name: "NeneTest",
     srcs: [
-        "src/test/java/**/*.java"
+        "src/test/java/**/*.java",
     ],
     test_suites: [
         "general-tests",
@@ -56,7 +76,33 @@ android_test {
     ],
     data: [":NeneTestApp1"],
     manifest: "src/test/AndroidManifest.xml",
-    min_sdk_version: "27"
+    min_sdk_version: "29"
+}
+
+android_test {
+    name: "NeneBenchmarks",
+    srcs: [
+        "src/benchmarks/java/**/benchmarks/*.java",
+        "src/benchmarks/java/**/benchmarks/*.proto",
+    ],
+    test_suites: [
+        "general-tests",
+    ],
+    static_libs: [
+        "TestApp",
+        "Nene",
+        "EventLib",
+        "Harrier",
+        "androidx.benchmark_benchmark-common",
+        "androidx.benchmark_benchmark-junit4",
+        "androidx.test.ext.junit",
+        "ctstestrunner-axt",
+        "compatibility-device-util-axt",
+        "collector-device-lib",
+    ],
+    manifest: "src/benchmarks/AndroidManifest.xml",
+    test_config: "src/benchmarks/AndroidTest.xml",
+    min_sdk_version: "29"
 }
 
 android_test_helper_app {
@@ -65,5 +111,5 @@ android_test_helper_app {
         "EventLib"
     ],
     manifest: "testapps/TestApp1.xml",
-    min_sdk_version: "27"
+    min_sdk_version: "29"
 }

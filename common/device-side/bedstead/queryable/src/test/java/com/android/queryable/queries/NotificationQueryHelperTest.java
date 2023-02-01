@@ -16,6 +16,9 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+import static com.android.queryable.queries.NotificationQuery.notification;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import android.app.Notification;
@@ -30,10 +33,9 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.junit.runners.JUnit4;
 
 @RunWith(BedsteadJUnit4.class)
-public class NotificationQueryHelperTest {
+public final class NotificationQueryHelperTest {
 
     @ClassRule @Rule
     public static DeviceState sDeviceState = new DeviceState();
@@ -75,5 +77,25 @@ public class NotificationQueryHelperTest {
         notificationQueryHelper.channelId().isEqualTo(DIFFERENT_STRING_VALUE);
 
         assertThat(notificationQueryHelper.matches(notification)).isFalse();
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        NotificationQueryHelper<Queryable> notificationQueryHelper =
+                new NotificationQueryHelper<>(mQuery);
+
+        notificationQueryHelper.channelId().isEqualTo("");
+
+        assertParcelsCorrectly(NotificationQueryHelper.class, notificationQueryHelper);
+    }
+
+    @Test
+    public void notificationQueryHelper_queries() {
+        Notification notification =
+                new Notification.Builder(CONTEXT, /* channelId= */ STRING_VALUE).build();
+
+        assertThat(notification()
+                .where().channelId().isEqualTo(STRING_VALUE)
+                .matches(notification)).isTrue();
     }
 }

@@ -16,6 +16,8 @@
 
 package com.android.cts.verifier.managedprovisioning;
 
+import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+
 import android.app.KeyguardManager;
 import android.app.admin.DevicePolicyManager;
 import android.content.ActivityNotFoundException;
@@ -114,9 +116,9 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
     private TestListItem mDisableLocationModeThroughMainSwitchTest;
     private TestListItem mDisableLocationModeThroughWorkSwitchTest;
     private TestListItem mPrimaryLocationWhenWorkDisabledTest;
-    private DialogTestListItem mSelectWorkChallenge;
-    private DialogTestListItem mConfirmWorkCredentials;
-    private DialogTestListItem mPatternWorkChallenge;
+//    private DialogTestListItem mSelectWorkChallenge;
+//    private DialogTestListItem mConfirmWorkCredentials;
+//    private DialogTestListItem mPatternWorkChallenge;
     private DialogTestListItem mParentProfilePassword;
     private DialogTestListItem mPersonalRingtonesTest;
     private TestListItem mVpnTest;
@@ -289,19 +291,20 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
                     R.string.provisioning_byod_workapps_visible_instruction,
                     new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
                     R.drawable.badged_icon);
-
+            /* Disabling due to b/259890166
             mConfirmWorkCredentials = new DialogTestListItem(this,
                     R.string.provisioning_byod_confirm_work_credentials,
                     "BYOD_ConfirmWorkCredentials",
                     R.string.provisioning_byod_confirm_work_credentials_description,
                     new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME));
-
+            */
+            /* Disable due to  b/242477777
             mPatternWorkChallenge = new DialogTestListItem(this,
                     R.string.provisioning_byod_pattern_work_challenge,
                     "BYOD_PatternWorkChallenge",
                     R.string.provisioning_byod_pattern_work_challenge_description,
                     new Intent(ByodHelperActivity.ACTION_TEST_PATTERN_WORK_CHALLENGE));
-
+            */
             mWiFiDataUsageSettingsVisibleTest = new DialogTestListItem(this,
                     R.string.provisioning_byod_wifi_data_usage_settings,
                     "BYOD_WiFiDataUsageSettingsVisibleTest",
@@ -317,7 +320,7 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
                 R.drawable.ic_corp_icon);
 
         Intent workStatusIcon = new Intent(WorkStatusTestActivity.ACTION_WORK_STATUS_ICON);
-        workStatusIcon.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        workStatusIcon.setFlags(FLAG_ACTIVITY_NEW_TASK);
         mWorkStatusBarIconTest = new DialogTestListItemWithIcon(this,
                 R.string.provisioning_byod_work_status_icon,
                 "BYOD_WorkStatusBarIconTest",
@@ -469,18 +472,18 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
                 "BYOD_PermissionLockdownTest",
                 R.string.profile_owner_permission_lockdown_test_info,
                 permissionCheckIntent);
-
+        /* Disable due to b/241498104
         mSelectWorkChallenge = new DialogTestListItem(this,
                 R.string.provisioning_byod_select_work_challenge,
                 "BYOD_SelectWorkChallenge",
                 R.string.provisioning_byod_select_work_challenge_description,
                 new Intent(ByodHelperActivity.ACTION_TEST_SELECT_WORK_CHALLENGE));
-
+        */
         mRecentsTest = TestListItem.newTest(this,
                 R.string.provisioning_byod_recents,
                 RecentsRedactionActivity.class.getName(),
                 new Intent(RecentsRedactionActivity.ACTION_RECENTS).setFlags(
-                        Intent.FLAG_ACTIVITY_NEW_TASK),
+                        FLAG_ACTIVITY_NEW_TASK),
                 null);
 
         mOrganizationInfoTest = TestListItem.newTest(this,
@@ -558,11 +561,11 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
         adapter.add(mVpnTest);
         adapter.add(mAlwaysOnVpnSettingsTest);
         adapter.add(mTurnOffWorkFeaturesTest);
-        adapter.add(mSelectWorkChallenge);
-        if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
-            adapter.add(mConfirmWorkCredentials);
-            adapter.add(mPatternWorkChallenge);
-        }
+//        adapter.add(mSelectWorkChallenge);
+//        if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
+//            adapter.add(mConfirmWorkCredentials);
+//            adapter.add(mPatternWorkChallenge);
+//        }
         adapter.add(mRecentsTest);
         adapter.add(mOrganizationInfoTest);
         adapter.add(mParentProfilePassword);
@@ -724,6 +727,12 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
                 "BYOD_UninstallWorkApp",
                 R.string.provisioning_byod_uninstall_work_app_instruction,
                 createInstallWorkProfileAppIntent()));
+
+        adapter.add(new DialogTestListItem(this,
+                R.string.provisioning_byod_launch_work_tab,
+                "BYOD_LaunchWorkTab",
+                R.string.provisioning_byod_launch_work_tab_instruction,
+                createLaunchWorkTabIntent()));
     }
 
     private Intent createInstallWorkProfileAppIntent() {
@@ -731,6 +740,13 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
         return new Intent(ByodHelperActivity.ACTION_INSTALL_APK)
                 .putExtra(ByodHelperActivity.EXTRA_ALLOW_NON_MARKET_APPS, true)
                 .putExtra(ByodHelperActivity.EXTRA_PARAMETER_1, HELPER_APP_PATH);
+    }
+
+    private Intent createLaunchWorkTabIntent() {
+        return new Intent(Intent.ACTION_SHOW_WORK_APPS)
+                .addCategory(Intent.CATEGORY_HOME)
+                .addCategory(Intent.CATEGORY_LAUNCHER_APP)
+                .addFlags(FLAG_ACTIVITY_NEW_TASK);
     }
 
     // Return whether the intent can be resolved in the current profile

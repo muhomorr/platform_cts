@@ -20,6 +20,7 @@ import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.app.WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW;
 import static android.app.WindowConfiguration.WINDOWING_MODE_PINNED;
+import static android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED;
 import static android.server.wm.WindowManagerState.STATE_PAUSED;
 import static android.server.wm.WindowMetricsTestHelper.assertBoundsMatchDisplay;
 import static android.server.wm.WindowMetricsTestHelper.getBoundsExcludingNavigationBarAndCutout;
@@ -46,6 +47,7 @@ import android.view.WindowMetrics;
 import androidx.test.filters.FlakyTest;
 
 import org.junit.Test;
+
 import java.util.function.Supplier;
 
 /**
@@ -62,8 +64,8 @@ public class WindowMetricsActivityTests extends WindowManagerTestBase {
 
     @Test
     public void testMetricsMatchesLayoutOnActivityOnCreate() {
-        final MetricsActivity activity = startActivityInWindowingMode(MetricsActivity.class,
-                WINDOWING_MODE_FULLSCREEN);
+        final MetricsActivity activity = startActivityInWindowingModeFullScreen(
+                MetricsActivity.class);
         final OnLayoutChangeListener listener = activity.mListener;
 
         listener.waitForLayout();
@@ -75,8 +77,8 @@ public class WindowMetricsActivityTests extends WindowManagerTestBase {
 
     @Test
     public void testMetricsMatchesDisplayAreaOnActivity() {
-        final MetricsActivity activity = startActivityInWindowingMode(MetricsActivity.class,
-                WINDOWING_MODE_FULLSCREEN);
+        final MetricsActivity activity = startActivityInWindowingModeFullScreen(
+                MetricsActivity.class);
 
         assertMetricsValidity(activity);
     }
@@ -86,8 +88,8 @@ public class WindowMetricsActivityTests extends WindowManagerTestBase {
     public void testMetricsMatchesActivityBoundsOnNonresizableActivity() {
         assumeTrue("Skipping test: no rotation support", supportsRotation());
 
-        final MinAspectRatioActivity activity = startActivityInWindowingMode(
-                MinAspectRatioActivity.class, WINDOWING_MODE_FULLSCREEN);
+        final MinAspectRatioActivity activity = startActivityInWindowingModeFullScreen(
+                MinAspectRatioActivity.class);
         mWmState.computeState(activity.getComponentName());
 
         assertMetricsValidityForNonresizableActivity(activity);
@@ -97,8 +99,8 @@ public class WindowMetricsActivityTests extends WindowManagerTestBase {
     public void testMetricsMatchesLayoutOnPipActivity() {
         assumeTrue(supportsPip());
 
-        final MetricsActivity activity = startActivityInWindowingMode(MetricsActivity.class,
-                WINDOWING_MODE_FULLSCREEN);
+        final MetricsActivity activity = startActivityInWindowingModeFullScreen(
+                MetricsActivity.class);
 
         assertMetricsMatchesLayout(activity);
 
@@ -112,8 +114,8 @@ public class WindowMetricsActivityTests extends WindowManagerTestBase {
     public void testMetricsMatchesDisplayAreaOnPipActivity() {
         assumeTrue(supportsPip());
 
-        final MetricsActivity activity = startActivityInWindowingMode(MetricsActivity.class,
-                WINDOWING_MODE_FULLSCREEN);
+        final MetricsActivity activity = startActivityInWindowingModeFullScreen(
+                MetricsActivity.class);
 
         assertMetricsValidity(activity);
 
@@ -154,8 +156,8 @@ public class WindowMetricsActivityTests extends WindowManagerTestBase {
     public void testMetricsMatchesLayoutOnSplitActivity() {
         assumeTrue(supportsSplitScreenMultiWindow());
 
-        final MetricsActivity activity = startActivityInWindowingMode(MetricsActivity.class,
-                WINDOWING_MODE_FULLSCREEN);
+        final MetricsActivity activity = startActivityInWindowingModeFullScreen(
+                MetricsActivity.class);
 
         assertMetricsMatchesLayout(activity);
 
@@ -163,8 +165,8 @@ public class WindowMetricsActivityTests extends WindowManagerTestBase {
         putActivityInPrimarySplit(activity.getComponentName());
 
         mWmState.computeState(activity.getComponentName());
-        assertTrue(mWmState.getActivity(activity.getComponentName()).getWindowingMode()
-                == WINDOWING_MODE_MULTI_WINDOW);
+        assertEquals(WINDOWING_MODE_MULTI_WINDOW,
+                mWmState.getActivity(activity.getComponentName()).getWindowingMode());
 
         assertMetricsMatchesLayout(activity);
     }
@@ -173,8 +175,8 @@ public class WindowMetricsActivityTests extends WindowManagerTestBase {
     public void testMetricsMatchesDisplayAreaOnSplitActivity() {
         assumeTrue(supportsSplitScreenMultiWindow());
 
-        final MetricsActivity activity = startActivityInWindowingMode(MetricsActivity.class,
-                WINDOWING_MODE_FULLSCREEN);
+        final MetricsActivity activity = startActivityInWindowingModeFullScreen(
+                MetricsActivity.class);
 
         assertMetricsValidity(activity);
 
@@ -192,8 +194,8 @@ public class WindowMetricsActivityTests extends WindowManagerTestBase {
     public void testMetricsMatchesLayoutOnFreeformActivity() {
         assumeTrue(supportsFreeform());
 
-        final MetricsActivity activity = startActivityInWindowingMode(MetricsActivity.class,
-                WINDOWING_MODE_FULLSCREEN);
+        final MetricsActivity activity = startActivityInWindowingModeFullScreen(
+                MetricsActivity.class);
 
         assertMetricsMatchesLayout(activity);
 
@@ -225,8 +227,8 @@ public class WindowMetricsActivityTests extends WindowManagerTestBase {
     public void testMetricsMatchesDisplayAreaOnFreeformActivity() {
         assumeTrue(supportsFreeform());
 
-        final MetricsActivity activity = startActivityInWindowingMode(MetricsActivity.class,
-                WINDOWING_MODE_FULLSCREEN);
+        final MetricsActivity activity = startActivityInWindowingModeFullScreen(
+                MetricsActivity.class);
 
         assertMetricsValidity(activity);
 
@@ -267,13 +269,21 @@ public class WindowMetricsActivityTests extends WindowManagerTestBase {
                 () -> currentMetrics.get().getBounds().equals(listener.getLayoutBounds()))
                 .setRetryIntervalMs(500).setRetryLimit(10)
                 .setOnFailure(unused -> fail("WindowMetrics must match layout metrics. Layout"
-                        + "bounds is" + listener.getLayoutBounds() + ", while current window"
+                        + "bounds is " + listener.getLayoutBounds() + ", while current window"
                         + "metrics is " + currentMetrics.get().getBounds())));
 
-        final boolean isFreeForm = activity.getResources().getConfiguration().windowConfiguration
-                .getWindowingMode() == WINDOWING_MODE_FREEFORM;
+        final int windowingMode = activity.getResources().getConfiguration().windowConfiguration
+                .getWindowingMode();
         WindowMetricsTestHelper.assertMetricsMatchesLayout(currentMetrics.get(), maxMetrics.get(),
-                listener.getLayoutBounds(), listener.getLayoutInsets(), isFreeForm);
+                listener.getLayoutBounds(), listener.getLayoutInsets(),
+                inMultiWindowMode(windowingMode));
+    }
+
+    // Copied from WindowConfiguration#inMultiWindowMode(int windowingMode)
+    // TODO(b/250741386): make it a @TestApi in U
+    private static boolean inMultiWindowMode(int windowingMode) {
+        return windowingMode != WINDOWING_MODE_FULLSCREEN
+                && windowingMode != WINDOWING_MODE_UNDEFINED;
     }
 
     /**

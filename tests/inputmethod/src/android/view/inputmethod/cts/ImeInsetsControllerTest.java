@@ -25,6 +25,7 @@ import static com.android.cts.mockime.ImeEventStreamTestUtils.expectCommand;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
+import android.app.WindowConfiguration;
 import android.graphics.Point;
 import android.os.Process;
 import android.os.SystemClock;
@@ -70,7 +71,8 @@ public class ImeInsetsControllerTest extends EndToEndImeTestBase {
     public Pair<EditText, Window> launchTestActivity() {
         final AtomicReference<EditText> editTextRef = new AtomicReference<>();
         final AtomicReference<Window> windowRef = new AtomicReference<>();
-        TestActivity.startSync(activity -> {
+        new TestActivity.Starter().withWindowingMode(
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN).startSync(activity -> {
             final LinearLayout layout = new LinearLayout(activity);
             layout.setOrientation(LinearLayout.VERTICAL);
 
@@ -162,8 +164,8 @@ public class ImeInsetsControllerTest extends EndToEndImeTestBase {
             CountDownLatch insetsLatch = new CountDownLatch(1);
             InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
                 editText.setOnApplyWindowInsetsListener((v, insets) -> {
-                    insetsLatch.countDown();
                     lastInsets[0] = insets;
+                    insetsLatch.countDown();
                     return CONSUMED;
                 });
                 animController[0].finish(true);

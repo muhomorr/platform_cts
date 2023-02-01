@@ -16,21 +16,21 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import android.app.Activity;
 
-import com.android.eventlib.events.CustomEvent;
 import com.android.queryable.Queryable;
 import com.android.queryable.info.ClassInfo;
-import com.android.queryable.queries.ClassQueryHelper;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
-public class ClassQueryHelperTest {
+public final class ClassQueryHelperTest {
     private final Queryable mQuery = null;
 
     private static final Class<?> CLASS_1 = Activity.class;
@@ -105,5 +105,22 @@ public class ClassQueryHelperTest {
         classQueryHelper.simpleName().isEqualTo(CLASS_1_SIMPLE_NAME);
 
         assertThat(classQueryHelper.matches(CLASS_2_CLASS_INFO)).isFalse();
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        ClassQueryHelper<Queryable> classQueryHelper = new ClassQueryHelper<>(mQuery);
+
+        classQueryHelper.className().isEqualTo(CLASS_1_CLASS_NAME);
+        classQueryHelper.simpleName().isEqualTo(CLASS_1_SIMPLE_NAME);
+
+        assertParcelsCorrectly(ClassQueryHelper.class, classQueryHelper);
+    }
+
+    @Test
+    public void classQueryHelper_queries() {
+        assertThat(
+                ClassQuery.Class().where().simpleName().isEqualTo(CLASS_1_SIMPLE_NAME)
+                        .matches(CLASS_1_CLASS_INFO)).isTrue();
     }
 }

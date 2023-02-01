@@ -27,12 +27,8 @@ import com.android.cts.devicepolicy.annotations.LockSettingsTest;
 import com.android.cts.devicepolicy.annotations.PermissionsTest;
 import com.android.cts.devicepolicy.metrics.DevicePolicyEventLogVerifier;
 import com.android.cts.devicepolicy.metrics.DevicePolicyEventWrapper;
-import com.android.tradefed.device.DeviceNotAvailableException;
 
 import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Set of tests for managed profile owner use cases that also apply to device owners.
@@ -192,36 +188,9 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
         // Managed profile owner cannot set currently allowlisted system settings.
     }
 
-    @Override
-    @Test
-    public void testSetAutoTimeRequired() {
-        // Managed profile owner cannot set auto time required
-    }
-
-    @Override
-    @Test
-    public void testSetAutoTimeEnabled() {
-        // Managed profile owner cannot set auto time unless it is called by the profile owner of
-        // an organization-owned managed profile.
-    }
-
-    @Override
-    @Test
-    public void testSetAutoTimeZoneEnabled() {
-        // Managed profile owner cannot set auto time zone unless it is called by the profile
-        // owner of an organization-owned managed profile.
-    }
-
     @Test
     public void testCannotClearProfileOwner() throws Exception {
         runDeviceTestsAsUser(DEVICE_ADMIN_PKG, CLEAR_PROFILE_OWNER_NEGATIVE_TEST_CLASS, mUserId);
-    }
-
-    private void markProfileOwnerOnOrganizationOwnedDevice() throws DeviceNotAvailableException {
-        getDevice().executeShellCommand(
-                String.format("dpm mark-profile-owner-on-organization-owned-device --user %d '%s'",
-                    mUserId, DEVICE_ADMIN_PKG + "/" + ADMIN_RECEIVER_TEST_CLASS));
-
     }
 
     @Test
@@ -270,13 +239,6 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     @Test
     public void testPackageInstallUserRestrictions() throws Exception {
         super.testPackageInstallUserRestrictions();
-    }
-
-    @Override
-    @PermissionsTest
-    @Test
-    public void testPermissionMixedPolicies() throws Exception {
-        super.testPermissionMixedPolicies();
     }
 
     @FlakyTest
@@ -397,12 +359,5 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
             runDeviceTestsAsUser(packageName, testClassName,
                     "testSetNetworkLogsEnabled_false", mUserId);
         }
-    }
-
-    @Override
-    List<String> getAdditionalDelegationScopes() {
-        final List<String> result = new ArrayList<>();
-        result.add(DELEGATION_NETWORK_LOGGING);
-        return result;
     }
 }

@@ -16,6 +16,8 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+import static com.android.queryable.queries.ActivityQuery.activity;
 import static com.android.queryable.queries.IntentFilterQuery.intentFilter;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -33,7 +35,7 @@ import org.junit.runners.JUnit4;
 import java.util.Set;
 
 @RunWith(JUnit4.class)
-public class ActivityQueryHelperTest {
+public final class ActivityQueryHelperTest {
 
     private final Queryable mQuery = null;
 
@@ -114,7 +116,7 @@ public class ActivityQueryHelperTest {
         ActivityQueryHelper<Queryable> activityQueryHelper = new ActivityQueryHelper<>(mQuery);
 
         activityQueryHelper.intentFilters().contains(
-                intentFilter().actions().contains("action")
+                intentFilter().where().actions().contains("action")
         );
 
         assertThat(activityQueryHelper.matches(INTENT_FILTER_ACTIVITY_INFO)).isTrue();
@@ -125,10 +127,29 @@ public class ActivityQueryHelperTest {
         ActivityQueryHelper<Queryable> activityQueryHelper = new ActivityQueryHelper<>(mQuery);
 
         activityQueryHelper.intentFilters().doesNotContain(
-                intentFilter().actions().contains("action")
+                intentFilter().where().actions().contains("action")
         );
 
         assertThat(activityQueryHelper.matches(INTENT_FILTER_ACTIVITY_INFO)).isFalse();
     }
 
+    @Test
+    public void parcel_parcelsCorrectly() {
+        ActivityQueryHelper<Queryable> activityQueryHelper = new ActivityQueryHelper<>(mQuery);
+
+        activityQueryHelper
+                .activityClass().className().isEqualTo("");
+        activityQueryHelper
+                .intentFilters().doesNotContain(
+                        intentFilter().where().actions().contains("action")
+        );
+        activityQueryHelper.exported().isTrue();
+
+        assertParcelsCorrectly(ActivityQueryHelper.class, activityQueryHelper);
+    }
+
+    @Test
+    public void activityQueryBase_queries() {
+        assertThat(activity().where().exported().isTrue().matches(EXPORTED_ACTIVITY_INFO)).isTrue();
+    }
 }

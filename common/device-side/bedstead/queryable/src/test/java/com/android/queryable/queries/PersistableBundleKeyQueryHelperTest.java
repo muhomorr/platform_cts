@@ -16,6 +16,8 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import android.os.PersistableBundle;
@@ -27,7 +29,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
-public class PersistableBundleKeyQueryHelperTest {
+public final class PersistableBundleKeyQueryHelperTest {
 
     private static final String KEY = "Key";
     private static final String KEY2 = "Key2";
@@ -134,5 +136,16 @@ public class PersistableBundleKeyQueryHelperTest {
         persistableBundleKeyQueryHelper.doesNotExist();
 
         assertThat(persistableBundleKeyQueryHelper.matches(mPersistableBundle, KEY)).isFalse();
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        PersistableBundleKeyQueryHelper<Queryable>
+                persistableBundleKeyQueryHelper = new PersistableBundleKeyQueryHelper<>(mQuery);
+
+        persistableBundleKeyQueryHelper.stringValue().isEqualTo("");
+
+        assertParcelsCorrectly(PersistableBundleKeyQueryHelper.class,
+                persistableBundleKeyQueryHelper);
     }
 }

@@ -25,6 +25,8 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.util.Log;
 
+import androidx.test.InstrumentationRegistry;
+
 import java.util.ArrayList;
 
 /**
@@ -41,6 +43,7 @@ public class UserControlDisabledPackagesTest extends BaseDeviceOwnerTest {
     private static final String SIMPLE_APP_PKG = "com.android.cts.launcherapps.simpleapp";
     private static final String SIMPLE_APP_ACTIVITY =
             "com.android.cts.launcherapps.simpleapp.SimpleActivityImmediateExit";
+    private static final String ARG_PID_BEFORE_STOP = "pidOfSimpleapp";
 
     public void testSetUserControlDisabledPackages() throws Exception {
         ArrayList<String> protectedPackages = new ArrayList<>();
@@ -80,6 +83,24 @@ public class UserControlDisabledPackagesTest extends BaseDeviceOwnerTest {
         assertThat(mDevicePolicyManager.getUserControlDisabledPackages(getWho())).isEmpty();
     }
 
+    public void testFgsStopWithUserControlDisabled() throws Exception {
+        final ArrayList<String> pkgs = new ArrayList<>();
+        pkgs.add(SIMPLE_APP_PKG);
+        // Check if package is part of UserControlDisabledPackages before checking if
+        // package is stopped since it is a necessary condition to prevent stopping of
+        // package
+        assertThat(mDevicePolicyManager.getUserControlDisabledPackages(getWho()))
+                .containsExactly(SIMPLE_APP_PKG);
+        assertPackageRunningState(/* running= */ true,
+                InstrumentationRegistry.getArguments().getString(ARG_PID_BEFORE_STOP, "-1"));
+    }
+
+    public void testFgsStopWithUserControlEnabled() throws Exception {
+        assertPackageRunningState(/* running= */ false,
+                InstrumentationRegistry.getArguments().getString(ARG_PID_BEFORE_STOP, "-1"));
+        assertThat(mDevicePolicyManager.getUserControlDisabledPackages(getWho())).isEmpty();
+    }
+
     private boolean isPackageStopped(String packageName) throws Exception {
         PackageInfo packageInfo = mContext.getPackageManager()
                 .getPackageInfoAsUser(packageName, PackageManager.GET_META_DATA,
@@ -96,5 +117,22 @@ public class UserControlDisabledPackagesTest extends BaseDeviceOwnerTest {
         assertWithMessage("Package %s stopped for user %s", SIMPLE_APP_PKG,
                 getCurrentUser().getIdentifier())
                 .that(isPackageStopped(SIMPLE_APP_PKG)).isEqualTo(stopped);
+    }
+
+    private boolean isPackageRunning(String packageName) throws Exception {
+        String pid = executeShellCommand(String.format("pidof %s", packageName)).trim();
+        return pid.length() > 0;
+    }
+
+    private void assertPackageRunningState(boolean shouldBeRunning, String argPid)
+            throws Exception {
+        String pid = executeShellCommand(String.format("pidof %s", SIMPLE_APP_PKG)).trim();
+
+        final boolean samePid = pid.equals(argPid);
+        final boolean stillRunning = samePid && isPackageRunning(SIMPLE_APP_PKG);
+
+        assertWithMessage("Package %s running for user %s", SIMPLE_APP_PKG,
+                getCurrentUser().getIdentifier())
+                .that(stillRunning).isEqualTo(shouldBeRunning);
     }
 }

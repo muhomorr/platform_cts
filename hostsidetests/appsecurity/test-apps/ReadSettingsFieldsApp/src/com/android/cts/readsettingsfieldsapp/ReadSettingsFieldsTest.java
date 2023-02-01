@@ -27,8 +27,9 @@ import android.util.ArraySet;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class ReadSettingsFieldsTest extends AndroidTestCase {
     /** Test public keys are readable with annotation */
@@ -50,10 +51,10 @@ public class ReadSettingsFieldsTest extends AndroidTestCase {
             try {
                 callGetStringMethod(settingsClass, key);
             } catch (SecurityException ex) {
-                if (isSettingsDeprecated(ex)) {
+                if (isSettingsDeprecated(ex) || isAvailableForLowerOrEqualTargetedSDK(ex)) {
                     continue;
                 }
-                fail("Reading public " + settingsClass.getSimpleName() + " settings key <" + key
+                fail("Reading non-hidden " + settingsClass.getSimpleName() + " settings key <" + key
                         + "> should not raise exception! "
                         + "Did you forget to add @Readable annotation?\n" + ex.getMessage());
             }
@@ -93,6 +94,10 @@ public class ReadSettingsFieldsTest extends AndroidTestCase {
 
     private boolean isSettingsDeprecated(SecurityException ex) {
         return ex.getMessage().contains("is deprecated and no longer accessible");
+    }
+
+    private boolean isAvailableForLowerOrEqualTargetedSDK(SecurityException ex) {
+        return ex.getMessage().contains("targetSdkVersion lower than or equal");
     }
 
     /** Test hidden keys are readable with annotation */
@@ -220,6 +225,29 @@ public class ReadSettingsFieldsTest extends AndroidTestCase {
                 hiddenSettingsKeys);
     }
 
+
+    public void testSettingsKeysNotReadableForAfterR() {
+        final String keyWithTargetSdkR = "media_button_receiver";
+        try {
+            // Verify that the hidden key is not readable because of maxTargetSdk restriction
+            callGetStringMethod(Settings.System.class, keyWithTargetSdkR);
+            fail("Reading hidden settings key <" + keyWithTargetSdkR
+                    + "> should raise!");
+        } catch (SecurityException ex) {
+            assertTrue(ex.getMessage().contains("targetSdkVersion"));
+        }
+    }
+
+    public void testSettingsKeysReadableForRMinus() {
+        final String keyWithTargetSdkR = "media_button_receiver";
+        try {
+            // Verify that the hidden key can still be read
+            callGetStringMethod(Settings.System.class, keyWithTargetSdkR);
+        } catch (SecurityException ex) {
+            fail("Reading hidden settings key <" + keyWithTargetSdkR + "> should not raise!");
+        }
+    }
+
     public void testQueryGlobalSettingsNoHiddenKeysWithoutAnnotation() {
         checkQueryResults(Settings.Global.CONTENT_URI, Settings.Global.class);
     }
@@ -249,6 +277,9 @@ public class ReadSettingsFieldsTest extends AndroidTestCase {
                     // every key in the result should be readable
                     callGetStringMethod(settingsClass, key);
                 } catch (SecurityException ex) {
+                    if (isSettingsDeprecated(ex)) {
+                        continue;
+                    }
                     fail("Hidden settings key <" + key + "> should not be included in the "
                             + "query result!");
                 }
@@ -279,18 +310,44 @@ public class ReadSettingsFieldsTest extends AndroidTestCase {
             Class<T> settingsClass) {
         try {
             final ContentResolver resolver = getContext().getContentResolver();
-            final Bundle data = resolver.call(Settings.Global.CONTENT_URI, listSettingsType, null,
-                    null);
+            final Uri uri;
+            switch (listSettingsType) {
+                case "LIST_global":
+                    uri = Settings.Global.CONTENT_URI;
+                    break;
+                case "LIST_system":
+                    uri = Settings.System.CONTENT_URI;
+                    break;
+                case "LIST_secure":
+                    // fall through
+                default:
+                    uri = Settings.Secure.CONTENT_URI;
+            }
+            final Bundle data = resolver.call(uri, listSettingsType, null, null);
             final ArrayList<String> result = data.getStringArrayList("result_settings_list");
             assertTrue(result.size() > 0);
-            for (String line : result) {
-                String key = line.split("=")[0];
+            Set<String> keysFromResolverCall = result.stream().map(line -> line.split("=")[0])
+                    .collect(Collectors.toSet());
+
+            // Verify result against resolver.query
+            Cursor cursor = resolver.query(uri, new String[]{"name", "value"}, null, null, null);
+            Set<String> keysFromResolverQuery = new ArraySet<>();
+            while (cursor.moveToNext()) {
+                keysFromResolverQuery.add(cursor.getString(0));
+            }
+            cursor.close();
+            assertEquals(keysFromResolverQuery, keysFromResolverCall);
+
+            for (String key : keysFromResolverCall) {
                 try {
                     // every key in the result should be readable
                     callGetStringMethod(settingsClass, key);
                 } catch (SecurityException ex) {
-                    fail("Hidden settings key <" + key + "> should not be included in the "
-                            + "call result!");
+                    if (isSettingsDeprecated(ex)) {
+                        continue;
+                    }
+                    fail("Non-readable settings key <" + key + "> should not be included in the "
+                            + "query or call result!");
                 }
             }
         } catch (Exception e) {

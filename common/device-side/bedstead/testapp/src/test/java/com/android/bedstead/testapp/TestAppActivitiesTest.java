@@ -44,12 +44,11 @@ public class TestAppActivitiesTest {
     private static final String EXISTING_ACTIVITY = "android.testapp.activity";
     private static final String NON_EXISTING_ACTIVITY = "non.existing.activity";
 
-    private static final TestAppProvider sTestAppProvider = new TestAppProvider();
-    private static final TestApp sTestApp = sTestAppProvider.query()
+    private static final TestApp sTestApp = sDeviceState.testApps().query()
             .whereActivities().contains(
-                    activity().activityClass().className().isEqualTo(EXISTING_ACTIVITY)
+                    activity().where().activityClass().className().isEqualTo(EXISTING_ACTIVITY)
             ).whereActivities().doesNotContain(
-                    activity().activityClass().className().isEqualTo(NON_EXISTING_ACTIVITY)
+                    activity().where().activityClass().className().isEqualTo(NON_EXISTING_ACTIVITY)
             )
             .get();
     private static TestAppInstance sTestAppInstance;

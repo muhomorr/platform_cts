@@ -19,13 +19,14 @@ package {
 android_test_helper_app {
     name: "AlarmTestApp30",
     defaults: ["cts_support_defaults"],
+    min_sdk_version: "30",
     sdk_version: "current",
     test_suites: [
         "cts",
         "general-tests",
         "mts",
     ],
-    srcs: ["src/**/*.java"],
+    srcs: [":CtsAlarmTestHelperCommon"],
     dex_preopt: {
         enabled: false,
     },

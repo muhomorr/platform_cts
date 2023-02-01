@@ -16,7 +16,6 @@
 
 package android.hardware.camera2.cts;
 
-import androidx.annotation.NonNull;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
@@ -25,45 +24,47 @@ import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
+import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
-import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CaptureFailure;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.MultiResolutionImageReader;
+import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.cts.helpers.CameraErrorCollector;
 import android.hardware.camera2.cts.helpers.StaticMetadata;
+import android.hardware.camera2.params.DynamicRangeProfiles;
 import android.hardware.camera2.params.InputConfiguration;
-import android.hardware.camera2.TotalCaptureResult;
-import android.hardware.cts.helpers.CameraUtils;
-import android.hardware.camera2.params.MeteringRectangle;
-import android.hardware.camera2.params.MandatoryStreamCombination;
 import android.hardware.camera2.params.MandatoryStreamCombination.MandatoryStreamInformation;
+import android.hardware.camera2.params.MeteringRectangle;
 import android.hardware.camera2.params.MultiResolutionStreamConfigurationMap;
 import android.hardware.camera2.params.MultiResolutionStreamInfo;
 import android.hardware.camera2.params.OutputConfiguration;
 import android.hardware.camera2.params.SessionConfiguration;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.hardware.cts.helpers.CameraUtils;
 import android.location.Location;
 import android.location.LocationManager;
 import android.media.ExifInterface;
 import android.media.Image;
+import android.media.Image.Plane;
 import android.media.ImageReader;
 import android.media.ImageWriter;
-import android.media.Image.Plane;
 import android.os.Build;
 import android.os.ConditionVariable;
 import android.os.Handler;
 import android.util.Log;
 import android.util.Pair;
-import android.util.Size;
 import android.util.Range;
-import android.view.Display;
+import android.util.Size;
 import android.view.Surface;
 import android.view.WindowManager;
+import android.view.WindowMetrics;
+
+import androidx.annotation.NonNull;
 
 import com.android.ex.camera2.blocking.BlockingCameraManager;
 import com.android.ex.camera2.blocking.BlockingCameraManager.BlockingOpenException;
@@ -79,6 +80,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -87,15 +90,15 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A package private utility class for wrapping up the camera2 cts test common utility functions
@@ -236,6 +239,8 @@ public class CameraTestUtils extends Assert {
         public List<ImageReader> mRawTargets = new ArrayList<>();
         public List<ImageReader> mHeicTargets = new ArrayList<>();
         public List<ImageReader> mDepth16Targets = new ArrayList<>();
+        public List<ImageReader> mP010Targets = new ArrayList<>();
+
 
         public List<MultiResolutionImageReader> mPrivMultiResTargets = new ArrayList<>();
         public List<MultiResolutionImageReader> mJpegMultiResTargets = new ArrayList<>();
@@ -264,6 +269,9 @@ public class CameraTestUtils extends Assert {
             for (ImageReader target : mDepth16Targets) {
                 target.close();
             }
+            for (ImageReader target : mP010Targets) {
+                target.close();
+            }
 
             for (MultiResolutionImageReader target : mPrivMultiResTargets) {
                 target.close();
@@ -284,7 +292,8 @@ public class CameraTestUtils extends Assert {
             List<OutputConfiguration> outputConfigs, List<Surface> outputSurfaces,
             int format, Size targetSize, int numBuffers, String overridePhysicalCameraId,
             MultiResolutionStreamConfigurationMap multiResStreamConfig,
-            boolean createMultiResiStreamConfig, ImageDropperListener listener, Handler handler) {
+            boolean createMultiResiStreamConfig, ImageDropperListener listener, Handler handler,
+            long dynamicRangeProfile, long streamUseCase) {
         if (createMultiResiStreamConfig) {
             Collection<MultiResolutionStreamInfo> multiResolutionStreams =
                     multiResStreamConfig.getOutputInfo(format);
@@ -319,6 +328,8 @@ public class CameraTestUtils extends Assert {
                 if (overridePhysicalCameraId != null) {
                     config.setPhysicalCameraId(overridePhysicalCameraId);
                 }
+                config.setDynamicRangeProfile(dynamicRangeProfile);
+                config.setStreamUseCase(streamUseCase);
                 outputConfigs.add(config);
                 outputSurfaces.add(config.getSurface());
                 targets.mPrivTargets.add(target);
@@ -330,6 +341,8 @@ public class CameraTestUtils extends Assert {
                 if (overridePhysicalCameraId != null) {
                     config.setPhysicalCameraId(overridePhysicalCameraId);
                 }
+                config.setDynamicRangeProfile(dynamicRangeProfile);
+                config.setStreamUseCase(streamUseCase);
                 outputConfigs.add(config);
                 outputSurfaces.add(config.getSurface());
 
@@ -351,6 +364,9 @@ public class CameraTestUtils extends Assert {
                       break;
                     case ImageFormat.DEPTH16:
                       targets.mDepth16Targets.add(target);
+                      break;
+                    case ImageFormat.YCBCR_P010:
+                      targets.mP010Targets.add(target);
                       break;
                     default:
                       fail("Unknown/Unsupported output format " + format);
@@ -377,7 +393,29 @@ public class CameraTestUtils extends Assert {
             List<Surface> outputSurfaces, List<Surface> uhSurfaces, int numBuffers,
             boolean substituteY8, boolean substituteHeic, String overridePhysicalCameraId,
             MultiResolutionStreamConfigurationMap multiResStreamConfig, Handler handler) {
+        setupConfigurationTargets(streamsInfo, targets, outputConfigs, outputSurfaces, uhSurfaces,
+                numBuffers, substituteY8, substituteHeic, overridePhysicalCameraId,
+                multiResStreamConfig, handler, /*dynamicRangeProfiles*/ null);
+    }
 
+    public static void setupConfigurationTargets(List<MandatoryStreamInformation> streamsInfo,
+            StreamCombinationTargets targets,
+            List<OutputConfiguration> outputConfigs,
+            List<Surface> outputSurfaces, List<Surface> uhSurfaces, int numBuffers,
+            boolean substituteY8, boolean substituteHeic, String overridePhysicalCameraId,
+            MultiResolutionStreamConfigurationMap multiResStreamConfig, Handler handler,
+            List<Long> dynamicRangeProfiles) {
+
+        Random rnd = new Random();
+        // 10-bit output capable streams will use a fixed dynamic range profile in case
+        // dynamicRangeProfiles.size() == 1 or random in case dynamicRangeProfiles.size() > 1
+        boolean use10BitRandomProfile = (dynamicRangeProfiles != null) &&
+                (dynamicRangeProfiles.size() > 1);
+        if (use10BitRandomProfile) {
+            Long seed = rnd.nextLong();
+            Log.i(TAG, "Random seed used for selecting 10-bit output: " + seed);
+            rnd.setSeed(seed);
+        }
         ImageDropperListener imageDropperListener = new ImageDropperListener();
         List<Surface> chosenSurfaces;
         for (MandatoryStreamInformation streamInfo : streamsInfo) {
@@ -394,6 +432,19 @@ public class CameraTestUtils extends Assert {
             } else if (substituteHeic && (format == ImageFormat.JPEG)) {
                 format = ImageFormat.HEIC;
             }
+
+            long dynamicRangeProfile = DynamicRangeProfiles.STANDARD;
+            if (streamInfo.is10BitCapable() && use10BitRandomProfile) {
+                boolean override10bit = rnd.nextBoolean();
+                if (!override10bit) {
+                    dynamicRangeProfile = dynamicRangeProfiles.get(rnd.nextInt(
+                            dynamicRangeProfiles.size()));
+                    format = streamInfo.get10BitFormat();
+                }
+            } else if (streamInfo.is10BitCapable() && (dynamicRangeProfiles != null)) {
+                dynamicRangeProfile = dynamicRangeProfiles.get(0);
+                format = streamInfo.get10BitFormat();
+            }
             Size[] availableSizes = new Size[streamInfo.getAvailableSizes().size()];
             availableSizes = streamInfo.getAvailableSizes().toArray(availableSizes);
             Size targetSize = CameraTestUtils.getMaxSize(availableSizes);
@@ -405,13 +456,15 @@ public class CameraTestUtils extends Assert {
                 case ImageFormat.PRIVATE:
                 case ImageFormat.JPEG:
                 case ImageFormat.YUV_420_888:
+                case ImageFormat.YCBCR_P010:
                 case ImageFormat.Y8:
                 case ImageFormat.HEIC:
                 case ImageFormat.DEPTH16:
                 {
                     configureTarget(targets, outputConfigs, chosenSurfaces, format,
                             targetSize, numBuffers, overridePhysicalCameraId, multiResStreamConfig,
-                            createMultiResReader, imageDropperListener, handler);
+                            createMultiResReader, imageDropperListener, handler,
+                            dynamicRangeProfile, streamInfo.getStreamUseCase());
                     break;
                 }
                 case ImageFormat.RAW_SENSOR: {
@@ -421,7 +474,7 @@ public class CameraTestUtils extends Assert {
                         configureTarget(targets, outputConfigs, chosenSurfaces, format,
                                 targetSize, numBuffers, overridePhysicalCameraId,
                                 multiResStreamConfig, createMultiResReader, imageDropperListener,
-                                handler);
+                                handler, dynamicRangeProfile, streamInfo.getStreamUseCase());
                     }
                     break;
                 }
@@ -671,10 +724,22 @@ public class CameraTestUtils extends Assert {
 
         @Override
         public void onImageAvailable(ImageReader reader) {
-            if (VERBOSE) Log.v(TAG, "new image available");
+            if (VERBOSE) Log.v(TAG, "new image available from reader " + reader.toString());
 
             if (mAcquireLatest) {
-                mLastReader = reader;
+                synchronized (mLock) {
+                    // If there is switch of image readers, acquire and releases all images
+                    // from the previous image reader
+                    if (mLastReader != reader) {
+                        if (mLastReader != null) {
+                            Image image = mLastReader.acquireLatestImage();
+                            if (image != null) {
+                                image.close();
+                            }
+                        }
+                        mLastReader = reader;
+                    }
+                }
                 mImageAvailable.open();
             } else {
                 if (mQueue.size() < mMaxBuffers) {
@@ -691,11 +756,17 @@ public class CameraTestUtils extends Assert {
             if (mAcquireLatest) {
                 Image image = null;
                 if (mImageAvailable.block(timeoutMs)) {
-                    if (mLastReader != null) {
-                        image = mLastReader.acquireLatestImage();
-                        if (VERBOSE) Log.v(TAG, "acquireLatestImage");
-                    } else {
-                        fail("invalid image reader");
+                    synchronized (mLock) {
+                        if (mLastReader != null) {
+                            image = mLastReader.acquireLatestImage();
+                            if (VERBOSE) Log.v(TAG, "acquireLatestImage from "
+                                    + mLastReader.toString() + " produces " + image);
+                            if (image == null) {
+                                return null;
+                            }
+                        } else {
+                            fail("invalid image reader");
+                        }
                     }
                     mImageAvailable.close();
                 } else {
@@ -730,6 +801,7 @@ public class CameraTestUtils extends Assert {
         private final boolean mAcquireLatest;
         private ConditionVariable mImageAvailable = new ConditionVariable();
         private ImageReader mLastReader = null;
+        private final Object mLock = new Object();
     }
 
     public static class SimpleCaptureCallback extends CameraCaptureSession.CaptureCallback {
@@ -1115,6 +1187,24 @@ public class CameraTestUtils extends Assert {
         public boolean hasMoreAbortedSequences()
         {
             return !mAbortQueue.isEmpty();
+        }
+
+        public List<Long> getCaptureStartTimestamps(int count) {
+            Iterator<Pair<CaptureRequest, Long>> iter = mCaptureStartQueue.iterator();
+            List<Long> timestamps = new ArrayList<Long>();
+            try {
+                while (timestamps.size() < count) {
+                    Pair<CaptureRequest, Long> captureStart = mCaptureStartQueue.poll(
+                            CAPTURE_RESULT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+                    assertNotNull("Wait for a capture start timed out in "
+                            + CAPTURE_RESULT_TIMEOUT_MS + "ms", captureStart);
+
+                    timestamps.add(captureStart.second);
+                }
+                return timestamps;
+            } catch (InterruptedException e) {
+                throw new UnsupportedOperationException("Unhandled interrupted exception", e);
+            }
         }
 
         public void drain() {
@@ -3013,13 +3103,15 @@ public class CameraTestUtils extends Assert {
      * @param expectedThumbnailSize The expected thumbnail size.
      * @param expectedExifData The expected EXIF data
      * @param staticInfo The static metadata for the camera device.
+     * @param allStaticInfo The camera Id to static metadata map for all cameras.
      * @param blobFilename The filename to dump the jpeg/heic to.
      * @param collector The camera error collector to collect errors.
      * @param format JPEG/HEIC format
      */
     public static void verifyJpegKeys(Image image, CaptureResult captureResult, Size expectedSize,
             Size expectedThumbnailSize, ExifTestData expectedExifData, StaticMetadata staticInfo,
-            CameraErrorCollector collector, String debugFileNameBase, int format) throws Exception {
+            HashMap<String, StaticMetadata> allStaticInfo, CameraErrorCollector collector,
+            String debugFileNameBase, int format) throws Exception {
 
         basicValidateBlobImage(image, expectedSize, format);
 
@@ -3073,8 +3165,8 @@ public class CameraTestUtils extends Assert {
 
         // Validate other exif tags for all non-legacy devices
         if (!staticInfo.isHardwareLevelLegacy()) {
-            verifyJpegExifExtraTags(exif, expectedSize, captureResult, staticInfo, collector,
-                    expectedExifData);
+            verifyJpegExifExtraTags(exif, expectedSize, captureResult, staticInfo, allStaticInfo,
+                    collector, expectedExifData);
         }
     }
 
@@ -3100,24 +3192,113 @@ public class CameraTestUtils extends Assert {
     }
 
     /**
+     * Get all of the supported focal lengths for capture result.
+     *
+     * If the camera is a logical camera, return the focal lengths of the logical camera
+     * and its active physical camera.
+     *
+     * If the camera isn't a logical camera, return the focal lengths supported by the
+     * single camera.
+     */
+    public static Set<Float> getAvailableFocalLengthsForResult(CaptureResult result,
+            StaticMetadata staticInfo,
+            HashMap<String, StaticMetadata> allStaticInfo) {
+        Set<Float> focalLengths = new HashSet<Float>();
+        float[] supportedFocalLengths = staticInfo.getAvailableFocalLengthsChecked();
+        for (float focalLength : supportedFocalLengths) {
+            focalLengths.add(focalLength);
+        }
+
+        if (staticInfo.isLogicalMultiCamera()) {
+            boolean activePhysicalCameraIdSupported =
+                    staticInfo.isActivePhysicalCameraIdSupported();
+            Set<String> physicalCameraIds;
+            if (activePhysicalCameraIdSupported) {
+                String activePhysicalCameraId = result.get(
+                        CaptureResult.LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_ID);
+                physicalCameraIds = new HashSet<String>();
+                physicalCameraIds.add(activePhysicalCameraId);
+            } else {
+                physicalCameraIds = staticInfo.getCharacteristics().getPhysicalCameraIds();
+            }
+
+            for (String physicalCameraId : physicalCameraIds) {
+                StaticMetadata physicalStaticInfo = allStaticInfo.get(physicalCameraId);
+                if (physicalStaticInfo != null) {
+                    float[] focalLengthsArray =
+                            physicalStaticInfo.getAvailableFocalLengthsChecked();
+                    for (float focalLength: focalLengthsArray) {
+                        focalLengths.add(focalLength);
+                    }
+                }
+            }
+        }
+
+        return focalLengths;
+    }
+
+    /**
      * Validate and return the focal length.
      *
      * @param result Capture result to get the focal length
+     * @param supportedFocalLengths Valid focal lengths to check the result focal length against
+     * @param collector The camera error collector
      * @return Focal length from capture result or -1 if focal length is not available.
      */
-    private static float validateFocalLength(CaptureResult result, StaticMetadata staticInfo,
-            CameraErrorCollector collector) {
-        float[] focalLengths = staticInfo.getAvailableFocalLengthsChecked();
+    private static float validateFocalLength(CaptureResult result,
+            Set<Float> supportedFocalLengths, CameraErrorCollector collector) {
         Float resultFocalLength = result.get(CaptureResult.LENS_FOCAL_LENGTH);
         if (collector.expectTrue("Focal length is invalid",
                 resultFocalLength != null && resultFocalLength > 0)) {
-            List<Float> focalLengthList =
-                    Arrays.asList(CameraTestUtils.toObject(focalLengths));
             collector.expectTrue("Focal length should be one of the available focal length",
-                    focalLengthList.contains(resultFocalLength));
+                    supportedFocalLengths.contains(resultFocalLength));
             return resultFocalLength;
         }
         return -1;
+    }
+
+    /**
+     * Get all of the supported apertures for capture result.
+     *
+     * If the camera is a logical camera, return the apertures of the logical camera
+     * and its active physical camera.
+     *
+     * If the camera isn't a logical camera, return the apertures supported by the
+     * single camera.
+     */
+    private static Set<Float> getAvailableAperturesForResult(CaptureResult result,
+            StaticMetadata staticInfo, HashMap<String, StaticMetadata> allStaticInfo) {
+        Set<Float> allApertures = new HashSet<Float>();
+        float[] supportedApertures = staticInfo.getAvailableAperturesChecked();
+        for (float aperture : supportedApertures) {
+            allApertures.add(aperture);
+        }
+
+        if (staticInfo.isLogicalMultiCamera()) {
+            boolean activePhysicalCameraIdSupported =
+                    staticInfo.isActivePhysicalCameraIdSupported();
+            Set<String> physicalCameraIds;
+            if (activePhysicalCameraIdSupported) {
+                String activePhysicalCameraId = result.get(
+                        CaptureResult.LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_ID);
+                physicalCameraIds = new HashSet<String>();
+                physicalCameraIds.add(activePhysicalCameraId);
+            } else {
+                physicalCameraIds = staticInfo.getCharacteristics().getPhysicalCameraIds();
+            }
+
+            for (String physicalCameraId : physicalCameraIds) {
+                StaticMetadata physicalStaticInfo = allStaticInfo.get(physicalCameraId);
+                if (physicalStaticInfo != null) {
+                    float[] apertures = physicalStaticInfo.getAvailableAperturesChecked();
+                    for (float aperture: apertures) {
+                        allApertures.add(aperture);
+                    }
+                }
+            }
+        }
+
+        return allApertures;
     }
 
     /**
@@ -3126,36 +3307,33 @@ public class CameraTestUtils extends Assert {
      * @param result Capture result to get the aperture
      * @return Aperture from capture result or -1 if aperture is not available.
      */
-    private static float validateAperture(CaptureResult result, StaticMetadata staticInfo,
-            CameraErrorCollector collector) {
-        float[] apertures = staticInfo.getAvailableAperturesChecked();
+    private static float validateAperture(CaptureResult result,
+            Set<Float> supportedApertures, CameraErrorCollector collector) {
         Float resultAperture = result.get(CaptureResult.LENS_APERTURE);
         if (collector.expectTrue("Capture result aperture is invalid",
                 resultAperture != null && resultAperture > 0)) {
-            List<Float> apertureList =
-                    Arrays.asList(CameraTestUtils.toObject(apertures));
             collector.expectTrue("Aperture should be one of the available apertures",
-                    apertureList.contains(resultAperture));
+                    supportedApertures.contains(resultAperture));
             return resultAperture;
         }
         return -1;
     }
 
     /**
-     * Return the closest value in an array of floats.
+     * Return the closest value in a Set of floats.
      */
-    private static float getClosestValueInArray(float[] values, float target) {
-        int minIdx = 0;
-        float minDistance = Math.abs(values[0] - target);
-        for(int i = 0; i < values.length; i++) {
-            float distance = Math.abs(values[i] - target);
+    private static float getClosestValueInSet(Set<Float> values, float target) {
+        float minDistance = Float.MAX_VALUE;
+        float closestValue = -1.0f;
+        for(float value : values) {
+            float distance = Math.abs(value - target);
             if (minDistance > distance) {
                 minDistance = distance;
-                minIdx = i;
+                closestValue = value;
             }
         }
 
-        return values[minIdx];
+        return closestValue;
     }
 
     /**
@@ -3175,8 +3353,9 @@ public class CameraTestUtils extends Assert {
      * Verify extra tags in JPEG EXIF
      */
     private static void verifyJpegExifExtraTags(ExifInterface exif, Size jpegSize,
-            CaptureResult result, StaticMetadata staticInfo, CameraErrorCollector collector,
-            ExifTestData expectedExifData)
+            CaptureResult result, StaticMetadata staticInfo,
+            HashMap<String, StaticMetadata> allStaticInfo,
+            CameraErrorCollector collector, ExifTestData expectedExifData)
             throws ParseException {
         /**
          * TAG_IMAGE_WIDTH and TAG_IMAGE_LENGTH and TAG_ORIENTATION.
@@ -3259,15 +3438,16 @@ public class CameraTestUtils extends Assert {
         boolean isExternalCamera = staticInfo.isExternalCamera();
         if (!isExternalCamera) {
             // TAG_FOCAL_LENGTH.
-            float[] focalLengths = staticInfo.getAvailableFocalLengthsChecked();
+            Set<Float> focalLengths = getAvailableFocalLengthsForResult(
+                    result, staticInfo, allStaticInfo);
             float exifFocalLength = (float)exif.getAttributeDouble(
                         ExifInterface.TAG_FOCAL_LENGTH, -1);
             collector.expectEquals("Focal length should match",
-                    getClosestValueInArray(focalLengths, exifFocalLength),
+                    getClosestValueInSet(focalLengths, exifFocalLength),
                     exifFocalLength, EXIF_FOCAL_LENGTH_ERROR_MARGIN);
             // More checks for focal length.
             collector.expectEquals("Exif focal length should match capture result",
-                    validateFocalLength(result, staticInfo, collector),
+                    validateFocalLength(result, focalLengths, collector),
                     exifFocalLength, EXIF_FOCAL_LENGTH_ERROR_MARGIN);
 
             // TAG_EXPOSURE_TIME
@@ -3291,15 +3471,16 @@ public class CameraTestUtils extends Assert {
             String exifAperture = exif.getAttribute(ExifInterface.TAG_APERTURE);
             collector.expectNotNull("Exif TAG_APERTURE shouldn't be null", exifAperture);
             if (staticInfo.areKeysAvailable(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)) {
-                float[] apertures = staticInfo.getAvailableAperturesChecked();
+                Set<Float> apertures = getAvailableAperturesForResult(
+                        result, staticInfo, allStaticInfo);
                 if (exifAperture != null) {
                     float apertureValue = Float.parseFloat(exifAperture);
                     collector.expectEquals("Aperture value should match",
-                            getClosestValueInArray(apertures, apertureValue),
+                            getClosestValueInSet(apertures, apertureValue),
                             apertureValue, EXIF_APERTURE_ERROR_MARGIN);
                     // More checks for aperture.
                     collector.expectEquals("Exif aperture length should match capture result",
-                            validateAperture(result, staticInfo, collector),
+                            validateAperture(result, apertures, collector),
                             apertureValue, EXIF_APERTURE_ERROR_MARGIN);
                 }
             }
@@ -3426,21 +3607,23 @@ public class CameraTestUtils extends Assert {
     }
 
     public static Size getPreviewSizeBound(WindowManager windowManager, Size bound) {
-        Display display = windowManager.getDefaultDisplay();
+        WindowMetrics windowMetrics = windowManager.getCurrentWindowMetrics();
+        Rect windowBounds = windowMetrics.getBounds();
 
-        int width = display.getWidth();
-        int height = display.getHeight();
+        int windowHeight = windowBounds.height();
+        int windowWidth = windowBounds.width();
 
-        if (height > width) {
-            height = width;
-            width = display.getHeight();
+        if (windowHeight > windowWidth) {
+            windowHeight = windowWidth;
+            windowWidth = windowBounds.height();
         }
 
-        if (bound.getWidth() <= width &&
-            bound.getHeight() <= height)
+        if (bound.getWidth() <= windowWidth
+                && bound.getHeight() <= windowHeight) {
             return bound;
-        else
-            return new Size(width, height);
+        } else {
+            return new Size(windowWidth, windowHeight);
+        }
     }
 
     /**
@@ -3738,23 +3921,6 @@ public class CameraTestUtils extends Assert {
         zoomRatios.add(zoomRatioRange.getUpper());
 
         return zoomRatios;
-    }
-
-    private static final int PERFORMANCE_CLASS_R = Build.VERSION_CODES.R;
-    private static final int PERFORMANCE_CLASS_S = Build.VERSION_CODES.R + 1;
-
-    /**
-     * Check whether this mobile device is R performance class as defined in CDD
-     */
-    public static boolean isRPerfClass() {
-        return Build.VERSION.MEDIA_PERFORMANCE_CLASS == PERFORMANCE_CLASS_R;
-    }
-
-    /**
-     * Check whether this mobile device is S performance class as defined in CDD
-     */
-    public static boolean isSPerfClass() {
-        return Build.VERSION.MEDIA_PERFORMANCE_CLASS == PERFORMANCE_CLASS_S;
     }
 
     /**

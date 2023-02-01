@@ -16,19 +16,52 @@
 
 package com.android.queryable.queries;
 
+import static com.android.queryable.util.ParcelableUtils.readNullableBoolean;
+import static com.android.queryable.util.ParcelableUtils.writeNullableBoolean;
+
+import android.os.Parcel;
+import android.os.Parcelable;
+
 import com.android.queryable.Queryable;
+import com.android.queryable.QueryableBaseWithMatch;
+
+import java.util.Objects;
 
 public final class BooleanQueryHelper<E extends Queryable> implements BooleanQuery<E> {
 
-    private final E mQuery;
+    private final transient E mQuery;
     private Boolean mTargetValue = null;
 
-    BooleanQueryHelper() {
-        mQuery = (E) this;
+    public static final class BooleanQueryBase extends
+            QueryableBaseWithMatch<Boolean, BooleanQueryHelper<BooleanQueryBase>> {
+        BooleanQueryBase() {
+            super();
+            setQuery(new BooleanQueryHelper<>(this));
+        }
+
+        BooleanQueryBase(Parcel in) {
+            super(in);
+        }
+
+        public static final Parcelable.Creator<BooleanQueryHelper.BooleanQueryBase> CREATOR =
+                new Parcelable.Creator<>() {
+                    public BooleanQueryHelper.BooleanQueryBase createFromParcel(Parcel in) {
+                        return new BooleanQueryHelper.BooleanQueryBase(in);
+                    }
+
+                    public BooleanQueryHelper.BooleanQueryBase[] newArray(int size) {
+                        return new BooleanQueryHelper.BooleanQueryBase[size];
+                    }
+                };
     }
 
     public BooleanQueryHelper(E query) {
         mQuery = query;
+    }
+
+    private BooleanQueryHelper(Parcel in) {
+        mQuery = null;
+        mTargetValue = readNullableBoolean(in);
     }
 
     @Override
@@ -80,5 +113,39 @@ public final class BooleanQueryHelper<E extends Queryable> implements BooleanQue
 
     public static boolean matches(BooleanQuery<?> query, Boolean value) {
         return query.matches(value);
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+        writeNullableBoolean(out, mTargetValue);
+    }
+
+    public static final Parcelable.Creator<BooleanQueryHelper> CREATOR =
+            new Parcelable.Creator<BooleanQueryHelper>() {
+                public BooleanQueryHelper createFromParcel(Parcel in) {
+                    return new BooleanQueryHelper(in);
+                }
+
+                public BooleanQueryHelper[] newArray(int size) {
+                    return new BooleanQueryHelper[size];
+                }
+    };
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof BooleanQueryHelper)) return false;
+        BooleanQueryHelper<?> that = (BooleanQueryHelper<?>) o;
+        return Objects.equals(mTargetValue, that.mTargetValue);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(mTargetValue);
     }
 }

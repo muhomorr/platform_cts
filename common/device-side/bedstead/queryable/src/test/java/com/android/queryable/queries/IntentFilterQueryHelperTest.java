@@ -16,6 +16,10 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+import static com.android.queryable.queries.IntentFilterQuery.intentFilter;
+import static com.android.queryable.queries.StringQuery.string;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import android.content.IntentFilter;
@@ -29,7 +33,7 @@ import org.junit.runners.JUnit4;
 import java.util.Set;
 
 @RunWith(JUnit4.class)
-public class IntentFilterQueryHelperTest {
+public final class IntentFilterQueryHelperTest {
 
     private final Queryable mQuery = null;
 
@@ -99,5 +103,22 @@ public class IntentFilterQueryHelperTest {
         intentFilterQueryHelper.actions().contains("category4");
 
         assertThat(intentFilterQueryHelper.matches(CATEGORIES_INTENT_FILTER)).isFalse();
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        IntentFilterQueryHelper<Queryable> intentFilterQueryHelper =
+                new IntentFilterQueryHelper<>(mQuery);
+
+        intentFilterQueryHelper.actions().contains("");
+        intentFilterQueryHelper.categories().contains(string().where().isEqualTo(""));
+
+        assertParcelsCorrectly(IntentFilterQueryHelper.class, intentFilterQueryHelper);
+    }
+
+    @Test
+    public void intentFilterQueryBase_queries() {
+        assertThat(intentFilter().where().categories().contains("category1")
+                .matches(CATEGORIES_INTENT_FILTER)).isTrue();
     }
 }

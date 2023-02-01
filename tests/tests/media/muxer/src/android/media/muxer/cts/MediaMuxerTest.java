@@ -17,6 +17,11 @@
 package android.media.muxer.cts;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
@@ -25,14 +30,26 @@ import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaMuxer;
-import android.media.cts.Preconditions;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.platform.test.annotations.AppModeFull;
-import android.test.AndroidTestCase;
 import android.util.Log;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
+
 import com.android.compatibility.common.util.MediaUtils;
+import com.android.compatibility.common.util.Preconditions;
+
+import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.MetadataRetriever;
+import com.google.android.exoplayer2.source.TrackGroupArray;
+import com.google.android.exoplayer2.util.Util;
+import com.google.android.exoplayer2.video.ColorInfo;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -46,7 +63,8 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 
 @AppModeFull(reason = "No interaction with system server")
-public class MediaMuxerTest extends AndroidTestCase {
+@RunWith(AndroidJUnit4.class)
+public class MediaMuxerTest {
     private static final String TAG = "MediaMuxerTest";
     private static final boolean VERBOSE = false;
     private static final int MAX_SAMPLE_SIZE = 1024 * 1024;
@@ -60,12 +78,11 @@ public class MediaMuxerTest extends AndroidTestCase {
 
     private final boolean mAndroid11 = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R;
 
-    @Override
-    public void setContext(Context context) {
-        super.setContext(context);
+    private Context getContext() {
+        return InstrumentationRegistry.getInstrumentation().getContext();
     }
 
-    protected AssetFileDescriptor getAssetFileDescriptorFor(final String res)
+    private AssetFileDescriptor getAssetFileDescriptorFor(final String res)
             throws FileNotFoundException {
         Preconditions.assertTestFileExists(MEDIA_DIR + res);
         File inpFile = new File(MEDIA_DIR + res);
@@ -74,6 +91,7 @@ public class MediaMuxerTest extends AndroidTestCase {
         return new AssetFileDescriptor(parcelFD, 0, parcelFD.getStatSize());
     }
 
+    @Test
     public void testWebmOutput() throws Exception {
         final String source =
                 "video_480x360_webm_vp9_333kbps_25fps_vorbis_stereo_128kbps_48000hz.webm";
@@ -85,6 +103,7 @@ public class MediaMuxerTest extends AndroidTestCase {
     /**
      * Test: make sure the muxer handles dovi profile 8.4 video track only file correctly.
      */
+    @Test
     public void testDolbyVisionVideoOnlyP8() throws Exception {
         final String source = "video_dovi_1920x1080_60fps_dvhe_08_04.mp4";
         String outputFilePath = File.createTempFile("MediaMuxerTest_dolbyvisionP8videoOnly", ".mp4")
@@ -101,6 +120,7 @@ public class MediaMuxerTest extends AndroidTestCase {
     /**
      * Test: make sure the muxer handles dovi profile 9.2 video track only file correctly.
      */
+    @Test
     public void testDolbyVisionVideoOnlyP9() throws Exception {
         final String source = "video_dovi_1920x1080_60fps_dvav_09_02.mp4";
         String outputFilePath = File.createTempFile("MediaMuxerTest_dolbyvisionP9videoOnly", ".mp4")
@@ -123,6 +143,7 @@ public class MediaMuxerTest extends AndroidTestCase {
      * Test: makes sure if audio and video muxing using MPEG4Writer works well when there are frame
      * drops as in b/63590381 and b/64949961 while B Frames encoding is enabled.
      */
+    @Test
     public void testSimulateAudioBVideoFramesDropIssues() throws Exception {
         final String source = "video_h264_main_b_frames.mp4";
         String outputFilePath = File.createTempFile(
@@ -143,6 +164,7 @@ public class MediaMuxerTest extends AndroidTestCase {
      * Test: makes sure muxing works well when video with B Frames are muxed using MPEG4Writer
      * and a few frames drop.
      */
+    @Test
     public void testTimestampsBVideoOnlyFramesDropOnce() throws Exception {
         final String source = "video_480x360_mp4_h264_bframes_495kbps_30fps_editlist.mp4";
         String outputFilePath = File.createTempFile(
@@ -165,6 +187,7 @@ public class MediaMuxerTest extends AndroidTestCase {
      * Test: makes sure if video muxing while framedrops occurs twice using MPEG4Writer
      * works with B Frames.
      */
+    @Test
     public void testTimestampsBVideoOnlyFramesDropTwice() throws Exception {
         final String source = "video_480x360_mp4_h264_bframes_495kbps_30fps_editlist.mp4";
         String outputFilePath = File.createTempFile(
@@ -189,6 +212,7 @@ public class MediaMuxerTest extends AndroidTestCase {
      * Test: makes sure if audio/video muxing while framedrops once using MPEG4Writer
      * works with B Frames.
      */
+    @Test
     public void testTimestampsAudioBVideoFramesDropOnce() throws Exception {
         final String source = "video_h264_main_b_frames.mp4";
         String outputFilePath = File.createTempFile(
@@ -211,6 +235,7 @@ public class MediaMuxerTest extends AndroidTestCase {
      * Test: makes sure if audio/video muxing while framedrops twice using MPEG4Writer
      * works with B Frames.
      */
+    @Test
     public void testTimestampsAudioBVideoFramesDropTwice() throws Exception {
         final String source = "video_h264_main_b_frames.mp4";
         String outputFilePath = File.createTempFile(
@@ -235,6 +260,7 @@ public class MediaMuxerTest extends AndroidTestCase {
      * Test: makes sure if audio/video muxing using MPEG4Writer works with B Frames
      * when video frames start later than audio.
      */
+    @Test
     public void testTimestampsAudioBVideoStartOffsetVideo() throws Exception {
         Vector<Integer> startOffsetUsVect = new Vector<Integer>();
         // Video starts at 400000us.
@@ -248,6 +274,7 @@ public class MediaMuxerTest extends AndroidTestCase {
      * Test: makes sure if audio/video muxing using MPEG4Writer works with B Frames
      * when video and audio samples start after zero, video later than audio.
      */
+    @Test
     public void testTimestampsAudioBVideoStartOffsetVideoAudio() throws Exception {
         Vector<Integer> startOffsetUsVect = new Vector<Integer>();
         // Video starts at 400000us.
@@ -261,6 +288,7 @@ public class MediaMuxerTest extends AndroidTestCase {
      * Test: makes sure if audio/video muxing using MPEG4Writer works with B Frames
      * when video and audio samples start after zero, audio later than video.
      */
+    @Test
     public void testTimestampsAudioBVideoStartOffsetAudioVideo() throws Exception {
         if (!MediaUtils.check(mAndroid11, "test needs Android 11")) return;
 
@@ -276,6 +304,7 @@ public class MediaMuxerTest extends AndroidTestCase {
      * Test: makes sure if audio/video muxing using MPEG4Writer works with B Frames
      * when video starts after zero and audio starts before zero.
      */
+    @Test
     public void testTimestampsAudioBVideoStartOffsetNegativeAudioVideo() throws Exception {
         if (!MediaUtils.check(mAndroid11, "test needs Android 11")) return;
 
@@ -291,6 +320,7 @@ public class MediaMuxerTest extends AndroidTestCase {
      * Test: makes sure if audio/video muxing using MPEG4Writer works with B Frames when audio
      * samples start later than video.
      */
+    @Test
     public void testTimestampsAudioBVideoStartOffsetAudio() throws Exception {
         if (!MediaUtils.check(mAndroid11, "test needs Android 11")) return;
 
@@ -306,6 +336,7 @@ public class MediaMuxerTest extends AndroidTestCase {
      * Test: make sure if audio/video muxing works good with different start offsets for
      * audio and video, audio later than video at 0us.
      */
+    @Test
     public void testTimestampsStartOffsetAudio() throws Exception {
         if (!MediaUtils.check(mAndroid11, "test needs Android 11")) return;
 
@@ -321,6 +352,7 @@ public class MediaMuxerTest extends AndroidTestCase {
      * Test: make sure if audio/video muxing works good with different start offsets for
      * audio and video, video later than audio at 0us.
      */
+    @Test
     public void testTimestampsStartOffsetVideo() throws Exception {
         if (!MediaUtils.check(mAndroid11, "test needs Android 11")) return;
 
@@ -336,6 +368,7 @@ public class MediaMuxerTest extends AndroidTestCase {
      * Test: make sure if audio/video muxing works good with different start offsets for
      * audio and video, audio later than video, positive offsets for both.
      */
+    @Test
     public void testTimestampsStartOffsetVideoAudio() throws Exception {
         if (!MediaUtils.check(mAndroid11, "test needs Android 11")) return;
 
@@ -351,6 +384,7 @@ public class MediaMuxerTest extends AndroidTestCase {
      * Test: make sure if audio/video muxing works good with different start offsets for
      * audio and video, video later than audio, positive offets for both.
      */
+    @Test
     public void testTimestampsStartOffsetAudioVideo() throws Exception {
         if (!MediaUtils.check(mAndroid11, "test needs Android 11")) return;
 
@@ -366,6 +400,7 @@ public class MediaMuxerTest extends AndroidTestCase {
      * Test: make sure if audio/video muxing works good with different start offsets for
      * audio and video, video later than audio, audio before zero.
      */
+    @Test
     public void testTimestampsStartOffsetNegativeAudioVideo() throws Exception {
         if (!MediaUtils.check(mAndroid11, "test needs Android 11")) return;
 
@@ -375,6 +410,77 @@ public class MediaMuxerTest extends AndroidTestCase {
         // Audio starts at -23220us, multiple of duration of one frame (1024/44100hz)
         startOffsetUsVect.add(-23220);
         checkTimestampsWithStartOffsets(startOffsetUsVect);
+    }
+
+    @Test
+    public void testAdditionOfHdrStaticMetadata() throws Exception {
+        String outputFilePath =
+                File.createTempFile("MediaMuxerTest_testAdditionOfHdrStaticMetadata", ".mp4")
+                        .getAbsolutePath();
+        // HDR static metadata encoding the following information (format defined in CTA-861.3 -
+        // Static Metadata Descriptor, includes descriptor ID):
+        // Mastering display color primaries:
+        //   R: x=0.677980 y=0.321980, G: x=0.245000 y=0.703000, B: x=0.137980 y=0.052000,
+        //   White point: x=0.312680 y=0.328980
+        // Mastering display luminance min: 0.0000 cd/m2, max: 1000 cd/m2
+        // Maximum Content Light Level: 1100 cd/m2
+        // Maximum Frame-Average Light Level: 180 cd/m2
+        byte[] inputHdrStaticMetadata =
+                Util.getBytesFromHexString("006b84e33eda2f4e89f31a280a123d4140e80300004c04b400");
+        Function<MediaFormat, MediaFormat> staticMetadataAdditionFunction =
+                (mediaFormat) -> {
+                    if (!mediaFormat.getString(MediaFormat.KEY_MIME).startsWith("video/")) {
+                        return mediaFormat;
+                    }
+                    MediaFormat result = new MediaFormat(mediaFormat);
+                    result.setByteBuffer(
+                            MediaFormat.KEY_HDR_STATIC_INFO,
+                            ByteBuffer.wrap(inputHdrStaticMetadata));
+                    return result;
+                };
+        try {
+            cloneMediaUsingMuxer(
+                    /* srcMedia= */ "video_h264_main_b_frames.mp4",
+                    outputFilePath,
+                    /* expectedTrackCount= */ 2,
+                    /* degrees= */ 0,
+                    MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4,
+                    staticMetadataAdditionFunction);
+            assertArrayEquals(
+                    inputHdrStaticMetadata, getVideoColorInfo(outputFilePath).hdrStaticInfo);
+        } finally {
+            new File(outputFilePath).delete();
+        }
+    }
+
+    @Test
+    public void testAdditionOfInvalidHdrStaticMetadataIsIgnored() throws Exception {
+        String outputFilePath =
+                File.createTempFile(
+                                "MediaMuxerTest_testAdditionOfInvalidHdrStaticMetadataIsIgnored",
+                                ".mp4")
+                        .getAbsolutePath();
+        Function<MediaFormat, MediaFormat> staticMetadataAdditionFunction =
+                (mediaFormat) -> {
+                    MediaFormat result = new MediaFormat(mediaFormat);
+                    // The input static info should be ignored, because its size is invalid (26 vs
+                    // expected 25).
+                    result.setByteBuffer(
+                            MediaFormat.KEY_HDR_STATIC_INFO, ByteBuffer.allocateDirect(26));
+                    return result;
+                };
+        try {
+            cloneMediaUsingMuxer(
+                    /* srcMedia= */ "video_h264_main_b_frames.mp4",
+                    outputFilePath,
+                    /* expectedTrackCount= */ 2,
+                    /* degrees= */ 0,
+                    MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4,
+                    staticMetadataAdditionFunction);
+            assertNull(getVideoColorInfo(outputFilePath));
+        } finally {
+            new File(outputFilePath).delete();
+        }
     }
 
     /**
@@ -673,7 +779,7 @@ public class MediaMuxerTest extends AndroidTestCase {
         testFd.close();
     }
 
-    private void verifyLocationInFile(String fileName) {
+    private void verifyLocationInFile(String fileName) throws IOException {
         MediaMetadataRetriever retriever = new MediaMetadataRetriever();
         retriever.setDataSource(fileName);
         String location = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_LOCATION);
@@ -1243,6 +1349,20 @@ public class MediaMuxerTest extends AndroidTestCase {
         if (srcAdvance != testAdvance) {
             fail("either audio track has not reached its last sample");
         }
+    }
+
+    /** Returns the static HDR metadata in the given {@code file}, or null if not present. */
+    private ColorInfo getVideoColorInfo(String path)
+            throws ExecutionException, InterruptedException {
+        TrackGroupArray trackGroupArray =
+                MetadataRetriever.retrieveMetadata(getContext(), MediaItem.fromUri(path)).get();
+        for (int i = 0; i < trackGroupArray.length; i++) {
+            Format format = trackGroupArray.get(i).getFormat(0);
+            if (format.sampleMimeType.startsWith("video/")) {
+                return format.colorInfo;
+            }
+        }
+        return null;
     }
 }
 

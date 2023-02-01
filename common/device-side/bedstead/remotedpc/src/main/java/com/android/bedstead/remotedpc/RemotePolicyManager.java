@@ -38,4 +38,18 @@ public abstract class RemotePolicyManager extends TestAppInstance {
      */
     @Nullable
     public abstract ComponentName componentName();
+
+    /**
+     * Is this an app which has been delegated to?
+     */
+    public boolean isDelegate() {
+        return false;
+    }
+
+    /**
+     * Is this an app for which .devicePolicyManager() will call through to the parent instance?
+     */
+    public boolean isParentInstance() {
+        return false;
+    }
 }

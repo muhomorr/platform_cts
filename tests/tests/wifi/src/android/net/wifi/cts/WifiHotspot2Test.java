@@ -23,7 +23,6 @@ import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.hotspot2.pps.Credential;
 import android.net.wifi.hotspot2.pps.HomeSp;
-import android.test.AndroidTestCase;
 import android.text.TextUtils;
 
 import java.lang.reflect.Constructor;
@@ -33,7 +32,6 @@ import java.security.PrivateKey;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -44,19 +42,18 @@ public class WifiHotspot2Test extends WifiJUnit3TestBase {
     static final int CERT_CREDENTIAL = 2;
     private static final String TEST_SSID = "TEST SSID";
     private static final String TEST_FRIENDLY_NAME = "Friendly Name";
-    private static final Map<String, String> TEST_FRIENDLY_NAMES =
-            new HashMap<String, String>() {
-                {
-                    put("en", TEST_FRIENDLY_NAME);
-                    put("kr", TEST_FRIENDLY_NAME + 2);
-                    put("jp", TEST_FRIENDLY_NAME + 3);
-                }
-            };
+    private static final Map<String, String> TEST_FRIENDLY_NAMES = Map.of(
+            "en", TEST_FRIENDLY_NAME,
+            "kr", TEST_FRIENDLY_NAME + 2,
+            "jp", TEST_FRIENDLY_NAME + 3);
+
     private static final String TEST_SERVICE_DESCRIPTION = "Dummy Service";
     private static final Uri TEST_SERVER_URI = Uri.parse("https://test.com");
     private static final String TEST_NAI = "test.access.com";
     private static final List<Integer> TEST_METHOD_LIST =
             Arrays.asList(1 /* METHOD_SOAP_XML_SPP */);
+    private static final long SUBSCRIPTION_EXPIRATION_TIME_MS = 1643996661000L;
+
     @Override
     protected void setUp() throws Exception {
         super.setUp();
@@ -86,17 +83,21 @@ public class WifiHotspot2Test extends WifiJUnit3TestBase {
     }
 
     /**
-     * Tests {@link PasspointConfiguration#getSubscriptionExpirationTimeMillis()} method.
+     * Tests {@link PasspointConfiguration#getSubscriptionExpirationTimeMillis()} and
+     * {@link PasspointConfiguration#setSubscriptionExpirationTimeInMillis(long)}
      * <p>
-     * Test default value
      */
-    public void testGetSubscriptionExpirationTimeMillis() throws Exception {
+    public void testGetSetSubscriptionExpirationTimeMillis() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
             return;
         }
         PasspointConfiguration passpointConfiguration = new PasspointConfiguration();
         assertEquals(Long.MIN_VALUE,
+                passpointConfiguration.getSubscriptionExpirationTimeMillis());
+        passpointConfiguration
+                .setSubscriptionExpirationTimeInMillis(SUBSCRIPTION_EXPIRATION_TIME_MS);
+        assertEquals(SUBSCRIPTION_EXPIRATION_TIME_MS,
                 passpointConfiguration.getSubscriptionExpirationTimeMillis());
     }
 
@@ -485,4 +486,5 @@ public class WifiHotspot2Test extends WifiJUnit3TestBase {
         assertEquals(friendlyName, osuProvider.getFriendlyName());
         assertEquals(TEST_SERVER_URI, osuProvider.getServerUri());
     }
+
 }

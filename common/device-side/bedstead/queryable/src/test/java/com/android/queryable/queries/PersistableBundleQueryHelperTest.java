@@ -16,6 +16,9 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+import static com.android.queryable.queries.PersistableBundleQuery.persistableBundle;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import android.os.PersistableBundle;
@@ -27,7 +30,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
-public class PersistableBundleQueryHelperTest {
+public final class PersistableBundleQueryHelperTest {
     private static final String KEY = "Key";
     private static final String KEY2 = "Key2";
     private static final String STRING_VALUE = "value";
@@ -87,5 +90,25 @@ public class PersistableBundleQueryHelperTest {
         persistableBundleQueryHelper.key(KEY).stringValue().isEqualTo(STRING_VALUE);
 
         assertThat(persistableBundleQueryHelper.matches(mPersistableBundle)).isFalse();
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        PersistableBundleQueryHelper<Queryable> persistableBundleQueryHelper =
+                new PersistableBundleQueryHelper<>(mQuery);
+
+        persistableBundleQueryHelper.key("").stringValue().isEqualTo("");
+
+        assertParcelsCorrectly(PersistableBundleQueryHelper.class,
+                persistableBundleQueryHelper);
+    }
+
+    @Test
+    public void persistableBundleQueryHelper_queries() {
+        mPersistableBundle.putString(KEY, STRING_VALUE);
+
+        assertThat(persistableBundle()
+                .where().key(KEY).stringValue().isEqualTo(STRING_VALUE)
+                .matches(mPersistableBundle)).isTrue();
     }
 }

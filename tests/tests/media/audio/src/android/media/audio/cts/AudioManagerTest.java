@@ -16,8 +16,6 @@
 
 package android.media.audio.cts;
 
-import static org.junit.Assert.assertNotEquals;
-
 import static android.media.AudioManager.ADJUST_LOWER;
 import static android.media.AudioManager.ADJUST_RAISE;
 import static android.media.AudioManager.ADJUST_SAME;
@@ -42,7 +40,11 @@ import static android.media.AudioManager.VIBRATE_SETTING_ON;
 import static android.media.AudioManager.VIBRATE_SETTING_ONLY_SILENT;
 import static android.media.AudioManager.VIBRATE_TYPE_NOTIFICATION;
 import static android.media.AudioManager.VIBRATE_TYPE_RINGER;
+import static android.provider.Settings.Global.APPLY_RAMPING_RINGER;
 import static android.provider.Settings.System.SOUND_EFFECTS_ENABLED;
+
+import static org.junit.Assert.assertNotEquals;
+import static org.testng.Assert.assertThrows;
 
 import android.Manifest;
 import android.app.NotificationChannel;
@@ -54,20 +56,20 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.media.AudioAttributes;
+import android.media.AudioDescriptor;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
 import android.media.AudioFormat;
+import android.media.AudioHalVersionInfo;
 import android.media.AudioManager;
 import android.media.AudioProfile;
-import android.media.AudioDescriptor;
+import android.media.AudioTrack;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
 import android.media.MicrophoneInfo;
-import android.media.audio.cts.R;
 import android.media.audiopolicy.AudioProductStrategy;
 import android.media.cts.NonMediaMainlineTest;
 import android.media.cts.Utils;
-
 import android.os.Build;
 import android.os.SystemClock;
 import android.os.Vibrator;
@@ -103,26 +105,32 @@ import java.util.stream.IntStream;
 
 @NonMediaMainlineTest
 public class AudioManagerTest extends InstrumentationTestCase {
-    private final static String TAG = "AudioManagerTest";
+    private static final String TAG = "AudioManagerTest";
 
-    private final static long ASYNC_TIMING_TOLERANCE_MS = 50;
-    private final static long POLL_TIME_VOLUME_ADJUST = 200;
-    private final static long POLL_TIME_UPDATE_INTERRUPTION_FILTER = 5000;
-    private final static int MP3_TO_PLAY = R.raw.testmp3; // ~ 5 second mp3
-    private final static long POLL_TIME_PLAY_MUSIC = 2000;
-    private final static long TIME_TO_PLAY = 2000;
-    private final static String APPOPS_OP_STR = "android:write_settings";
-    private final static Set<Integer> ALL_KNOWN_ENCAPSULATION_TYPES = new HashSet<>() {{
-            add(AudioProfile.AUDIO_ENCAPSULATION_TYPE_IEC61937);
-    }};
-    private final static Set<Integer> ALL_ENCAPSULATION_TYPES = new HashSet<>() {{
-            add(AudioProfile.AUDIO_ENCAPSULATION_TYPE_NONE);
-            add(AudioProfile.AUDIO_ENCAPSULATION_TYPE_IEC61937);
-    }};
-    private final static HashSet<Integer> ALL_AUDIO_STANDARDS = new HashSet<>() {{
-            add(AudioDescriptor.STANDARD_NONE);
-            add(AudioDescriptor.STANDARD_EDID);
-    }};
+    private static final long ASYNC_TIMING_TOLERANCE_MS = 50;
+    private static final long POLL_TIME_VOLUME_ADJUST = 200;
+    private static final long POLL_TIME_UPDATE_INTERRUPTION_FILTER = 5000;
+    private static final int MP3_TO_PLAY = R.raw.testmp3; // ~ 5 second mp3
+    private static final long POLL_TIME_PLAY_MUSIC = 2000;
+    private static final long TIME_TO_PLAY = 2000;
+    private static final String APPOPS_OP_STR = "android:write_settings";
+    private static final Set<Integer> ALL_KNOWN_ENCAPSULATION_TYPES = Set.of(
+            AudioProfile.AUDIO_ENCAPSULATION_TYPE_IEC61937);
+    private static final Set<Integer> ALL_ENCAPSULATION_TYPES = Set.of(
+            AudioProfile.AUDIO_ENCAPSULATION_TYPE_NONE,
+            AudioProfile.AUDIO_ENCAPSULATION_TYPE_IEC61937);
+    private static final Set<Integer> ALL_AUDIO_STANDARDS = Set.of(
+            AudioDescriptor.STANDARD_NONE,
+            AudioDescriptor.STANDARD_EDID);
+    private static final Map<Integer, Integer> DIRECT_OFFLOAD_MAP = Map.of(
+            AudioManager.PLAYBACK_OFFLOAD_NOT_SUPPORTED,
+                AudioManager.DIRECT_PLAYBACK_NOT_SUPPORTED,
+            AudioManager.PLAYBACK_OFFLOAD_SUPPORTED,
+                AudioManager.DIRECT_PLAYBACK_OFFLOAD_SUPPORTED,
+            AudioManager.PLAYBACK_OFFLOAD_GAPLESS_SUPPORTED,
+                AudioManager.DIRECT_PLAYBACK_OFFLOAD_GAPLESS_SUPPORTED);
+
+    private static final int INVALID_DIRECT_PLAYBACK_MODE = -1;
     private AudioManager mAudioManager;
     private NotificationManager mNm;
     private boolean mHasVibrator;
@@ -271,6 +279,9 @@ public class AudioManagerTest extends InstrumentationTestCase {
         if (isAutomotive()) {
             return;
         }
+        if (!hasBuiltinSpeaker()) {
+            return;
+        }
         final MyBlockingIntentReceiver receiver = new MyBlockingIntentReceiver(
                 AudioManager.ACTION_SPEAKERPHONE_STATE_CHANGED);
         final boolean initialSpeakerphoneState = mAudioManager.isSpeakerphoneOn();
@@ -291,6 +302,18 @@ public class AudioManagerTest extends InstrumentationTestCase {
             mContext.unregisterReceiver(receiver);
             mAudioManager.setSpeakerphoneOn(initialSpeakerphoneState);
         }
+    }
+
+    private boolean hasBuiltinSpeaker() {
+        AudioDeviceInfo[] devices = mAudioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+        for (AudioDeviceInfo device : devices) {
+            final int type = device.getType();
+            if (type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                    || type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER_SAFE) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static final class MyBlockingIntentReceiver extends BroadcastReceiver {
@@ -682,6 +705,33 @@ public class AudioManagerTest extends InstrumentationTestCase {
             assertEquals(RINGER_MODE_NORMAL, mAudioManager.getRingerMode());
             mAudioManager.setRingerMode(RINGER_MODE_VIBRATE);
             assertEquals(RINGER_MODE_VIBRATE, mAudioManager.getRingerMode());
+        }
+    }
+
+    public void testAccessRampingRinger() {
+        boolean originalEnabledState = mAudioManager.isRampingRingerEnabled();
+        try {
+            mAudioManager.setRampingRingerEnabled(false);
+            assertFalse(mAudioManager.isRampingRingerEnabled());
+
+            mAudioManager.setRampingRingerEnabled(true);
+            assertTrue(mAudioManager.isRampingRingerEnabled());
+        } finally {
+            mAudioManager.setRampingRingerEnabled(originalEnabledState);
+        }
+    }
+
+    public void testRampingRingerSetting() {
+        boolean originalEnabledState = mAudioManager.isRampingRingerEnabled();
+        try {
+            // Deprecated public setting should still be supported and affect the setting getter.
+            Settings.Global.putInt(mContext.getContentResolver(), APPLY_RAMPING_RINGER, 0);
+            assertFalse(mAudioManager.isRampingRingerEnabled());
+
+            Settings.Global.putInt(mContext.getContentResolver(), APPLY_RAMPING_RINGER, 1);
+            assertTrue(mAudioManager.isRampingRingerEnabled());
+        } finally {
+            mAudioManager.setRampingRingerEnabled(originalEnabledState);
         }
     }
 
@@ -1661,6 +1711,15 @@ public class AudioManagerTest extends InstrumentationTestCase {
         Log.i(TAG, "isHapticPlaybackSupported: " + AudioManager.isHapticPlaybackSupported());
     }
 
+    public void testIsUltrasoundSupported() {
+        // Calling the API to make sure it must crash due to no permission.
+        try {
+            mAudioManager.isUltrasoundSupported();
+            fail("isUltrasoundSupported must fail due to no permission");
+        } catch (SecurityException e) {
+        }
+    }
+
     public void testGetAudioHwSyncForSession() {
         // AudioManager.getAudioHwSyncForSession is not supported before S
         if (ApiLevelUtil.isAtMost(Build.VERSION_CODES.R)) {
@@ -1870,14 +1929,14 @@ public class AudioManagerTest extends InstrumentationTestCase {
     public void testGetDevices() {
         AudioDeviceInfo[] devices = mAudioManager.getDevices(AudioManager.GET_DEVICES_ALL);
         for (AudioDeviceInfo device : devices) {
-            HashSet<Integer> formats = IntStream.of(device.getEncodings()).boxed()
-                    .collect(Collectors.toCollection(HashSet::new));
-            HashSet<Integer> channelMasks = IntStream.of(device.getChannelMasks()).boxed()
-                    .collect(Collectors.toCollection(HashSet::new));
-            HashSet<Integer> channelIndexMasks = IntStream.of(device.getChannelIndexMasks()).boxed()
-                    .collect(Collectors.toCollection(HashSet::new));
-            HashSet<Integer> sampleRates = IntStream.of(device.getSampleRates()).boxed()
-                    .collect(Collectors.toCollection(HashSet::new));
+            Set<Integer> formats = IntStream.of(device.getEncodings()).boxed()
+                    .collect(Collectors.toSet());
+            Set<Integer> channelMasks = IntStream.of(device.getChannelMasks()).boxed()
+                    .collect(Collectors.toSet());
+            Set<Integer> channelIndexMasks = IntStream.of(device.getChannelIndexMasks()).boxed()
+                    .collect(Collectors.toSet());
+            Set<Integer> sampleRates = IntStream.of(device.getSampleRates()).boxed()
+                    .collect(Collectors.toSet());
             HashSet<Integer> formatsFromProfile = new HashSet<>();
             HashSet<Integer> channelMasksFromProfile = new HashSet<>();
             HashSet<Integer> channelIndexMasksFromProfile = new HashSet<>();
@@ -1903,6 +1962,119 @@ public class AudioManagerTest extends InstrumentationTestCase {
             assertEquals(channelIndexMasks, channelIndexMasksFromProfile);
             assertEquals(sampleRates, sampleRatesFromProfile);
         }
+    }
+
+    public void testGetDirectPlaybackSupport() {
+        assertEquals(AudioManager.DIRECT_PLAYBACK_NOT_SUPPORTED,
+                AudioManager.getDirectPlaybackSupport(
+                        new AudioFormat.Builder().build(),
+                        new AudioAttributes.Builder().build()));
+        AudioDeviceInfo[] devices = mAudioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+        AudioAttributes attr = new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setLegacyStreamType(STREAM_MUSIC).build();
+        for (AudioDeviceInfo device : devices) {
+            for (int encoding : device.getEncodings()) {
+                for (int channelMask : device.getChannelMasks()) {
+                    for (int sampleRate : device.getSampleRates()) {
+                        AudioFormat format = new AudioFormat.Builder()
+                                .setEncoding(encoding)
+                                .setChannelMask(channelMask)
+                                .setSampleRate(sampleRate).build();
+                        final int directPlaybackSupport =
+                                AudioManager.getDirectPlaybackSupport(format, attr);
+                        assertEquals(
+                                AudioTrack.isDirectPlaybackSupported(format, attr),
+                                directPlaybackSupport
+                                        != AudioManager.DIRECT_PLAYBACK_NOT_SUPPORTED);
+                        if (directPlaybackSupport == AudioManager.DIRECT_PLAYBACK_NOT_SUPPORTED) {
+                            assertEquals(
+                                    DIRECT_OFFLOAD_MAP.getOrDefault(
+                                            AudioManager.getPlaybackOffloadSupport(format, attr),
+                                            INVALID_DIRECT_PLAYBACK_MODE).intValue(),
+                                    directPlaybackSupport);
+                        } else if ((directPlaybackSupport
+                                & AudioManager.DIRECT_PLAYBACK_OFFLOAD_SUPPORTED)
+                                != AudioManager.DIRECT_PLAYBACK_NOT_SUPPORTED) {
+                            // AudioManager.getPlaybackOffloadSupport can only query offload
+                            // support but not other direct support like passthrough.
+                            assertNotEquals(
+                                    AudioManager.DIRECT_PLAYBACK_NOT_SUPPORTED,
+                                    DIRECT_OFFLOAD_MAP.getOrDefault(
+                                            AudioManager.getPlaybackOffloadSupport(format, attr),
+                                            AudioManager.DIRECT_PLAYBACK_NOT_SUPPORTED)
+                                            & directPlaybackSupport);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testAssistantUidRouting() {
+        try {
+            mAudioManager.addAssistantServicesUids(new int[0]);
+            fail("addAssistantServicesUids must fail due to no permission");
+        } catch (SecurityException e) {
+        }
+
+        try {
+            mAudioManager.removeAssistantServicesUids(new int[0]);
+            fail("removeAssistantServicesUids must fail due to no permission");
+        } catch (SecurityException e) {
+        }
+
+        try {
+            int[] uids = mAudioManager.getAssistantServicesUids();
+            fail("getAssistantServicesUids must fail due to no permission");
+        } catch (SecurityException e) {
+        }
+
+        try {
+            mAudioManager.setActiveAssistantServiceUids(new int[0]);
+            fail("setActiveAssistantServiceUids must fail due to no permission");
+        } catch (SecurityException e) {
+        }
+
+        try {
+            int[] activeUids = mAudioManager.getActiveAssistantServicesUids();
+            fail("getActiveAssistantServicesUids must fail due to no permission");
+        } catch (SecurityException e) {
+        }
+    }
+
+    @AppModeFull(reason = "Instant apps cannot hold android.permission.MODIFY_AUDIO_ROUTING")
+    public void testBluetoothVariableLatency() throws Exception {
+        assertThrows(SecurityException.class,
+                () -> mAudioManager.supportsBluetoothVariableLatency());
+        assertThrows(SecurityException.class,
+                () -> mAudioManager.setBluetoothVariableLatencyEnabled(false));
+        assertThrows(SecurityException.class,
+                () -> mAudioManager.setBluetoothVariableLatencyEnabled(true));
+        assertThrows(SecurityException.class,
+                () -> mAudioManager.isBluetoothVariableLatencyEnabled());
+
+        getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity(Manifest.permission.MODIFY_AUDIO_ROUTING);
+        if (mAudioManager.supportsBluetoothVariableLatency()) {
+            boolean savedEnabled = mAudioManager.isBluetoothVariableLatencyEnabled();
+            mAudioManager.setBluetoothVariableLatencyEnabled(false);
+            assertFalse(mAudioManager.isBluetoothVariableLatencyEnabled());
+            mAudioManager.setBluetoothVariableLatencyEnabled(true);
+            assertTrue(mAudioManager.isBluetoothVariableLatencyEnabled());
+            mAudioManager.setBluetoothVariableLatencyEnabled(savedEnabled);
+        }
+        getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
+    }
+
+    public void testGetHalVersion() {
+        AudioHalVersionInfo halVersion = AudioManager.getHalVersion();
+        assertNotEquals(null, halVersion);
+        assertTrue(
+                AudioHalVersionInfo.AUDIO_HAL_TYPE_AIDL == halVersion.getHalType()
+                        || AudioHalVersionInfo.AUDIO_HAL_TYPE_HIDL == halVersion.getHalType());
+        assertTrue(halVersion.getMajorVersion() > 0);
+        assertTrue(halVersion.getMinorVersion() >= 0);
     }
 
     private void assertStreamVolumeEquals(int stream, int expectedVolume) throws Exception {

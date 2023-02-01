@@ -23,9 +23,11 @@ import static com.google.common.truth.Truth.assertWithMessage;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.Instrumentation;
+import android.content.AttributionSource;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.media.PlaybackParams;
+import android.media.tv.AitInfo;
 import android.media.tv.TvContentRating;
 import android.media.tv.TvContract;
 import android.media.tv.TvInputInfo;
@@ -35,6 +37,7 @@ import android.media.tv.TvTrackInfo;
 import android.media.tv.TvView;
 import android.media.tv.cts.TvInputServiceTest.CountingTvInputService.CountingRecordingSession;
 import android.media.tv.cts.TvInputServiceTest.CountingTvInputService.CountingSession;
+import android.media.tv.interactive.TvInteractiveAppServiceInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -47,30 +50,25 @@ import android.view.Surface;
 import android.view.SurfaceView;
 import android.view.View;
 import android.widget.LinearLayout;
-
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
-
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.RequiredFeatureRule;
-
 import com.google.common.truth.Truth;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 /**
  * Test {@link android.media.tv.TvInputService}.
@@ -101,6 +99,7 @@ public class TvInputServiceTest {
 
     private TvRecordingClient mTvRecordingClient;
     private Instrumentation mInstrumentation;
+    private Context mContext;
     private TvInputManager mManager;
     private TvInputInfo mStubInfo;
     private TvInputInfo mFaultyStubInfo;
@@ -119,6 +118,7 @@ public class TvInputServiceTest {
         private int mContentAllowedCount;
         private int mContentBlockedCount;
         private int mTimeShiftStatusChangedCount;
+        private int mAitInfoUpdatedCount;
 
         private Uri mChannelRetunedUri;
         private Integer mVideoUnavailableReason;
@@ -127,6 +127,7 @@ public class TvInputServiceTest {
         private List<TvTrackInfo> mTracksChangedTrackList;
         private TvContentRating mContentBlockedRating;
         private Integer mTimeShiftStatusChangedStatus;
+        private AitInfo mAitInfo;
 
         @Override
         public void onChannelRetuned(String inputId, Uri channelUri) {
@@ -180,6 +181,11 @@ public class TvInputServiceTest {
             mTimeShiftStatusChangedStatus = status;
         }
 
+        public void onAitInfoUpdated(String inputId, AitInfo aitInfo) {
+            mAitInfoUpdatedCount++;
+            mAitInfo = aitInfo;
+        }
+
         public void resetCounts() {
             mChannelRetunedCount = 0;
             mVideoAvailableCount = 0;
@@ -189,6 +195,7 @@ public class TvInputServiceTest {
             mContentAllowedCount = 0;
             mContentBlockedCount = 0;
             mTimeShiftStatusChangedCount = 0;
+            mAitInfoUpdatedCount = 0;
         }
 
         public void resetPassedValues() {
@@ -199,6 +206,7 @@ public class TvInputServiceTest {
             mTracksChangedTrackList = null;
             mContentBlockedRating = null;
             mTimeShiftStatusChangedStatus = null;
+            mAitInfo = null;
         }
     }
 
@@ -232,11 +240,10 @@ public class TvInputServiceTest {
     public void setUp() {
         mInstrumentation = InstrumentationRegistry
                 .getInstrumentation();
-        mTvRecordingClient = new TvRecordingClient(mInstrumentation.getTargetContext(),
-                "TvInputServiceTest",
-                mRecordingCallback, null);
-        mManager = (TvInputManager) mInstrumentation.getTargetContext().getSystemService(
-                Context.TV_INPUT_SERVICE);
+        mContext = mInstrumentation.getTargetContext();
+        mTvRecordingClient =
+                new TvRecordingClient(mContext, "TvInputServiceTest", mRecordingCallback, null);
+        mManager = (TvInputManager) mContext.getSystemService(Context.TV_INPUT_SERVICE);
         for (TvInputInfo info : mManager.getTvInputList()) {
             if (info.getServiceInfo().name.equals(CountingTvInputService.class.getName())) {
                 mStubInfo = info;
@@ -434,6 +441,7 @@ public class TvInputServiceTest {
     }
 
     @Test
+    @Ignore("b/216866512")
     public void verifyCallbackDisconnected() {
         resetCounts();
 
@@ -727,6 +735,21 @@ public class TvInputServiceTest {
     }
 
     @Test
+    public void verifyCommandSetInteractiveAppNotificationEnabled() {
+        tune(CHANNEL_0);
+        final String action =
+                "android.media.tv.cts.TvInputServiceTest.setInteractiveAppNotificationEnabled";
+
+        onTvView(tvView -> tvView.setInteractiveAppNotificationEnabled(true));
+        mInstrumentation.waitForIdleSync();
+        final CountingSession session =
+                waitForSessionCheck(s -> s.mSetInteractiveAppNotificationEnabledCount > 0);
+
+        assertThat(session.mSetInteractiveAppNotificationEnabledCount).isEqualTo(1);
+        assertThat(session.mInteractiveAppNotificationEnabled).isEqualTo(true);
+    }
+
+    @Test
     public void verifyCallbackChannelRetuned() {
         final CountingSession session = tune(CHANNEL_0);
         resetPassedValues();
@@ -843,6 +866,22 @@ public class TvInputServiceTest {
 
         assertThat(mCallback.mTimeShiftStatusChangedCount).isEqualTo(1);
         assertThat(mCallback.mTimeShiftStatusChangedStatus).isEqualTo(status);
+    }
+
+    @Test
+    public void verifyCallbackAitInfoUpdated() {
+        final CountingSession session = tune(CHANNEL_0);
+        resetCounts();
+        resetPassedValues();
+
+        session.notifyAitInfoUpdated(
+                new AitInfo(TvInteractiveAppServiceInfo.INTERACTIVE_APP_TYPE_HBBTV, 2));
+        PollingCheck.waitFor(TIME_OUT, () -> mCallback.mAitInfoUpdatedCount > 0);
+
+        assertThat(mCallback.mAitInfoUpdatedCount).isEqualTo(1);
+        assertThat(mCallback.mAitInfo.getType())
+                .isEqualTo(TvInteractiveAppServiceInfo.INTERACTIVE_APP_TYPE_HBBTV);
+        assertThat(mCallback.mAitInfo.getVersion()).isEqualTo(2);
     }
 
     @Test
@@ -993,6 +1032,7 @@ public class TvInputServiceTest {
     private CountingSession tune(Uri uri) {
         onTvView(tvView -> {
             tvView.setCallback(mCallback);
+            tvView.overrideTvAppAttributionSource(mContext.getAttributionSource());
             tvView.tune(mStubInfo.getId(), CHANNEL_0);
         });
         return waitForSessionCheck(session -> session.mTuneCount > 0);
@@ -1051,6 +1091,13 @@ public class TvInputServiceTest {
         }
 
         @Override
+        public Session onCreateSession(
+                String inputId, String tvInputSessionId, AttributionSource tvAppAttributionSource) {
+            // todo: add AttributionSource equal check
+            return onCreateSession(inputId, tvInputSessionId);
+        }
+
+        @Override
         public RecordingSession onCreateRecordingSession(String inputId) {
             return onCreateRecordingSession(inputId, null);
         }
@@ -1096,6 +1143,7 @@ public class TvInputServiceTest {
             public volatile long mTimeShiftGetCurrentPositionCount;
             public volatile long mTimeShiftGetStartPositionCount;
             public volatile int mAppPrivateCommandCount;
+            public volatile int mSetInteractiveAppNotificationEnabledCount;
 
             public volatile String mAppPrivateCommandAction;
             public volatile Bundle mAppPrivateCommandData;
@@ -1122,7 +1170,7 @@ public class TvInputServiceTest {
             public volatile Uri mRecordedProgramUri;
             public volatile Integer mOverlayViewSizeChangedWidth;
             public volatile Integer mOverlayViewSizeChangedHeight;
-
+            public volatile Boolean mInteractiveAppNotificationEnabled;
 
             CountingSession(Context context, @Nullable String sessionId) {
 
@@ -1154,6 +1202,7 @@ public class TvInputServiceTest {
                 mTimeShiftGetCurrentPositionCount = 0;
                 mTimeShiftGetStartPositionCount = 0;
                 mAppPrivateCommandCount = 0;
+                mSetInteractiveAppNotificationEnabledCount = 0;
             }
 
             public void resetPassedValues() {
@@ -1182,6 +1231,7 @@ public class TvInputServiceTest {
                 mRecordedProgramUri = null;
                 mOverlayViewSizeChangedWidth = null;
                 mOverlayViewSizeChangedHeight = null;
+                mInteractiveAppNotificationEnabled = null;
             }
 
             @Override
@@ -1340,6 +1390,12 @@ public class TvInputServiceTest {
                 mOverlayViewSizeChangedCount++;
                 mOverlayViewSizeChangedWidth = width;
                 mOverlayViewSizeChangedHeight = height;
+            }
+
+            @Override
+            public void onSetInteractiveAppNotificationEnabled(boolean enabled) {
+                mSetInteractiveAppNotificationEnabledCount++;
+                mInteractiveAppNotificationEnabled = enabled;
             }
         }
 

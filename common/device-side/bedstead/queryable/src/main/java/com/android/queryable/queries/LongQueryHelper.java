@@ -16,13 +16,21 @@
 
 package com.android.queryable.queries;
 
+import static com.android.queryable.util.ParcelableUtils.readNullableLong;
+import static com.android.queryable.util.ParcelableUtils.writeNullableLong;
+
+import android.os.Parcel;
+import android.os.Parcelable;
+
 import androidx.annotation.Nullable;
 
 import com.android.queryable.Queryable;
+import com.android.queryable.QueryableBaseWithMatch;
 
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /** Implementation of {@link LongQuery}. */
 public final class LongQueryHelper<E extends Queryable> implements LongQuery<E>, Serializable {
@@ -35,12 +43,43 @@ public final class LongQueryHelper<E extends Queryable> implements LongQuery<E>,
     @Nullable private Long mLessThanValue = null;
     @Nullable private Long mLessThanOrEqualToValue = null;
 
-    private final E mQuery;
+    private final transient E mQuery;
+
+    public static final class LongQueryBase extends
+            QueryableBaseWithMatch<Long, LongQueryHelper<LongQueryBase>> {
+        LongQueryBase() {
+            super();
+            setQuery(new LongQueryHelper<>(this));
+        }
+
+        LongQueryBase(Parcel in) {
+            super(in);
+        }
+
+        public static final Parcelable.Creator<LongQueryHelper.LongQueryBase> CREATOR =
+                new Parcelable.Creator<>() {
+                    public LongQueryHelper.LongQueryBase createFromParcel(Parcel in) {
+                        return new LongQueryHelper.LongQueryBase(in);
+                    }
+
+                    public LongQueryHelper.LongQueryBase[] newArray(int size) {
+                        return new LongQueryHelper.LongQueryBase[size];
+                    }
+                };
+    }
 
     public LongQueryHelper(E query) {
         mQuery = query;
     }
 
+    private LongQueryHelper(Parcel in) {
+        mQuery = null;
+        mEqualToValue = readNullableLong(in);
+        mGreaterThanValue = readNullableLong(in);
+        mGreaterThanOrEqualToValue = readNullableLong(in);
+        mLessThanValue = readNullableLong(in);
+        mLessThanOrEqualToValue = readNullableLong(in);
+    }
 
     @Override
     public E isEqualTo(long i) {
@@ -138,5 +177,48 @@ public final class LongQueryHelper<E extends Queryable> implements LongQuery<E>,
         }
 
         return Queryable.joinQueryStrings(queryStrings);
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+        writeNullableLong(out, mEqualToValue);
+        writeNullableLong(out, mGreaterThanValue);
+        writeNullableLong(out, mGreaterThanOrEqualToValue);
+        writeNullableLong(out, mLessThanValue);
+        writeNullableLong(out, mLessThanOrEqualToValue);
+    }
+
+    public static final Parcelable.Creator<LongQueryHelper> CREATOR =
+            new Parcelable.Creator<LongQueryHelper>() {
+                public LongQueryHelper createFromParcel(Parcel in) {
+                    return new LongQueryHelper(in);
+                }
+
+                public LongQueryHelper[] newArray(int size) {
+                    return new LongQueryHelper[size];
+                }
+    };
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof LongQueryHelper)) return false;
+        LongQueryHelper<?> that = (LongQueryHelper<?>) o;
+        return Objects.equals(mEqualToValue, that.mEqualToValue) && Objects.equals(
+                mGreaterThanValue, that.mGreaterThanValue) && Objects.equals(
+                mGreaterThanOrEqualToValue, that.mGreaterThanOrEqualToValue)
+                && Objects.equals(mLessThanValue, that.mLessThanValue)
+                && Objects.equals(mLessThanOrEqualToValue, that.mLessThanOrEqualToValue);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(mEqualToValue, mGreaterThanValue, mGreaterThanOrEqualToValue,
+                mLessThanValue, mLessThanOrEqualToValue);
     }
 }

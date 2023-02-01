@@ -25,9 +25,9 @@ import android.platform.test.annotations.AppModeFull
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.truth.Truth.assertThat
+import java.util.concurrent.TimeUnit
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.util.concurrent.TimeUnit
 
 private const val INSTALL_BUTTON_ID = "button1"
 
@@ -40,8 +40,6 @@ class InstallSourceInfoTest : PackageInstallerTestBase() {
 
     @Test
     fun installViaIntent() {
-        assumeNotWatch()
-
         val packageInstallerPackageName = getPackageInstallerPackageName()
 
         val installation = startInstallationViaIntent()
@@ -57,10 +55,22 @@ class InstallSourceInfoTest : PackageInstallerTestBase() {
     }
 
     @Test
-    fun InstallViaSession() {
-        assumeNotWatch()
+    fun InstallViaSessionByStore() {
+        installViaSession(PackageInstaller.PACKAGE_SOURCE_STORE)
+    }
 
-        startInstallationViaSession()
+    @Test
+    fun InstallViaSessionByLocalFile() {
+        installViaSession(PackageInstaller.PACKAGE_SOURCE_LOCAL_FILE)
+    }
+
+    @Test
+    fun InstallViaSession() {
+        installViaSession(null)
+    }
+
+    private fun installViaSession(packageSource: Int?) {
+        startInstallationViaSessionWithPackageSource(packageSource)
         clickInstallerUIButton(INSTALL_BUTTON_ID)
 
         // Install should have succeeded
@@ -70,6 +80,12 @@ class InstallSourceInfoTest : PackageInstallerTestBase() {
         assertThat(info.getInstallingPackageName()).isEqualTo(ourPackageName)
         assertThat(info.getInitiatingPackageName()).isEqualTo(ourPackageName)
         assertThat(info.getOriginatingPackageName()).isNull()
+        if (packageSource != null) {
+            assertThat(info.getPackageSource()).isEqualTo(packageSource)
+        } else {
+            assertThat(info.getPackageSource()).isEqualTo(
+                    PackageInstaller.PACKAGE_SOURCE_UNSPECIFIED)
+        }
     }
 
     private fun getPackageInstallerPackageName(): String {

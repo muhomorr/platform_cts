@@ -18,6 +18,7 @@ package android.mediapc.cts;
 
 import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface;
 import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible;
+
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -49,8 +50,8 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
-import java.util.Set;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.locks.Condition;
@@ -826,7 +827,14 @@ class Decode extends CodecDecoderTestBase implements Callable<Double> {
         mCodec = MediaCodec.createByCodecName(mDecoderName);
         mExtractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
         configureCodec(format, mIsAsync, false, false, mServerURL);
-        mCodec.start();
+        // TODO(b/251003943) Remove once Surface from SurfaceView is used for secure decoders
+        try {
+            mCodec.start();
+        } catch (Exception e) {
+            Log.e(LOG_TAG, "Stopping the test because codec.start() failed.", e);
+            mCodec.release();
+            return (Double) 0.0;
+        }
         long start = System.currentTimeMillis();
         doWork(Integer.MAX_VALUE);
         queueEOS();

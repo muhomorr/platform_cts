@@ -32,7 +32,7 @@
         <activity android:name="android.hardware.cts.CameraCtsActivity"
             android:label="CameraCtsActivity"
             android:screenOrientation="locked"
-            android:configChanges="keyboardHidden|orientation|screenSize">
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
         </activity>
 
         <activity android:name="android.hardware.camera2.cts.Camera2SurfaceViewCtsActivity"
@@ -66,8 +66,13 @@
         <activity android:name="android.hardware.multiprocess.camera.cts.Camera2Activity"
             android:label="RemoteCamera2Activity"
             android:screenOrientation="locked"
-            android:configChanges="keyboardHidden|orientation|screenSize"
-            android:process=":camera2ActivityProcess">
+            android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+            android:process=":camera2ActivityProcess"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:keepScreenOn="true"
+            android:exported="true"
+            android:taskAffinity=".Camera2Activity">
         </activity>
 
         <activity android:name="android.hardware.camera2.cts.Camera2OfflineTestActivity"
@@ -88,6 +93,9 @@
             android:label="CameraExtensionTestActivity"
             android:screenOrientation="locked"
             android:configChanges="keyboardHidden|orientation|screenSize">
+        </activity>
+        <activity android:name="android.hardware.camera2.cts.EmptyActivity"
+            android:label="EmptyActivity">
         </activity>
     </application>
 

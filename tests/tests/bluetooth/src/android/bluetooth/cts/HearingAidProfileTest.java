@@ -61,6 +61,7 @@ public class HearingAidProfileTest extends AndroidTestCase {
     // ADAPTER_DISABLE_TIMEOUT_MS = AdapterState.BLE_STOP_TIMEOUT_DELAY +
     //                                  AdapterState.BREDR_STOP_TIMEOUT_DELAY
     private static final int ADAPTER_DISABLE_TIMEOUT_MS = 5000;
+    private static final String FAKE_REMOTE_ADDRESS = "00:11:22:AA:BB:CC";
 
     private boolean mIsHearingAidSupported;
     private boolean mIsBleSupported;
@@ -107,9 +108,6 @@ public class HearingAidProfileTest extends AndroidTestCase {
         if (!(mIsBleSupported && mIsHearingAidSupported)) {
             return;
         }
-        if (mBluetoothAdapter != null) {
-            assertTrue(BTAdapterUtils.disableAdapter(mBluetoothAdapter, mContext));
-        }
         mUiAutomation.dropShellPermissionIdentity();
     }
 
@@ -138,17 +136,18 @@ public class HearingAidProfileTest extends AndroidTestCase {
         assertTrue(mIsProfileReady);
         assertNotNull(mService);
 
-        // Create a dummy device
-        BluetoothDevice device = mBluetoothAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
+        // Create a fake device
+        BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(FAKE_REMOTE_ADDRESS);
         assertNotNull(device);
 
         int connectionState = mService.getConnectionState(device);
-        // Dummy device should be disconnected
+        // Fake device should be disconnected
         assertEquals(connectionState, BluetoothProfile.STATE_DISCONNECTED);
     }
 
     /**
-     * Basic test case to make sure that a fictional device is disconnected.
+     * Basic test case to make sure that a fictional device throw a SecurityException when setting
+     * volume.
      */
     @MediumTest
     public void test_setVolume() {
@@ -164,6 +163,49 @@ public class HearingAidProfileTest extends AndroidTestCase {
         assertThrows(SecurityException.class, () -> mService.setVolume(42));
     }
 
+    /**
+     * Basic test case to make sure that a fictional device is unknown side.
+     */
+    @MediumTest
+    public void test_getDeviceSide() {
+        if (!(mIsBleSupported && mIsHearingAidSupported)) {
+            return;
+        }
+
+        waitForProfileConnect();
+        assertTrue(mIsProfileReady);
+        assertNotNull(mService);
+
+        // Create a fake device
+        final BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(FAKE_REMOTE_ADDRESS);
+        assertNotNull(device);
+
+        final int side = mService.getDeviceSide(device);
+        // Fake device should be no value, unknown side
+        assertEquals(BluetoothHearingAid.SIDE_UNKNOWN, side);
+    }
+
+    /**
+     * Basic test case to make sure that a fictional device is unknown mode.
+     */
+    @MediumTest
+    public void test_getDeviceMode() {
+        if (!(mIsBleSupported && mIsHearingAidSupported)) {
+            return;
+        }
+
+        waitForProfileConnect();
+        assertTrue(mIsProfileReady);
+        assertNotNull(mService);
+
+        // Create a fake device
+        final BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(FAKE_REMOTE_ADDRESS);
+        assertNotNull(device);
+
+        final int mode = mService.getDeviceMode(device);
+        // Fake device should be no value, unknown mode
+        assertEquals(BluetoothHearingAid.MODE_UNKNOWN, mode);
+    }
 
     /**
      * Basic test case to get the list of connected Hearing Aid devices.

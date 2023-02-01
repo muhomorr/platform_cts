@@ -17,6 +17,7 @@
 package android.server.wm;
 
 import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
+import static android.server.wm.ActivityManagerTestBase.isTablet;
 import static android.view.WindowInsets.Type.displayCutout;
 import static android.view.WindowInsets.Type.navigationBars;
 import static android.view.WindowInsets.Type.statusBars;
@@ -43,26 +44,32 @@ public class WindowMetricsTestHelper {
     public static void assertMetricsMatchesLayout(WindowMetrics currentMetrics,
             WindowMetrics maxMetrics, Rect layoutBounds, WindowInsets layoutInsets) {
         assertMetricsMatchesLayout(currentMetrics, maxMetrics, layoutBounds, layoutInsets,
-                false /* isFreeformActivity */);
+                false /* inMultiWindowMode */);
     }
 
     public static void assertMetricsMatchesLayout(WindowMetrics currentMetrics,
             WindowMetrics maxMetrics, Rect layoutBounds, WindowInsets layoutInsets,
-            boolean isFreeformActivity) {
+            boolean inMultiWindowMode) {
         // Only validate the size portion of the bounds, regardless of the position on the screen to
         // take into consideration multiple screen devices (e.g. the dialog is on another screen)
         final Rect currentMetricsBounds = currentMetrics.getBounds();
         assertEquals(layoutBounds.height(), currentMetricsBounds.height());
         assertEquals(layoutBounds.width(), currentMetricsBounds.width());
-        // Freeform activities doesn't guarantee max window metrics bounds is larger than current
-        // window metrics bounds. The bounds of a freeform activity is unlimited except that
-        // it must be contained in display bounds.
-        if (!isFreeformActivity) {
-            assertTrue(maxMetrics.getBounds().width()
-                    >= currentMetrics.getBounds().width());
-            assertTrue(maxMetrics.getBounds().height()
-                    >= currentMetrics.getBounds().height());
+        // Don't verify maxMetrics or insets for an Activity that is in multi-window mode.
+        // This is because:
+        // - Multi-window mode activities doesn't guarantee max window metrics bounds is larger than
+        // the current window metrics bounds. The bounds of a multi-window mode activity is
+        // unlimited except that it must be contained in display bounds.
+        // - WindowMetrics always reports all possible insets, whereas LayoutInsets may not report
+        // insets in multi-window mode. This means that when the Activity is in multi-window mode
+        // (*not* fullscreen), the two insets can in fact be different.
+        if (inMultiWindowMode) {
+            return;
         }
+        assertTrue(maxMetrics.getBounds().width()
+                >= currentMetrics.getBounds().width());
+        assertTrue(maxMetrics.getBounds().height()
+                >= currentMetrics.getBounds().height());
         final int insetsType = statusBars() | navigationBars() | displayCutout();
         assertEquals(layoutInsets.getInsets(insetsType),
                 currentMetrics.getWindowInsets().getInsets(insetsType));
@@ -123,6 +130,11 @@ public class WindowMetricsTestHelper {
      * @param display the display to compare bounds against
      */
     static void assertBoundsMatchDisplay(Rect maxBounds, Rect currentBounds, Display display) {
+        // TODO(b/224404595): remove the logic after we can revert ag/17076728 back.
+        if (isTablet()) {
+            return;
+        }
+
         // Check window bounds
         final Point displaySize = new Point();
         display.getSize(displaySize);

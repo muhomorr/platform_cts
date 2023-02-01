@@ -54,6 +54,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -274,16 +275,21 @@ public class CompatChangeGatingTestCase extends DeviceTestCase implements IBuild
      */
     protected int getUid(@Nonnull String packageName) throws DeviceNotAvailableException {
         int currentUser = getDevice().getCurrentUser();
-        String uidLine = getDevice()
+        String uidLines = getDevice()
                 .executeShellCommand(
                         "cmd package list packages -U --user " + currentUser + " "
                                 + packageName);
-        String[] uidLineParts = uidLine.split(":");
-        // 3rd entry is package uid
-        assertThat(uidLineParts.length).isGreaterThan(2);
-        int uid = Integer.parseInt(uidLineParts[2].trim());
-        assertThat(uid).isGreaterThan(10000);
-        return uid;
+        for (String uidLine : uidLines.split("\n")) {
+            if (uidLine.startsWith("package:" + packageName + " uid:")) {
+                String[] uidLineParts = uidLine.split(":");
+                // 3rd entry is package uid
+                assertThat(uidLineParts.length).isGreaterThan(2);
+                int uid = Integer.parseInt(uidLineParts[2].trim());
+                assertThat(uid).isGreaterThan(10000);
+                return uid;
+            }
+        }
+        throw new IllegalStateException("Failed to find the test app on the device");
     }
 
     /**
@@ -337,10 +343,11 @@ public class CompatChangeGatingTestCase extends DeviceTestCase implements IBuild
                         atom -> atom.getState() ==  // Value
                                 AtomsProto.AppCompatibilityChangeReported.State.ENABLED,
                                 (a, b) -> {
-                                  if (a != b) {
-                                    throw new IllegalStateException("inconsistent compatibility states");
-                                  }
-                                  return a;
+                                    if (!Objects.equals(a, b)) {
+                                        throw new IllegalStateException(
+                                                "inconsistent compatibility states");
+                                    }
+                                    return a;
                                 }));
     }
 

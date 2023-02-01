@@ -113,6 +113,8 @@ final class DevicePolicyManagerWrapper
             doAnswer(answer).when(spy).setEndUserSessionMessage(any(), any());
             doAnswer(answer).when(spy).setLogoutEnabled(any(), anyBoolean());
             doAnswer(answer).when(spy).removeUser(any(), any());
+            doAnswer(answer).when(spy).setMinimumRequiredWifiSecurityLevel(anyInt());
+            doAnswer(answer).when(spy).setWifiSsidPolicy(any());
 
             // Used by DevicePolicySafetyCheckerIntegrationTest
             doAnswer(answer).when(spy).createAndManageUser(any(), any(), any(), any(), anyInt());
@@ -189,11 +191,6 @@ final class DevicePolicyManagerWrapper
             doAnswer(answer).when(spy).setDelegatedScopes(any(), any(), any());
             doAnswer(answer).when(spy).retrieveSecurityLogs(any());
 
-            // Used by TimeManagementTest
-            doAnswer(answer).when(spy).setAutoTimeZoneEnabled(any(), anyBoolean());
-            doAnswer(answer).when(spy).setAutoTimeEnabled(any(), anyBoolean());
-            doAnswer(answer).when(spy).getAutoTimeZoneEnabled(any());
-
             // Used by WifiTest
             doAnswer(answer).when(spy).getWifiMacAddress(any());
 
@@ -268,11 +265,6 @@ final class DevicePolicyManagerWrapper
 
             // Used by BlockUninstallDelegateTest
             doAnswer(answer).when(spy).isUninstallBlocked(any(), any());
-
-            // Used by CertInstallDelegateTest
-            doAnswer(answer).when(spy).hasCaCertInstalled(any(), any());
-            doAnswer(answer).when(spy).getInstalledCaCerts(any());
-            doAnswer(answer).when(spy).installKeyPair(any(), any(), any(), any());
 
             // Used By DelegationTest
             doAnswer(answer).when(spy).getDelegatePackages(any(), any());

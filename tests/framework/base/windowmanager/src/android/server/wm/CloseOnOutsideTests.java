@@ -16,22 +16,21 @@
 
 package android.server.wm;
 
+import static android.server.wm.ActivityManagerTestBase.createFullscreenActivityScenarioRule;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
-import android.app.ActivityOptions;
 import android.app.Instrumentation;
-import android.app.WindowConfiguration;
 import android.graphics.Insets;
 import android.util.DisplayMetrics;
+import android.view.MotionEvent;
 import android.view.WindowInsets;
 import android.view.WindowMetrics;
 
 import androidx.test.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
-
-import com.android.compatibility.common.util.ShellUtils;
+import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -46,18 +45,13 @@ public class CloseOnOutsideTests {
 
     @Rule
     public final ActivityScenarioRule<CloseOnOutsideTestActivity> mScenarioRule =
-            new ActivityScenarioRule<>(CloseOnOutsideTestActivity.class);
+            createFullscreenActivityScenarioRule(CloseOnOutsideTestActivity.class);
 
     private CloseOnOutsideTestActivity mTestActivity;
 
     @Before
     public void setup() {
-        ActivityOptions options = ActivityOptions.makeBasic();
-        options.setLaunchWindowingMode(WindowConfiguration.WINDOWING_MODE_FULLSCREEN);
-        mScenarioRule.getScenario().launch(CloseOnOutsideTestActivity.class, options.toBundle())
-            .onActivity(activity -> {
-                mTestActivity = activity;
-            });
+        mScenarioRule.getScenario().onActivity(activity -> mTestActivity = activity);
     }
 
     @Test
@@ -100,12 +94,20 @@ public class CloseOnOutsideTests {
 
         Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
 
-        // To be safe, make sure nothing else is finishing the Activity
-        instrumentation.runOnMainSync(() -> assertFalse(mTestActivity.isFinishing()));
+        // First setup the new window size to be smaller than the entire activity, "revealing" a
+        // clickable area outside the window.
+        instrumentation.runOnMainSync(() -> mTestActivity.setupWindowSize());
 
-        ShellUtils.runShellCommand("input tap %d %d", width, height);
-
-        instrumentation.runOnMainSync(
-                () -> assertEquals(shouldBeFinishing, mTestActivity.isFinishing()));
+        // After that call is complete, run the test on the activity by simulating a touch outside
+        // the Window.
+        instrumentation.runOnMainSync(() -> {
+            // To be safe, make sure nothing else is finishing the Activity
+            assertFalse(mTestActivity.isFinishing());
+            mTestActivity.dispatchTouchEvent(
+                    MotionEvent.obtain(1, 1, MotionEvent.ACTION_DOWN, width, height, 0));
+            mTestActivity.dispatchTouchEvent(
+                    MotionEvent.obtain(1, 1, MotionEvent.ACTION_UP, width, height, 0));
+            assertEquals(shouldBeFinishing, mTestActivity.isFinishing());
+        });
     }
 }

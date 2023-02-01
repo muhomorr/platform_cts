@@ -16,7 +16,12 @@
 
 package com.android.queryable.queries;
 
+import android.os.Parcel;
+import android.os.Parcelable;
+
 import com.android.queryable.Queryable;
+import com.android.queryable.QueryableBaseWithMatch;
+import com.android.queryable.util.ParcelableUtils;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -25,28 +30,62 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public final class SetQueryHelper<E extends Queryable, F, G extends Query<F>> implements SetQuery<E, F, G>, Serializable {
+public final class SetQueryHelper<E extends Queryable, F> implements SetQuery<E, F>, Serializable {
 
     private static final long serialVersionUID = 1;
 
-    private E mQuery;
+    private final transient E mQuery;
     private final IntegerQueryHelper<E> mSizeQuery;
-    private final Set<G> mContainsByQuery = new HashSet<>();
-    private final Set<F> mContainsByType = new HashSet<>();
-    private final Set<G> mDoesNotContainByQuery = new HashSet<>();
-    private final Set<F> mDoesNotContainByType = new HashSet<>();
+    private final Set<Query<F>> mContainsByQuery;
+    private final Set<F> mContainsByType;
+    private final Set<Query<F>> mDoesNotContainByQuery;
+    private final Set<F> mDoesNotContainByType;
 
-    SetQueryHelper() {
-        mQuery = (E) this;
-        mSizeQuery = new IntegerQueryHelper<>(mQuery);
+    public static final class SetQueryBase<T> extends
+            QueryableBaseWithMatch<Set<T>, SetQueryHelper<SetQueryHelper.SetQueryBase<T>, T>> {
+        SetQueryBase() {
+            super();
+            setQuery(new SetQueryHelper<>(this));
+        }
+
+        SetQueryBase(Parcel in) {
+            super(in);
+        }
+
+        public static final Parcelable.Creator<SetQueryHelper.SetQueryBase<?>> CREATOR =
+                new Parcelable.Creator<>() {
+                    public SetQueryHelper.SetQueryBase<?> createFromParcel(Parcel in) {
+                        return new SetQueryHelper.SetQueryBase<>(in);
+                    }
+
+                    public SetQueryHelper.SetQueryBase<?>[] newArray(int size) {
+                        return new SetQueryHelper.SetQueryBase<?>[size];
+                    }
+                };
     }
 
     public SetQueryHelper(E query) {
         mQuery = query;
         mSizeQuery = new IntegerQueryHelper<>(mQuery);
+        mContainsByQuery = new HashSet<>();
+        mContainsByType = new HashSet<>();
+        mDoesNotContainByQuery = new HashSet<>();
+        mDoesNotContainByType = new HashSet<>();
+    }
+
+    private SetQueryHelper(Parcel in) {
+        mQuery = null;
+        mSizeQuery = in.readParcelable(SetQueryHelper.class.getClassLoader());
+
+        mContainsByQuery = (Set<Query<F>>) ParcelableUtils.readParcelableSet(in);
+        mDoesNotContainByQuery = (Set<Query<F>>) ParcelableUtils.readParcelableSet(in);
+
+        mContainsByType = (Set<F>) ParcelableUtils.readSet(in);
+        mDoesNotContainByType = (Set<F>) ParcelableUtils.readSet(in);
     }
 
     @Override
@@ -66,7 +105,7 @@ public final class SetQueryHelper<E extends Queryable, F, G extends Query<F>> im
 
 
     @Override
-    public E contains(G... objects) {
+    public E contains(Query<F>... objects) {
         mContainsByQuery.addAll(Arrays.asList(objects));
         return mQuery;
     }
@@ -78,7 +117,7 @@ public final class SetQueryHelper<E extends Queryable, F, G extends Query<F>> im
     }
 
     @Override
-    public E doesNotContain(G... objects) {
+    public E doesNotContain(Query<F>... objects) {
         mDoesNotContainByQuery.addAll(Arrays.asList(objects));
         return mQuery;
     }
@@ -128,7 +167,7 @@ public final class SetQueryHelper<E extends Queryable, F, G extends Query<F>> im
         return true;
     }
 
-    public static <F> boolean matches(SetQuery<?, F, ?> query, Set<F> value) {
+    public static <F> boolean matches(SetQuery<?, F> query, Set<F> value) {
         return query.matches(value);
     }
 
@@ -144,7 +183,7 @@ public final class SetQueryHelper<E extends Queryable, F, G extends Query<F>> im
             v.remove(match);
         }
 
-        for (G containsAtLeast : mContainsByQuery) {
+        for (Query<F> containsAtLeast : mContainsByQuery) {
             F match = findMatch(containsAtLeast, v);
 
             if (match == null) {
@@ -163,7 +202,7 @@ public final class SetQueryHelper<E extends Queryable, F, G extends Query<F>> im
             }
         }
 
-        for (G doesNotContain : mDoesNotContainByQuery) {
+        for (Query<F> doesNotContain : mDoesNotContainByQuery) {
             if (findMatch(doesNotContain, value) != null) {
                 return false;
             }
@@ -172,7 +211,7 @@ public final class SetQueryHelper<E extends Queryable, F, G extends Query<F>> im
         return true;
     }
 
-    private F findMatch(G query, Set<F> values) {
+    private F findMatch(Query<F> query, Set<F> values) {
         for (F value : values) {
             if (query.matches(value)) {
                 return value;
@@ -212,5 +251,50 @@ public final class SetQueryHelper<E extends Queryable, F, G extends Query<F>> im
                     .collect(Collectors.joining(", ")) + "]");
         }
         return Queryable.joinQueryStrings(queryStrings);
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+        out.writeParcelable(mSizeQuery, flags);
+
+        ParcelableUtils.writeParcelableSet(out, mContainsByQuery, flags);
+        ParcelableUtils.writeParcelableSet(out, mDoesNotContainByQuery, flags);
+
+        ParcelableUtils.writeSet(out, mContainsByType);
+        ParcelableUtils.writeSet(out, mDoesNotContainByType);
+    }
+
+    public static final Parcelable.Creator<SetQueryHelper> CREATOR =
+            new Parcelable.Creator<SetQueryHelper>() {
+                public SetQueryHelper createFromParcel(Parcel in) {
+                    return new SetQueryHelper(in);
+                }
+
+                public SetQueryHelper[] newArray(int size) {
+                    return new SetQueryHelper[size];
+                }
+    };
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof SetQueryHelper)) return false;
+        SetQueryHelper<?, ?> that = (SetQueryHelper<?, ?>) o;
+        return Objects.equals(mSizeQuery, that.mSizeQuery) && Objects.equals(
+                mContainsByQuery, that.mContainsByQuery) && Objects.equals(mContainsByType,
+                that.mContainsByType) && Objects.equals(mDoesNotContainByQuery,
+                that.mDoesNotContainByQuery) && Objects.equals(mDoesNotContainByType,
+                that.mDoesNotContainByType);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(mSizeQuery, mContainsByQuery, mContainsByType, mDoesNotContainByQuery,
+                mDoesNotContainByType);
     }
 }

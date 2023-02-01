@@ -2348,6 +2348,8 @@ public class ImsServiceTest {
         overrideCarrierConfig(null);
     }
 
+    @Ignore("the compatibility framework does not currently support changing compatibility flags"
+            + " on user builds for device side CTS tests. Ignore this test until support is added")
     @Test
     public void testRcsPublishWithDisableCompactCommand() throws Exception {
         TelephonyUtils.disableCompatCommand(InstrumentationRegistry.getInstrumentation(),
@@ -3366,6 +3368,13 @@ public class ImsServiceTest {
                 mOnFeatureChangedQueue.offer(new Pair<>(capability,
                         new Pair<>(tech, isProvisioned)));
             }
+
+            @Override
+            public void onRcsFeatureProvisioningChanged(
+                    @RcsFeature.RcsImsCapabilities.RcsImsCapabilityFlag int capability,
+                    @ImsRegistrationImplBase.ImsRegistrationTech int tech,
+                    boolean isProvisioned){
+            }
         };
 
         final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
@@ -3523,6 +3532,8 @@ public class ImsServiceTest {
         bundle.putPersistableBundle(
                 CarrierConfigManager.Ims.KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE,
                 innerBundle);
+        bundle.putBoolean(
+                CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL, false);
         overrideCarrierConfig(bundle);
 
         triggerFrameworkConnectToCarrierImsService();
@@ -3537,7 +3548,21 @@ public class ImsServiceTest {
         ProvisioningManager.Callback callback = new ProvisioningManager.Callback() {};
 
         ProvisioningManager.FeatureProvisioningCallback featureProvisioningCallback =
-                new ProvisioningManager.FeatureProvisioningCallback() {};
+                new ProvisioningManager.FeatureProvisioningCallback() {
+            @Override
+            public void onFeatureProvisioningChanged(
+                    @MmTelFeature.MmTelCapabilities.MmTelCapability int capability,
+                    @ImsRegistrationImplBase.ImsRegistrationTech int tech,
+                    boolean isProvisioned) {
+            }
+
+            @Override
+            public void onRcsFeatureProvisioningChanged(
+                    @RcsFeature.RcsImsCapabilities.RcsImsCapabilityFlag int capability,
+                    @ImsRegistrationImplBase.ImsRegistrationTech int tech,
+                    boolean isProvisioned){
+            }
+        };
 
         final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         try {
@@ -3638,6 +3663,13 @@ public class ImsServiceTest {
 
         ProvisioningManager.FeatureProvisioningCallback featureProvisioningCallback =
                 new ProvisioningManager.FeatureProvisioningCallback() {
+            @Override
+            public void onFeatureProvisioningChanged(
+                    @MmTelFeature.MmTelCapabilities.MmTelCapability int capability,
+                    @ImsRegistrationImplBase.ImsRegistrationTech int tech,
+                    boolean isProvisioned) {
+            }
+
             @Override
             public void onRcsFeatureProvisioningChanged(
                     @RcsFeature.RcsImsCapabilities.RcsImsCapabilityFlag int capability,
@@ -3768,7 +3800,10 @@ public class ImsServiceTest {
         bundle.putPersistableBundle(
                 CarrierConfigManager.Ims.KEY_RCS_REQUIRES_PROVISIONING_BUNDLE,
                 innerBundle);
-
+        bundle.putBoolean(
+                CarrierConfigManager.KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL, false);
+        bundle.putBoolean(
+                CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL, false);
         overrideCarrierConfig(bundle);
 
         triggerFrameworkConnectToImsServiceBindMmTelAndRcsFeature();
@@ -3777,7 +3812,21 @@ public class ImsServiceTest {
                 ProvisioningManager.createForSubscriptionId(sTestSub);
         ProvisioningManager.Callback callback = new ProvisioningManager.Callback() {};
         ProvisioningManager.FeatureProvisioningCallback featureProvisioningCallback =
-                new ProvisioningManager.FeatureProvisioningCallback() {};
+                new ProvisioningManager.FeatureProvisioningCallback() {
+            @Override
+            public void onFeatureProvisioningChanged(
+                    @MmTelFeature.MmTelCapabilities.MmTelCapability int capability,
+                    @ImsRegistrationImplBase.ImsRegistrationTech int tech,
+                    boolean isProvisioned) {
+            }
+
+            @Override
+            public void onRcsFeatureProvisioningChanged(
+                    @RcsFeature.RcsImsCapabilities.RcsImsCapabilityFlag int capability,
+                    @ImsRegistrationImplBase.ImsRegistrationTech int tech,
+                    boolean isProvisioned){
+            }
+        };
 
         final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         try {

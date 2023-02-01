@@ -57,7 +57,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
     private static final String CLASS = PKG + ".EncryptionAppTest";
     private static final String APK = "CtsEncryptionApp.apk";
 
-    private static final String OTHER_APK = "CtsSplitApp29.apk";
+    private static final String OTHER_APK = "CtsSplitApp.apk";
     private static final String OTHER_PKG = "com.android.cts.splitapp";
 
     private static final String FEATURE_REBOOT_ESCROW = "feature:android.hardware.reboot_escrow";
@@ -65,7 +65,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
     private static final String FEATURE_SECURE_LOCK_SCREEN =
             "feature:android.software.secure_lock_screen";
 
-    private static final long SHUTDOWN_TIME_MS = TimeUnit.SECONDS.toMicros(30);
+    private static final long SHUTDOWN_TIME_MS = TimeUnit.SECONDS.toMillis(30);
     private static final int USER_SYSTEM = 0;
 
     private static final int USER_SWITCH_TIMEOUT_SECONDS = 10;
@@ -356,8 +356,8 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
 
     private void deviceDisableDeviceConfigSync() throws Exception {
         getDevice().executeShellCommand("device_config set_sync_disabled_for_tests persistent");
-        String res = getDevice().executeShellCommand("device_config is_sync_disabled_for_tests");
-        if (res == null || !res.contains("true")) {
+        String res = getDevice().executeShellCommand("device_config get_sync_disabled_for_tests");
+        if (res == null || !res.contains("persistent")) {
             CLog.w(TAG, "Could not disable device config for test");
         }
     }
@@ -478,8 +478,8 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
     private void deviceRebootAndApply(String clientName) throws Exception {
         verifyLskfCaptured(clientName);
 
-        String res = getDevice().executeShellCommand("cmd recovery reboot-and-apply " + clientName
-                + " cts-test");
+        String res = executeShellCommandWithLogging(
+                "cmd recovery reboot-and-apply " + clientName + " cts-test");
         if (res != null && res.contains("Reboot and apply status: failure")) {
             fail("could not call reboot-and-apply");
         }
@@ -515,10 +515,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
     }
 
     private void stopUserAsync(int userId) throws Exception {
-        String stopUserCommand = "am stop-user -f " + userId;
-        CLog.d("starting command \"" + stopUserCommand);
-        CLog.d("Output for command " + stopUserCommand + ": "
-                + getDevice().executeShellCommand(stopUserCommand));
+        executeShellCommandWithLogging("am stop-user -f " + userId);
     }
 
     private void removeUser(int userId) throws Exception  {
@@ -577,5 +574,13 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
         public InstallMultiple() {
             super(getDevice(), getBuild(), getAbi());
         }
+    }
+
+    private String executeShellCommandWithLogging(String command)
+            throws DeviceNotAvailableException {
+        CLog.d("Starting command: " + command);
+        String result = getDevice().executeShellCommand(command);
+        CLog.d("Output for command \"" + command + "\": " + result);
+        return result;
     }
 }

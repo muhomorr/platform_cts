@@ -433,6 +433,8 @@ public class StaticMetadataTest extends Camera2AndroidTestCase {
             case REQUEST_AVAILABLE_CAPABILITIES_MOTION_TRACKING:
             case REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA:
             case REQUEST_AVAILABLE_CAPABILITIES_MONOCHROME:
+            case REQUEST_AVAILABLE_CAPABILITIES_DYNAMIC_RANGE_TEN_BIT:
+            case REQUEST_AVAILABLE_CAPABILITIES_STREAM_USE_CASE:
                 // Tested in ExtendedCameraCharacteristicsTest
                 return;
             case REQUEST_AVAILABLE_CAPABILITIES_SECURE_IMAGE_DATA:
@@ -451,6 +453,12 @@ public class StaticMetadataTest extends Camera2AndroidTestCase {
                 additionalRequirements.add(new Pair<String, Boolean>(
                         "Must support maximum resolution keys",
                         mStaticInfo.areMaximumResolutionKeysSupported()));
+                return;
+            case REQUEST_AVAILABLE_CAPABILITIES_SYSTEM_CAMERA:
+                if (isCapabilityAvailable) {
+                    mCollector.expectTrue("System camera shouldn't be available without" +
+                            " SYSTEM_CAMERA permissons", mAdoptShellPerm);
+                }
                 return;
             default:
                 capabilityName = "Unknown";
