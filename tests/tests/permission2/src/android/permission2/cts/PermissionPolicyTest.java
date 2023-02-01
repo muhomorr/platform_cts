@@ -74,6 +74,11 @@ public class PermissionPolicyTest {
     private static final String SET_UNRESTRICTED_GESTURE_EXCLUSION
             = "android.permission.SET_UNRESTRICTED_GESTURE_EXCLUSION";
 
+    private static final String RECEIVE_KEYCODE_EVENTS_PERMISSION =
+            "android.permission.RECEIVE_KEYCODE_EVENTS";
+
+    private static final String ACCESS_SHORTCUTS_PERMISSION = "android.permission.ACCESS_SHORTCUTS";
+
     private static final String LOG_TAG = "PermissionProtectionTest";
 
     private static final String PLATFORM_PACKAGE_NAME = "android";
@@ -167,11 +172,17 @@ public class PermissionPolicyTest {
         for (ExpectedPermissionInfo expectedPermission : expectedPermissions) {
             String expectedPermissionName = expectedPermission.name;
             if (shouldSkipPermission(expectedPermissionName)) {
-                // This permission doesn't need to exist yet, but will exist in
-                // a future SPL. It is acceptable to declare the permission
-                // even in an earlier SPL, so we remove it here so it doesn't
-                // trigger a failure after the loop.
-                declaredPermissionsMap.remove(expectedPermissionName);
+                // This permission doesn't need to exist, either because it
+                // will exist in a future SPL or because it is specific to a
+                // particular device type.
+
+                if (shouldAllowPermission(expectedPermissionName)) {
+                    // It is acceptable to declare the permission if it will
+                    // be in a future SPL, but not if it is for a different
+                    // device type. If the permission may be declared, remove
+                    // it here so it doesn't trigger a failure after the loop.
+                    declaredPermissionsMap.remove(expectedPermissionName);
+                }
                 continue;
             }
 
@@ -213,7 +224,11 @@ public class PermissionPolicyTest {
             final int expectedProtectionFlags =
                     expectedPermission.protectionLevel & ~PROTECTION_MASK_BASE;
             final int declaredProtectionFlags = declaredPermission.getProtectionFlags();
-            if (expectedProtectionFlags != declaredProtectionFlags) {
+            if (expectedProtectionFlags != declaredProtectionFlags
+                    && !shouldAllowProtectionFlagsChange(
+                            expectedPermissionName,
+                            expectedProtectionFlags,
+                            declaredProtectionFlags)) {
                 offendingList.add(
                         String.format(
                                 "Permission %s invalid enforced protection %x, expected %x",
@@ -501,6 +516,18 @@ public class PermissionPolicyTest {
         return patchDate;
     }
 
+    private boolean shouldAllowPermission(String permissionName) {
+        boolean isWatch =
+                sContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH);
+
+        switch (permissionName) {
+            case RECEIVE_KEYCODE_EVENTS_PERMISSION:
+                return isWatch;
+            default:
+                return true;
+        }
+    }
+
     private boolean shouldSkipPermission(String permissionName) {
         switch (permissionName) {
             case HIDE_NON_SYSTEM_OVERLAY_WINDOWS_PERMISSION:
@@ -509,9 +536,18 @@ public class PermissionPolicyTest {
                 return parseDate(SECURITY_PATCH).before(MANAGE_COMPANION_DEVICES_PATCH_DATE);
             case SET_UNRESTRICTED_GESTURE_EXCLUSION:
                 return true;
+            case RECEIVE_KEYCODE_EVENTS_PERMISSION:
+                return true;
             default:
                 return false;
         }
+    }
+
+    private static boolean shouldAllowProtectionFlagsChange(
+            String permissionName, int expectedFlags, int actualFlags) {
+        return ACCESS_SHORTCUTS_PERMISSION.equals(permissionName)
+                && ((expectedFlags | PermissionInfo.PROTECTION_FLAG_RECENTS)
+                        == (actualFlags | PermissionInfo.PROTECTION_FLAG_RECENTS));
     }
 
     private class ExpectedPermissionInfo {
