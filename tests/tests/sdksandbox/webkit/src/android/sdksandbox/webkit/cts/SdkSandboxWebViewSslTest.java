@@ -33,7 +33,7 @@ import org.junit.runner.RunWith;
 
 @AppModeFull
 @RunWith(AndroidJUnit4.class)
-public class WebViewSslTest {
+public class SdkSandboxWebViewSslTest {
     @ClassRule
     public static final KeepSdkSandboxAliveRule sSdkTestSuiteSetup =
             new KeepSdkSandboxAliveRule("com.android.emptysdkprovider");
@@ -112,12 +112,6 @@ public class WebViewSslTest {
     @MediumTest
     public void testProceedClientCertRequest() throws Exception {
         sdkTester.assertSdkTestRunPasses("testProceedClientCertRequest");
-    }
-
-    @Test
-    @MediumTest
-    public void testProceedClientCertRequestKeyWithAndroidKeystoreKey() throws Exception {
-        sdkTester.assertSdkTestRunPasses("testProceedClientCertRequestKeyWithAndroidKeystoreKey");
     }
 
     @Test

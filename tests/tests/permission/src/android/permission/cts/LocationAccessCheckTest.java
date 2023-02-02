@@ -375,8 +375,9 @@ public class LocationAccessCheckTest {
      * @return The notification or {@code null} if there is none
      */
     private StatusBarNotification getNotification(boolean cancelNotification) throws Throwable {
-        return NotificationListenerUtils.getNotificationForPackageAndId(PERMISSION_CONTROLLER_PKG,
-                LOCATION_ACCESS_CHECK_NOTIFICATION_ID, cancelNotification);
+        return CtsNotificationListenerServiceUtils.getNotificationForPackageAndId(
+                PERMISSION_CONTROLLER_PKG, LOCATION_ACCESS_CHECK_NOTIFICATION_ID,
+                cancelNotification);
     }
 
     /**
@@ -389,11 +390,11 @@ public class LocationAccessCheckTest {
     }
 
     /**
-     * Register {@link NotificationListener}.
+     * Register {@link CtsNotificationListenerService}.
      */
     public static void allowNotificationAccess() {
         runShellCommand("cmd notification allow_listener " + (new ComponentName(sContext,
-                NotificationListener.class).flattenToString()));
+                CtsNotificationListenerService.class).flattenToString()));
     }
 
     public static void installBackgroundAccessApp() throws Exception {
@@ -588,11 +589,11 @@ public class LocationAccessCheckTest {
     }
 
     /**
-     * Unregister {@link NotificationListener}.
+     * Unregister {@link CtsNotificationListenerService}.
      */
     public static void disallowNotificationAccess() {
         runShellCommand("cmd notification disallow_listener " + (new ComponentName(sContext,
-                NotificationListener.class)).flattenToString());
+                CtsNotificationListenerService.class)).flattenToString());
     }
 
     @After
@@ -821,9 +822,13 @@ public class LocationAccessCheckTest {
 
         // Verify content intent
         PendingIntent contentIntent = currentNotification.getNotification().contentIntent;
-        contentIntent.send(null, 0, null, null, null, null,
-                ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(
-                        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED).toBundle());
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.TIRAMISU) {
+            contentIntent.send(null, 0, null, null, null, null,
+                    ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(
+                            ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED).toBundle());
+        } else {
+            contentIntent.send();
+        }
 
         SafetyCenterUtils.assertSafetyCenterStarted();
     }

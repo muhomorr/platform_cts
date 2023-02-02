@@ -25,11 +25,11 @@ import android.content.ComponentName
 import android.content.Context
 import android.os.Build
 import android.os.Process
-import android.permission.cts.NotificationListenerUtils.assertEmptyNotification
-import android.permission.cts.NotificationListenerUtils.assertNotificationExist
-import android.permission.cts.NotificationListenerUtils.cancelNotification
-import android.permission.cts.NotificationListenerUtils.cancelNotifications
-import android.permission.cts.NotificationListenerUtils.getNotification
+import android.permission.cts.CtsNotificationListenerServiceUtils.assertEmptyNotification
+import android.permission.cts.CtsNotificationListenerServiceUtils.assertNotificationExist
+import android.permission.cts.CtsNotificationListenerServiceUtils.cancelNotification
+import android.permission.cts.CtsNotificationListenerServiceUtils.cancelNotifications
+import android.permission.cts.CtsNotificationListenerServiceUtils.getNotification
 import android.permission.cts.SafetyCenterUtils.assertSafetyCenterIssueDoesNotExist
 import android.permission.cts.SafetyCenterUtils.assertSafetyCenterIssueExist
 import android.permission.cts.SafetyCenterUtils.assertSafetyCenterStarted
@@ -238,11 +238,17 @@ class AccessibilityPrivacySourceTest {
             getNotification(permissionControllerPackage, ACCESSIBILITY_NOTIFICATION_ID)
         Assert.assertNotNull(statusBarNotification)
         val contentIntent = statusBarNotification!!.notification.contentIntent
-        val options = ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(
-                ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-        contentIntent.send(/* context = */ null, /* code = */ 0, /* intent = */ null,
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.TIRAMISU) {
+            val options = ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(
+                ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+            )
+            contentIntent.send(/* context = */ null, /* code = */ 0, /* intent = */ null,
                 /* onFinished = */ null, /* handler = */ null, /* requiredPermission = */ null,
-                /* options = */ options.toBundle())
+                /* options = */ options.toBundle()
+            )
+        } else {
+            contentIntent.send()
+        }
         assertSafetyCenterStarted()
     }
 

@@ -83,6 +83,7 @@ abstract class BasePermissionTest {
 
         const val APK_DIRECTORY = "/data/local/tmp/cts/permission3"
 
+        const val QUICK_CHECK_TIMEOUT_MILLIS = 100L
         const val IDLE_TIMEOUT_MILLIS: Long = 1000
         const val UNEXPECTED_TIMEOUT_MILLIS = 1000
         const val TIMEOUT_MILLIS: Long = 20000
@@ -255,7 +256,9 @@ abstract class BasePermissionTest {
     ) {
         val output = runShellCommand(
             "pm install${if (reinstall) " -r" else ""}${if (grantRuntimePermissions) " -g" else ""
-                }${if (installSource != null) " -i $installSource" else ""} $apkPath"
+                }${if (installSource != null) " -i $installSource" else ""} " +
+                    "--bypass-low-target-sdk-block $apkPath"
+
         ).trim()
         if (expectSuccess) {
             assertEquals("Success", output)
