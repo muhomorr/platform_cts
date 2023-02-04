@@ -17,10 +17,10 @@
 package android.sdksandbox.webkit.cts;
 
 import android.app.sdksandbox.testutils.testscenario.KeepSdkSandboxAliveRule;
-import android.platform.test.annotations.AppModeFull;
+import android.platform.test.annotations.Presubmit;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
-import androidx.test.filters.MediumTest;
+import androidx.test.filters.SmallTest;
 
 import com.android.compatibility.common.util.NullWebViewUtils;
 
@@ -31,40 +31,45 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-@MediumTest
-@AppModeFull
+@SmallTest
 @RunWith(AndroidJUnit4.class)
-public class DateSorterTest {
+public class SdkSandboxCookieTest {
     @ClassRule
     public static final KeepSdkSandboxAliveRule sSdkTestSuiteSetup =
             new KeepSdkSandboxAliveRule("com.android.emptysdkprovider");
 
     @Rule
     public final WebViewSandboxTestRule sdkTester =
-            new WebViewSandboxTestRule("android.webkit.cts.DateSorterTest");
+            new WebViewSandboxTestRule("android.webkit.cts.CookieTest");
 
     @Before
     public void setUp() {
         Assume.assumeTrue("WebView is not available", NullWebViewUtils.isWebViewAvailable());
     }
 
+    @Presubmit
     @Test
-    public void testConstructor() throws Exception {
-        sdkTester.assertSdkTestRunPasses("testConstructor");
+    public void testDomain() throws Exception {
+        sdkTester.assertSdkTestRunPasses("testDomain");
     }
 
     @Test
-    public void testGetLabel() throws Exception {
-        sdkTester.assertSdkTestRunPasses("testGetLabel");
+    public void testSubDomain() throws Exception {
+        sdkTester.assertSdkTestRunPasses("testSubDomain");
     }
 
     @Test
-    public void testGetIndex() throws Exception {
-        sdkTester.assertSdkTestRunPasses("testGetIndex");
+    public void testInvalidDomain() throws Exception {
+        sdkTester.assertSdkTestRunPasses("testInvalidDomain");
     }
 
     @Test
-    public void testGetBoundary() throws Exception {
-        sdkTester.assertSdkTestRunPasses("testGetBoundary");
+    public void testPath() throws Exception {
+        sdkTester.assertSdkTestRunPasses("testPath");
+    }
+
+    @Test
+    public void testEmptyValue() throws Exception {
+        sdkTester.assertSdkTestRunPasses("testEmptyValue");
     }
 }

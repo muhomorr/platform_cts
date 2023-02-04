@@ -22,35 +22,49 @@ import android.platform.test.annotations.AppModeFull;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
 
+import com.android.compatibility.common.util.NullWebViewUtils;
+
+import org.junit.Assume;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-@AppModeFull
 @MediumTest
+@AppModeFull
 @RunWith(AndroidJUnit4.class)
-public class WebViewRenderProcessClientTest {
+public class SdkSandboxDateSorterTest {
     @ClassRule
     public static final KeepSdkSandboxAliveRule sSdkTestSuiteSetup =
             new KeepSdkSandboxAliveRule("com.android.emptysdkprovider");
 
     @Rule
     public final WebViewSandboxTestRule sdkTester =
-            new WebViewSandboxTestRule("android.webkit.cts.WebViewRenderProcessClientTest");
+            new WebViewSandboxTestRule("android.webkit.cts.DateSorterTest");
 
-    @Test
-    public void testWebViewRenderProcessClientWithoutExecutor() throws Exception {
-        sdkTester.assertSdkTestRunPasses("testWebViewRenderProcessClientWithoutExecutor");
+    @Before
+    public void setUp() {
+        Assume.assumeTrue("WebView is not available", NullWebViewUtils.isWebViewAvailable());
     }
 
     @Test
-    public void testWebViewRenderProcessClientWithExecutor() throws Exception {
-        sdkTester.assertSdkTestRunPasses("testWebViewRenderProcessClientWithExecutor");
+    public void testConstructor() throws Exception {
+        sdkTester.assertSdkTestRunPasses("testConstructor");
     }
 
     @Test
-    public void testSetWebViewRenderProcessClient() throws Exception {
-        sdkTester.assertSdkTestRunPasses("testSetWebViewRenderProcessClient");
+    public void testGetLabel() throws Exception {
+        sdkTester.assertSdkTestRunPasses("testGetLabel");
+    }
+
+    @Test
+    public void testGetIndex() throws Exception {
+        sdkTester.assertSdkTestRunPasses("testGetIndex");
+    }
+
+    @Test
+    public void testGetBoundary() throws Exception {
+        sdkTester.assertSdkTestRunPasses("testGetBoundary");
     }
 }

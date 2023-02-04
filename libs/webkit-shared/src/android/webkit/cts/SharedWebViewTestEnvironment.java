@@ -24,13 +24,24 @@ import android.os.RemoteException;
 import android.os.StrictMode;
 import android.os.StrictMode.ThreadPolicy;
 import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.WebView;
+import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.test.InstrumentationRegistry;
 
 import org.apache.http.util.EncodingUtils;
+
+import java.io.ByteArrayInputStream;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.util.List;
+
+import javax.net.ssl.X509TrustManager;
 
 /**
  * This class contains all the environmental variables that need to be configured for WebView tests
@@ -39,15 +50,18 @@ import org.apache.http.util.EncodingUtils;
 public final class SharedWebViewTestEnvironment {
     @Nullable private final Context mContext;
     @Nullable private final WebView mWebView;
+    @Nullable private final FrameLayout mRootLayout;
     private final IHostAppInvoker mHostAppInvoker;
 
     private SharedWebViewTestEnvironment(
             Context context,
             WebView webView,
-            IHostAppInvoker hostAppInvoker) {
+            IHostAppInvoker hostAppInvoker,
+            FrameLayout rootLayout) {
         mContext = context;
         mWebView = webView;
         mHostAppInvoker = hostAppInvoker;
+        mRootLayout = rootLayout;
     }
 
     @Nullable
@@ -58,6 +72,16 @@ public final class SharedWebViewTestEnvironment {
     @Nullable
     public WebView getWebView() {
         return mWebView;
+    }
+
+    /**
+     * Some tests require adding a content view to the root view at runtime. This method mimics the
+     * behaviour of Activity.addContentView()
+     */
+    @Nullable
+    public void addContentView(View view, ViewGroup.LayoutParams params) {
+        view.setLayoutParams(params);
+        mRootLayout.addView(view);
     }
 
     /**
@@ -115,6 +139,8 @@ public final class SharedWebViewTestEnvironment {
     public static final class Builder {
         private Context mContext;
         private WebView mWebView;
+
+        private FrameLayout mRootLayout;
         private IHostAppInvoker mHostAppInvoker;
 
         /** Provide a {@link Context} the tests should use for your environment. */
@@ -141,13 +167,19 @@ public final class SharedWebViewTestEnvironment {
             return this;
         }
 
+        /** Provide a {@link FrameLayout} the tests should use for your environment. */
+        public Builder setRootLayout(@NonNull FrameLayout rootLayout) {
+            mRootLayout = rootLayout;
+            return this;
+        }
+
         /** Build a new SharedWebViewTestEnvironment. */
         public SharedWebViewTestEnvironment build() {
             if (mHostAppInvoker == null) {
                 throw new NullPointerException("The host app invoker is required");
             }
             return new SharedWebViewTestEnvironment(
-                    mContext, mWebView, mHostAppInvoker);
+                    mContext, mWebView, mHostAppInvoker, mRootLayout);
         }
     }
 
@@ -179,10 +211,34 @@ public final class SharedWebViewTestEnvironment {
                 return new IWebServer.Stub() {
                     private CtsTestServer mWebServer;
 
-                    public void start(@SslMode int sslMode) {
+                    public void start(@SslMode int sslMode, @Nullable byte[] acceptedIssuerDer) {
                         assertNull(mWebServer);
+                        final X509Certificate[] acceptedIssuerCerts;
+                        if (acceptedIssuerDer != null) {
+                            try {
+                                CertificateFactory certFactory = CertificateFactory.getInstance(
+                                        "X.509");
+                                acceptedIssuerCerts = new X509Certificate[]{
+                                        (X509Certificate) certFactory.generateCertificate(
+                                                new ByteArrayInputStream(acceptedIssuerDer))};
+                            } catch (CertificateException e) {
+                                // Throw manually, because compiler does not understand that fail()
+                                // does not return.
+                                throw new AssertionError(
+                                        "Failed to create certificate chain: " + e.toString());
+                            }
+                        } else {
+                            acceptedIssuerCerts = null;
+                        }
                         try {
-                            mWebServer = new CtsTestServer(applicationContext, sslMode);
+                            X509TrustManager trustManager = new CtsTestServer.CtsTrustManager() {
+                                @Override
+                                public X509Certificate[] getAcceptedIssuers() {
+                                    return acceptedIssuerCerts;
+                                }
+                            };
+                            mWebServer = new CtsTestServer(applicationContext, sslMode,
+                                    trustManager);
                         } catch (Exception e) {
                             fail("Failed to launch CtsTestServer");
                         }
@@ -204,6 +260,23 @@ public final class SharedWebViewTestEnvironment {
                     public void resetRequestState() {
                         assertNotNull("The WebServer needs to be started", mWebServer);
                         mWebServer.resetRequestState();
+                    }
+
+                    public String setResponse(
+                            String path, String responseString, List<HttpHeader> responseHeaders) {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.setResponse(
+                                path, responseString, HttpHeader.asPairList(responseHeaders));
+                    }
+
+                    public String getAbsoluteUrl(String path) {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getAbsoluteUrl(path);
+                    }
+
+                    public String getUserAgentUrl() {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getUserAgentUrl();
                     }
 
                     public String getDelayedAssetUrl(String path) {
@@ -231,19 +304,43 @@ public final class SharedWebViewTestEnvironment {
                         return mWebServer.getBinaryUrl(mimeType, contentLength);
                     }
 
+                    public String getAppCacheUrl() {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getAppCacheUrl();
+                    }
+
+                    public int getRequestCount() {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getRequestCount();
+                    }
+
+                    public int getRequestCountWithPath(String path) {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getRequestCount(path);
+                    }
+
                     public boolean wasResourceRequested(String url) {
                         assertNotNull("The WebServer needs to be started", mWebServer);
                         return mWebServer.wasResourceRequested(url);
                     }
 
+                    public HttpRequest getLastRequest(String path) {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return toHttpRequest(path, mWebServer.getLastRequest(path));
+                    }
+
                     public HttpRequest getLastAssetRequest(String url) {
                         assertNotNull("The WebServer needs to be started", mWebServer);
-                        org.apache.http.HttpRequest request = mWebServer.getLastAssetRequest(url);
-                        if (request == null) {
+                        return toHttpRequest(url, mWebServer.getLastAssetRequest(url));
+                    }
+
+                    private HttpRequest toHttpRequest(
+                            String url, org.apache.http.HttpRequest apacheRequest) {
+                        if (apacheRequest == null) {
                             return null;
                         }
 
-                        return new HttpRequest(url, request);
+                        return new HttpRequest(url, apacheRequest);
                     }
                 };
             }
