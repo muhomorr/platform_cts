@@ -35,9 +35,9 @@ import org.junit.runner.RunWith;
 @MediumTest
 @AppModeFull
 @RunWith(AndroidJUnit4.class)
-public class WebViewSandboxTest {
+public class SdkSandboxWebViewTest {
     // TODO(b/260196711): We are not able to inject input events
-    // from the SDK Runtime.
+    // from the SDK Runtime.SdkSandbox
     // This prevents some tests from running.
     private static final boolean CAN_INJECT_INPUT_EVENTS = false;
 
@@ -176,6 +176,13 @@ public class WebViewSandboxTest {
     }
 
     @Test
+    @MediumTest
+    public void testJavascriptInterfaceForClientPopup() throws Exception {
+        sdkTester.assertSdkTestRunPasses("testJavascriptInterfaceForClientPopup");
+    }
+
+    @Test
+    @MediumTest
     public void testLoadDataWithBaseUrl_historyUrl() throws Exception {
         sdkTester.assertSdkTestRunPasses("testLoadDataWithBaseUrl_historyUrl");
     }
