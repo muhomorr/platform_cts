@@ -84,6 +84,8 @@ import android.util.Size;
 import android.util.SparseArray;
 import android.view.Surface;
 import android.view.SurfaceHolder;
+import android.view.WindowManager;
+import android.view.WindowMetrics;
 
 import androidx.test.InstrumentationRegistry;
 
@@ -119,12 +121,12 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.HashSet;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -187,6 +189,24 @@ public class ItsService extends Service implements SensorEventListener {
     public static final String AUDIO_RESTRICTION_MODE_KEY = "mode";
     public static final int AVAILABILITY_TIMEOUT_MS = 10;
 
+    private static final HashMap<Integer, String> CAMCORDER_PROFILE_QUALITIES_MAP;
+    static {
+        CAMCORDER_PROFILE_QUALITIES_MAP = new HashMap<Integer, String>();
+        CAMCORDER_PROFILE_QUALITIES_MAP.put(CamcorderProfile.QUALITY_480P, "480P");
+        CAMCORDER_PROFILE_QUALITIES_MAP.put(CamcorderProfile.QUALITY_1080P, "1080P");
+        CAMCORDER_PROFILE_QUALITIES_MAP.put(CamcorderProfile.QUALITY_2160P, "2160P");
+        CAMCORDER_PROFILE_QUALITIES_MAP.put(CamcorderProfile.QUALITY_2K, "2k");
+        CAMCORDER_PROFILE_QUALITIES_MAP.put(CamcorderProfile.QUALITY_4KDCI, "4KDC");
+        CAMCORDER_PROFILE_QUALITIES_MAP.put(CamcorderProfile.QUALITY_720P, "720P");
+        CAMCORDER_PROFILE_QUALITIES_MAP.put(CamcorderProfile.QUALITY_8KUHD, "8KUHD");
+        CAMCORDER_PROFILE_QUALITIES_MAP.put(CamcorderProfile.QUALITY_CIF, "CIF");
+        CAMCORDER_PROFILE_QUALITIES_MAP.put(CamcorderProfile.QUALITY_HIGH, "HIGH");
+        CAMCORDER_PROFILE_QUALITIES_MAP.put(CamcorderProfile.QUALITY_LOW, "LOW");
+        CAMCORDER_PROFILE_QUALITIES_MAP.put(CamcorderProfile.QUALITY_QCIF, "QCIF");
+        CAMCORDER_PROFILE_QUALITIES_MAP.put(CamcorderProfile.QUALITY_QHD, "QHD");
+        CAMCORDER_PROFILE_QUALITIES_MAP.put(CamcorderProfile.QUALITY_QVGA, "QVGA");
+        CAMCORDER_PROFILE_QUALITIES_MAP.put(CamcorderProfile.QUALITY_VGA, "VGA");
+    };
 
     private CameraManager mCameraManager = null;
     private HandlerThread mCameraThread = null;
@@ -256,7 +276,10 @@ public class ItsService extends Service implements SensorEventListener {
     private volatile boolean mNeedsLockedAWB = false;
     private volatile boolean mDoAE = true;
     private volatile boolean mDoAF = true;
-    private Set<Pair<String, String>> mUnavailablePhysicalCameras;
+    private final LinkedBlockingQueue<String> unavailableEventQueue = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<Pair<String, String>> unavailablePhysicalCamEventQueue =
+                new LinkedBlockingQueue<>();
+    private Set<String> mUnavailablePhysicalCameras;
 
 
     class MySensorEvent {
@@ -265,6 +288,31 @@ public class ItsService extends Service implements SensorEventListener {
         public long timestamp;
         public float values[];
     }
+
+    CameraManager.AvailabilityCallback ac = new CameraManager.AvailabilityCallback() {
+        @Override
+        public void onCameraAvailable(String cameraId) {
+            super.onCameraAvailable(cameraId);
+        }
+
+        @Override
+        public void onCameraUnavailable(String cameraId) {
+            super.onCameraUnavailable(cameraId);
+            unavailableEventQueue.offer(cameraId);
+        }
+
+        @Override
+        public void onPhysicalCameraAvailable(String cameraId, String physicalCameraId) {
+            super.onPhysicalCameraAvailable(cameraId, physicalCameraId);
+            unavailablePhysicalCamEventQueue.remove(new Pair<>(cameraId, physicalCameraId));
+        }
+
+        @Override
+        public void onPhysicalCameraUnavailable(String cameraId, String physicalCameraId) {
+            super.onPhysicalCameraUnavailable(cameraId, physicalCameraId);
+            unavailablePhysicalCamEventQueue.offer(new Pair<>(cameraId, physicalCameraId));
+        }
+    };
 
     static class VideoRecordingObject {
         private static final int INVALID_FRAME_RATE = -1;
@@ -450,6 +498,9 @@ public class ItsService extends Service implements SensorEventListener {
     public void openCameraDevice(String cameraId) throws ItsException {
         Logt.i(TAG, String.format("Opening camera %s", cameraId));
 
+        // Get initial physical unavailable callbacks without opening camera
+        mCameraManager.registerAvailabilityCallback(ac, mCameraHandler);
+
         try {
             if (mMemoryQuota == -1) {
                 // Initialize memory quota on this device
@@ -475,15 +526,22 @@ public class ItsService extends Service implements SensorEventListener {
         }
 
         try {
-            mUnavailablePhysicalCameras = getUnavailablePhysicalCameras();
+            mUnavailablePhysicalCameras = getUnavailablePhysicalCameras(
+                    unavailablePhysicalCamEventQueue, cameraId);
+            Log.i(TAG, "Unavailable cameras:" + Arrays.asList(mUnavailablePhysicalCameras.toString()));
             mCamera = mBlockingCameraManager.openCamera(cameraId, mCameraListener, mCameraHandler);
             mCameraCharacteristics = mCameraManager.getCameraCharacteristics(cameraId);
-
+            // The camera should be in available->unavailable state.
+            unavailableEventQueue.clear();
             boolean isLogicalCamera = hasCapability(
                     CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA);
             if (isLogicalCamera) {
                 Set<String> physicalCameraIds = mCameraCharacteristics.getPhysicalCameraIds();
                 for (String id : physicalCameraIds) {
+                    if (mUnavailablePhysicalCameras.contains(id)) {
+                        Log.i(TAG, "Physical camera id not available: " + id);
+                        continue;
+                    }
                     mPhysicalCameraChars.put(id, mCameraManager.getCameraCharacteristics(id));
                 }
             }
@@ -492,6 +550,8 @@ public class ItsService extends Service implements SensorEventListener {
             throw new ItsException("Failed to open camera", e);
         } catch (BlockingOpenException e) {
             throw new ItsException("Failed to open camera (after blocking)", e);
+        } catch (Exception e) {
+            throw new ItsException("Failed to get unavailable physical cameras", e);
         }
         mSocketRunnableObj.sendResponse("cameraOpened", "");
     }
@@ -502,6 +562,7 @@ public class ItsService extends Service implements SensorEventListener {
                 Logt.i(TAG, "Closing camera");
                 mCamera.close();
                 mCamera = null;
+                mCameraManager.unregisterAvailabilityCallback(ac);
             }
         } catch (Exception e) {
             throw new ItsException("Failed to close device");
@@ -836,6 +897,13 @@ public class ItsService extends Service implements SensorEventListener {
                 } else if ("doGetUnavailablePhysicalCameras".equals(cmdObj.getString("cmdName"))) {
                     String cameraId = cmdObj.getString("cameraId");
                     doGetUnavailablePhysicalCameras(cameraId);
+                } else if ("getDisplaySize".equals(cmdObj.getString("cmdName"))) {
+                    doGetDisplaySize();
+                } else if ("getMaxCamcorderProfileSize".equals(cmdObj.getString("cmdName"))) {
+                    String cameraId = cmdObj.getString("cameraId");
+                    doGetMaxCamcorderProfileSize(cameraId);
+                } else if ("getAvailablePhysicalCameraProperties".equals(cmdObj.getString("cmdName"))) {
+                    doGetAvailablePhysicalCameraProperties();
                 } else {
                     throw new ItsException("Unknown command: " + cmd);
                 }
@@ -932,6 +1000,25 @@ public class ItsService extends Service implements SensorEventListener {
                 objs[1] = props;
                 mSerializerQueue.put(objs);
             } catch (InterruptedException e) {
+                throw new ItsException("Interrupted: ", e);
+            }
+        }
+
+        public void sendResponse(String tag, HashMap<String, CameraCharacteristics> props)
+                throws ItsException {
+            try {
+                JSONArray jsonSurfaces = new JSONArray();
+                int n = props.size();
+                for (String s : props.keySet()) {
+                    JSONObject jsonSurface = new JSONObject();
+                    jsonSurface.put(s, ItsSerializer.serialize(props.get(s)));
+                    jsonSurfaces.put(jsonSurface);
+                }
+                Object objs[] = new Object[2];
+                objs[0] = "availablePhysicalCameraProperties";
+                objs[1] = jsonSurfaces;
+                mSerializerQueue.put(objs);
+            } catch (Exception e) {
                 throw new ItsException("Interrupted: ", e);
             }
         }
@@ -1114,6 +1201,27 @@ public class ItsService extends Service implements SensorEventListener {
         }
     }
 
+    private void doGetAvailablePhysicalCameraProperties() throws ItsException {
+        mSocketRunnableObj.sendResponse("availablePhysicalCameraProperties", mPhysicalCameraChars);
+    }
+
+    private Set<String> getUnavailablePhysicalCameras(
+            LinkedBlockingQueue<Pair<String, String>> queue, String cameraId) throws Exception {
+        Set<String> unavailablePhysicalCameras = new HashSet<String>();
+        while (true) {
+            Pair<String, String> unavailableIdCombo = queue.poll(
+                    AVAILABILITY_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
+            if (unavailableIdCombo == null) {
+                // No more entries in the queue. Break out of the loop and return.
+                break;
+            }
+            if (cameraId.equals(unavailableIdCombo.first)) {
+                unavailablePhysicalCameras.add(unavailableIdCombo.second);
+            }
+        };
+        return unavailablePhysicalCameras;
+    }
+
     private void doGetCameraIds() throws ItsException {
         if (mItsCameraIdList == null) {
             mItsCameraIdList = ItsUtils.getItsCompatibleCameraIds(mCameraManager);
@@ -1198,10 +1306,8 @@ public class ItsService extends Service implements SensorEventListener {
         try {
             JSONArray cameras = new JSONArray();
             JSONObject jsonObj = new JSONObject();
-            for (Pair<String, String> p : mUnavailablePhysicalCameras) {
-                if (cameraId.equals(p.first)) {
-                    cameras.put(p.second);
-                }
+            for (String p : mUnavailablePhysicalCameras) {
+                cameras.put(p);
             }
             jsonObj.put("unavailablePhysicalCamerasArray", cameras);
             Log.i(TAG, "unavailablePhysicalCameras : " +
@@ -1210,6 +1316,59 @@ public class ItsService extends Service implements SensorEventListener {
         } catch (org.json.JSONException e) {
             throw new ItsException("JSON error: ", e);
         }
+    }
+
+    private void doGetDisplaySize() throws ItsException {
+        WindowManager windowManager = getSystemService(WindowManager.class);
+        if (windowManager == null) {
+            throw new ItsException("No window manager.");
+        }
+        WindowMetrics metrics = windowManager.getCurrentWindowMetrics();
+        if (metrics == null) {
+            throw new ItsException("No current window metrics in window manager.");
+        }
+        Rect windowBounds = metrics.getBounds();
+
+        int width = windowBounds.width();
+        int height = windowBounds.height();
+        if (height > width) {
+            height = width;
+            width = windowBounds.height();
+        }
+
+        Size displaySize = new Size(width, height);
+        mSocketRunnableObj.sendResponse("displaySize", displaySize.toString());
+    }
+
+    private void doGetMaxCamcorderProfileSize(String cameraId) throws ItsException {
+        if (mItsCameraIdList == null) {
+            mItsCameraIdList = ItsUtils.getItsCompatibleCameraIds(mCameraManager);
+        }
+        if (mItsCameraIdList.mCameraIds.size() == 0) {
+            throw new ItsException("No camera devices");
+        }
+        if (!mItsCameraIdList.mCameraIds.contains(cameraId)) {
+            throw new ItsException("Invalid cameraId " + cameraId);
+        }
+
+        int cameraDeviceId = Integer.parseInt(cameraId);
+        int maxArea = -1;
+        Size maxProfileSize = new Size(0, 0);
+        for (int profileId : CAMCORDER_PROFILE_QUALITIES_MAP.keySet()) {
+            if (CamcorderProfile.hasProfile(cameraDeviceId, profileId)) {
+                CamcorderProfile profile = CamcorderProfile.get(cameraDeviceId, profileId);
+                if (profile == null) {
+                    throw new ItsException("Invalid camcorder profile for id " + profileId);
+                }
+
+                int area = profile.videoFrameWidth * profile.videoFrameHeight;
+                if (area > maxArea) {
+                    maxProfileSize = new Size(profile.videoFrameWidth, profile.videoFrameHeight);
+                    maxArea = area;
+                }
+            }
+        }
+        mSocketRunnableObj.sendResponse("maxCamcorderProfileSize", maxProfileSize.toString());
     }
 
     private Set<Pair<String, String>> getUnavailablePhysicalCameras() throws ItsException {
@@ -1861,20 +2020,9 @@ public class ItsService extends Service implements SensorEventListener {
     private void doGetSupportedVideoQualities(String id) throws ItsException {
         int cameraId = Integer.parseInt(id);
         StringBuilder profiles = new StringBuilder();
-        appendSupportProfile(profiles, "480P", CamcorderProfile.QUALITY_480P, cameraId);
-        appendSupportProfile(profiles, "1080P", CamcorderProfile.QUALITY_1080P, cameraId);
-        appendSupportProfile(profiles, "2160P", CamcorderProfile.QUALITY_2160P, cameraId);
-        appendSupportProfile(profiles, "2k", CamcorderProfile.QUALITY_2K, cameraId);
-        appendSupportProfile(profiles, "4KDCI", CamcorderProfile.QUALITY_4KDCI, cameraId);
-        appendSupportProfile(profiles, "720P", CamcorderProfile.QUALITY_720P, cameraId);
-        appendSupportProfile(profiles, "8KUHD", CamcorderProfile.QUALITY_8KUHD, cameraId);
-        appendSupportProfile(profiles, "CIF", CamcorderProfile.QUALITY_CIF, cameraId);
-        appendSupportProfile(profiles, "HIGH", CamcorderProfile.QUALITY_HIGH, cameraId);
-        appendSupportProfile(profiles, "LOW", CamcorderProfile.QUALITY_LOW, cameraId);
-        appendSupportProfile(profiles, "QCIF", CamcorderProfile.QUALITY_QCIF, cameraId);
-        appendSupportProfile(profiles, "QHD", CamcorderProfile.QUALITY_QHD, cameraId);
-        appendSupportProfile(profiles, "QVGA", CamcorderProfile.QUALITY_QVGA, cameraId);
-        appendSupportProfile(profiles, "VGA", CamcorderProfile.QUALITY_VGA,cameraId);
+        for (Map.Entry<Integer, String> entry : CAMCORDER_PROFILE_QUALITIES_MAP.entrySet()) {
+            appendSupportProfile(profiles, entry.getValue(), entry.getKey(), cameraId);
+        }
         mSocketRunnableObj.sendResponse("supportedVideoQualities", profiles.toString());
     }
 
