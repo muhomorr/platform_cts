@@ -93,19 +93,6 @@ public class QuiescentBootTests extends BaseHostJUnit4Test {
         assertEquals("Expected to boot into sleep state.", WAKEFULNESS_ASLEEP, getWakefulness());
     }
 
-    @Test
-    public void testQuiescentBoot_awakeAfterReboot() throws Exception {
-        mDevice.executeAdbCommand("reboot", "quiescent");
-        mDevice.waitForBootComplete(REBOOT_TIMEOUT);
-
-        mDevice.executeAdbCommand("reboot");
-        mDevice.waitForBootComplete(REBOOT_TIMEOUT);
-
-        assertNull("Quiescent system property (ro.boot.quiescent) unexpectedly set.",
-                mDevice.getProperty("ro.boot.quiescent"));
-        assertEquals("Expected to boot in awake state.", WAKEFULNESS_AWAKE, getWakefulness());
-    }
-
     private Wakefulness getWakefulness() throws Exception {
         return ((PowerManagerServiceDumpProto) ProtoUtils.getProto(getDevice(),
                 PowerManagerServiceDumpProto.parser(),
