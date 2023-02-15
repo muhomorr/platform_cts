@@ -53,6 +53,8 @@ import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyDisplayInfo;
 import android.telephony.TelephonyManager;
 import android.telephony.TelephonyManager.DataEnabledReason;
+import android.telephony.TelephonyManager.EmergencyCallbackModeStopReason;
+import android.telephony.TelephonyManager.EmergencyCallbackModeType;
 import android.telephony.cts.util.TelephonyUtils;
 import android.telephony.emergency.EmergencyNumber;
 import android.telephony.ims.ImsReasonInfo;
@@ -93,6 +95,7 @@ public class TelephonyCallbackTest {
     private boolean mOnCallStatesChangedCalled;
     private boolean mOnCallDisconnectCauseChangedCalled;
     private boolean mOnImsCallDisconnectCauseChangedCalled;
+    private ImsReasonInfo mImsReasonInfo;
     private EmergencyNumber mOnOutgoingSmsEmergencyNumberChanged;
     private boolean mOnPreciseDataConnectionStateChanged;
     private boolean mOnRadioPowerStateChangedCalled;
@@ -104,6 +107,7 @@ public class TelephonyCallbackTest {
     private boolean mOnPhysicalChannelConfigCalled;
     private boolean mOnDataEnabledChangedCalled;
     private boolean mOnLinkCapacityEstimateChangedCalled;
+    private boolean mOnEmergencyCallbackModeChangedCalled;
     @RadioPowerState
     private int mRadioPowerState;
     @SimActivationState
@@ -633,6 +637,7 @@ public class TelephonyCallbackTest {
         public void onImsCallDisconnectCauseChanged(ImsReasonInfo imsReason) {
             synchronized (mLock) {
                 mOnImsCallDisconnectCauseChangedCalled = true;
+                mImsReasonInfo = imsReason;
                 mLock.notify();
             }
         }
@@ -654,6 +659,7 @@ public class TelephonyCallbackTest {
         }
 
         assertThat(mOnImsCallDisconnectCauseChangedCalled).isTrue();
+        assertNotNull(mImsReasonInfo);
 
         // Test unregister
         unRegisterTelephonyCallback(mOnImsCallDisconnectCauseChangedCalled,
@@ -1598,5 +1604,49 @@ public class TelephonyCallbackTest {
         // Test unregister
         unRegisterTelephonyCallback(mOnLinkCapacityEstimateChangedCalled,
                 mLinkCapacityEstimateChangedListener);
+    }
+
+
+    private EmergencyCallbackModeListener mEmergencyCallbackModeListener;
+
+    private class EmergencyCallbackModeListener extends TelephonyCallback
+            implements TelephonyCallback.EmergencyCallbackModeListener {
+        @Override
+        public void onCallBackModeStarted(@EmergencyCallbackModeType int type) {
+
+        }
+        @Override
+        public void onCallBackModeStopped(@EmergencyCallbackModeType int type,
+                @EmergencyCallbackModeStopReason int reason) {
+            synchronized (mLock) {
+                mOnEmergencyCallbackModeChangedCalled = true;
+                mLock.notify();
+            }
+        }
+    }
+
+    @Test
+    public void testOnEmergencyCallbackModeListener() throws Throwable {
+        if (mCm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE) == null) {
+            Log.d(TAG, "Skipping test that requires ConnectivityManager.TYPE_MOBILE");
+            return;
+        }
+
+        assertFalse(mOnEmergencyCallbackModeChangedCalled);
+        mHandler.post(() -> {
+            mEmergencyCallbackModeListener = new EmergencyCallbackModeListener();
+            registerTelephonyCallbackWithPermission(mEmergencyCallbackModeListener);
+        });
+
+        synchronized (mLock) {
+            while (!mOnEmergencyCallbackModeChangedCalled) {
+                mLock.wait(WAIT_TIME);
+            }
+        }
+        assertTrue(mOnEmergencyCallbackModeChangedCalled);
+
+        // Test unregister
+        unRegisterTelephonyCallback(mOnEmergencyCallbackModeChangedCalled,
+                mEmergencyCallbackModeListener);
     }
 }

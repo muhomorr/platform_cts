@@ -25,6 +25,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import android.graphics.Canvas;
@@ -37,16 +38,18 @@ import android.hardware.HardwareBuffer;
 import android.hardware.SyncFence;
 import android.test.suitebuilder.annotation.LargeTest;
 import android.util.Log;
+import android.view.Display;
 import android.view.SurfaceControl;
 import android.view.SurfaceHolder;
 import android.view.cts.surfacevalidator.ASurfaceControlTestActivity;
-import android.view.cts.surfacevalidator.ASurfaceControlTestActivity.MultiRectChecker;
 import android.view.cts.surfacevalidator.ASurfaceControlTestActivity.PixelChecker;
+import android.view.cts.surfacevalidator.ASurfaceControlTestActivity.RectChecker;
 import android.view.cts.surfacevalidator.PixelColor;
 
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.compatibility.common.util.WidgetTestUtils;
 import com.android.cts.hardware.SyncFenceUtil;
 
 import org.junit.Before;
@@ -60,6 +63,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 @LargeTest
 @RunWith(AndroidJUnit4.class)
@@ -481,7 +485,7 @@ public class SurfaceControlTest {
                                 .apply();
                     }
                 },
-                new MultiRectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
+                new RectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
                     @Override
                     public PixelColor getExpectedColor(int x, int y) {
                         if (x >= 10 && x < 50 && y >= 10 && y < 50) {
@@ -510,7 +514,7 @@ public class SurfaceControlTest {
                                 .apply();
                     }
                 },
-                new MultiRectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
+                new RectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
                     @Override
                     public PixelColor getExpectedColor(int x, int y) {
                         if (x >= 10 && x < 50 && y >= 10 && y < 50) {
@@ -539,7 +543,7 @@ public class SurfaceControlTest {
                                 .apply();
                     }
                 },
-                new MultiRectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
+                new RectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
                     @Override
                     public PixelColor getExpectedColor(int x, int y) {
                         if (x >= 10 && x < 50 && y >= 10 && y < 50) {
@@ -719,7 +723,7 @@ public class SurfaceControlTest {
                     }
                 },
 
-                new MultiRectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
+                new RectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
                     @Override
                     public PixelColor getExpectedColor(int x, int y) {
                         if (x >= 10 && x < 30 && y >= 10 && y < 40) {
@@ -747,7 +751,7 @@ public class SurfaceControlTest {
                     }
                 },
 
-                new MultiRectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
+                new RectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
                     @Override
                     public PixelColor getExpectedColor(int x, int y) {
                         int halfWidth = DEFAULT_LAYOUT_WIDTH / 2;
@@ -802,7 +806,7 @@ public class SurfaceControlTest {
                     }
                 },
 
-                new MultiRectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
+                new RectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
                     @Override
                     public PixelColor getExpectedColor(int x, int y) {
                         int halfWidth = DEFAULT_LAYOUT_WIDTH / 2;
@@ -843,7 +847,7 @@ public class SurfaceControlTest {
                     }
                 },
 
-                new MultiRectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
+                new RectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
                     @Override
                     public PixelColor getExpectedColor(int x, int y) {
                         int halfWidth = DEFAULT_LAYOUT_WIDTH / 2;
@@ -877,7 +881,7 @@ public class SurfaceControlTest {
                                 .apply();
                     }
                 },
-                new MultiRectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
+                new RectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
                     @Override
                     public PixelColor getExpectedColor(int x, int y) {
                         int halfWidth = DEFAULT_LAYOUT_WIDTH / 2;
@@ -951,6 +955,8 @@ public class SurfaceControlTest {
 
     @Test
     public void testSurfaceTransaction_setTransform_flipH() {
+        int halfWidth = DEFAULT_LAYOUT_WIDTH / 2;
+        int halfHeight = DEFAULT_LAYOUT_HEIGHT / 2;
         verifyTest(
                 new BasicSurfaceHolderCallback() {
                     @Override
@@ -965,11 +971,9 @@ public class SurfaceControlTest {
                                 .apply();
                     }
                 },
-                new MultiRectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
+                new RectChecker(new Rect(0, 0, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT)) {
                     @Override
                     public PixelColor getExpectedColor(int x, int y) {
-                        int halfWidth = DEFAULT_LAYOUT_WIDTH / 2;
-                        int halfHeight = DEFAULT_LAYOUT_HEIGHT / 2;
                         if (x < halfWidth && y < halfHeight) {
                             return BLUE;
                         } else if (x >= halfWidth && y < halfHeight) {
@@ -1574,5 +1578,104 @@ public class SurfaceControlTest {
         );
 
         assertTrue(releaseCounter.await(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    public void testSetExtendedRangeBrightness() throws Exception {
+        mActivity.awaitReadyState();
+        Display display = mActivity.getDisplay();
+        if (!display.isHdrSdrRatioAvailable()) {
+            assertEquals(1.0f, display.getHdrSdrRatio(), 0.0001f);
+        }
+        // Set something super low so that if hdr/sdr ratio is available, we'll get some level
+        // of HDR probably
+        mActivity.getWindow().getAttributes().screenBrightness = 0.01f;
+        // Wait for the screenBrightness to be picked up by VRI
+        WidgetTestUtils.runOnMainAndDrawSync(mActivity.getParentFrameLayout(), () -> {});
+        CountDownLatch hdrReady = new CountDownLatch(1);
+        Exception[] listenerErrors = new Exception[1];
+        if (display.isHdrSdrRatioAvailable()) {
+            display.registerHdrSdrRatioChangedListener(Runnable::run, new Consumer<Display>() {
+                boolean mIsRegistered = true;
+
+                @Override
+                public void accept(Display updatedDisplay) {
+                    try {
+                        assertEquals(display.getDisplayId(), updatedDisplay.getDisplayId());
+                        assertTrue(mIsRegistered);
+                        if (display.getHdrSdrRatio() > 2.f) {
+                            hdrReady.countDown();
+                            display.unregisterHdrSdrRatioChangedListener(this);
+                            mIsRegistered = false;
+                        }
+                    } catch (Exception e) {
+                        synchronized (mActivity) {
+                            listenerErrors[0] = e;
+                            hdrReady.countDown();
+                        }
+                    }
+                }
+            });
+        } else {
+            assertThrows(IllegalStateException.class, () ->
+                    display.registerHdrSdrRatioChangedListener(Runnable::run, ignored -> {}));
+        }
+
+        final int extendedDataspace = DataSpace.pack(DataSpace.STANDARD_BT709,
+                DataSpace.TRANSFER_SRGB, DataSpace.RANGE_EXTENDED);
+        final HardwareBuffer buffer = getSolidBuffer(DEFAULT_LAYOUT_WIDTH,
+                DEFAULT_LAYOUT_HEIGHT, Color.RED);
+
+        verifyTest(
+                new BasicSurfaceHolderCallback() {
+                    @Override
+                    public void surfaceCreated(SurfaceHolder holder) {
+                        SurfaceControl surfaceControl = createFromWindow(holder);
+                        new SurfaceControl.Transaction()
+                                .setBuffer(surfaceControl, buffer)
+                                .setDataSpace(surfaceControl, extendedDataspace)
+                                .setExtendedRangeBrightness(surfaceControl, 1.f, 3.f)
+                                .apply();
+                    }
+                },
+                new PixelChecker(Color.RED) { //10000
+                    @Override
+                    public boolean checkPixels(int pixelCount, int width, int height) {
+                        return pixelCount > 9000 && pixelCount < 11000;
+                    }
+                });
+
+        // This isn't actually an error if it never happens, it's not _required_ that there's HDR
+        // headroom available...
+        if (display.isHdrSdrRatioAvailable()) {
+            hdrReady.await(1, TimeUnit.SECONDS);
+        }
+
+        if (display.getHdrSdrRatio() > 2.f) {
+            verifyTest(
+                    new BasicSurfaceHolderCallback() {
+                        @Override
+                        public void surfaceCreated(SurfaceHolder holder) {
+                            SurfaceControl surfaceControl = createFromWindow(holder);
+                            new SurfaceControl.Transaction()
+                                    .setBuffer(surfaceControl, buffer)
+                                    .setDataSpace(surfaceControl, extendedDataspace)
+                                    .setExtendedRangeBrightness(surfaceControl, 2.f, 3.f)
+                                    .apply();
+                        }
+                    },
+                    new PixelChecker(Color.RED) { //10000
+                        @Override
+                        public boolean checkPixels(int pixelCount, int width, int height) {
+                            return pixelCount > 9000 && pixelCount < 11000;
+                        }
+                    });
+        }
+
+        synchronized (mActivity) {
+            if (listenerErrors[0] != null) {
+                throw listenerErrors[0];
+            }
+        }
     }
 }

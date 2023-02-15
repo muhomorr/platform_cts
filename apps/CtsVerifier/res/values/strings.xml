@@ -323,12 +323,12 @@
     <!-- Strings for SharesheetTest -->
     <string name="sharesheet_test">Sharesheet Test</string>
     <string name="sharesheet_test_info">The sharesheet test validates that the user
-        is presented with the option of reselecting media if the source app indicates it.</string>
+        is presented with the option of modifying the share if the source app indicates it.</string>
     <string name="sharesheet_test_instructions">When you press "Share" below, you will be shown
         the system sharesheet sharing an image of the letter \'A\'. On this
-        sharesheet, there should be something you can tap to change what you\'re sharing
-        (can be shown as a way to reselect media, add images, etc). It can have different names
-        on different devices or be instead repreasented by an icon. Tap on that to
+        sharesheet, there should be something you can tap to modify the share (e.g. by selecting
+        different images, a different format, etc). It can have different names
+        on different devices or be instead represented by an icon. Tap on that to
         complete the test. If it works correctly, the sharesheet will dismiss
         and you\'ll be able to mark the test as complete. No need to share the image
         to any app targets or otherwise interact with the sharesheet. If you can\'t see a way to do
@@ -2434,6 +2434,21 @@
         notification. Tap on its action. Verify that the keyguard displays on tap, and that the
         notification text does not update until the passcode is entered. Ensure that the notification
         text does update once the device is unlocked.</string>
+    <string name="nd_test">Notification Dismiss Test</string>
+    <string name="nd_test_info">This test checks if Notifications can only be
+        dismissed, when it is allowed.</string>
+    <string name="nd_notif_title">NotifDismissTest</string>
+    <string name="nd_notif_public_version_title">NotifDismissTest: REDACTED</string>
+    <string name="nd_notif_private_version_title">NotifDismissTest: EXPOSED</string>
+    <string name="dismiss_notif_from_the_shade">Open the shade while the device is unlocked and find the NotifDismissTest notification.\n
+        Swipe it to either side to dismiss it.\n
+        Fail the test if it could\'t be dismissed.</string>
+    <string name="dismiss_notif_from_the_ls">Lock the screen and find the NotifDismissTest notification.\n
+        Swipe it to either side to dismiss it.\n
+        Fail the test if it couldn\'t be dismissed from the lock screen.</string>
+    <string name="non_dismissable_notif_from_the_ls">Lock the screen and find the NotifDismissTest notification.\n
+        Try to dismiss it. Verify that it is non-dismissible.\n
+        Fail the test if it could be dismissed from the lock screen.</string>
     <string name="np_start_channel_settings">Launch Channel Settings</string>
     <string name="np_start_security_settings">Launch Security Settings</string>
     <string name="np_start_notif_settings">Launch Notification Settings</string>
@@ -2463,18 +2478,17 @@
         \nPull down the notification shade and look for the NotifPrivacyTest notification.
         \nFail the test if it can be found without unlocking the device.
         \n\nGo back when ready to Pass/Fail the step.</string>
-    <string name="np_public_version_text">NotifPrivacyTest: REDACTED</string>
+    <string name="np_public_version_text">NotifPrivacyTefst: REDACTED</string>
     <string name="np_private_version_text">NotifPrivacyTest: EXPOSED</string>
     <string name="notif_privacy_test">Notification Privacy Test</string>
     <string name="notif_privacy_info">This test checks that Notification privacy is correctly
         handled on the insecure and secure lockscreen.
     </string>
     <string name="msg_extras_preserved">Check that Message extras Bundle was preserved.</string>
-    <string name="conversation_section_ordering">If this device supports conversation notifications,
-        and groups them into a separate section from alerting and silent non-conversation
-        notifications, fully expand the notification display and verify that the \"Person A\"
-        notification appears before the "\Non-Person Notification\".
-        If this device does not support conversation notifications or does not group them together, press Pass.</string>
+    <string name="conversation_section_ordering">Fully expand the notification display and verify
+        that the \"Person A\" notification appears before the "\Non-Person Notification\".
+        If this is not a 'handheld' device and does not support conversation notifications or does
+        not group them together, press Pass.</string>
     <string name="hun_display">If this device supports heads-up notifications,
         verify that a notification just peeked on screen, displaying all of the following: small
         icon, large icon, notification title, notification text, and two action buttons.
@@ -2574,7 +2588,8 @@ When the buttons are enabled, pass this test if the information in the dialog wa
     <string name="nls_clear_one">Check that service can clear a notification.</string>
     <string name="nls_clear_one_reason">Check that service can clear a notification and receive the correct reason for dismissal.</string>
     <string name="nls_clear_one_stats">Check that service does not receive notification stats.</string>
-    <string name="nls_clear_all">Check that service can clear all notifications.</string>
+    <string name="nls_clear_all">Check that service can clear all notifications that are not ongoing.</string>
+    <string name="nls_clear_ongoing">Check that service cannot clear an ongoing notification.</string>
     <string name="nls_service_stopped">Service should stop once disabled.</string>
     <string name="nls_note_missed">Check that notification was not received.</string>
     <string name="nls_snooze">Check the service can be snoozed.</string>
@@ -2587,7 +2602,10 @@ When the buttons are enabled, pass this test if the information in the dialog wa
     <string name="nls_change_type_filter">Click this button to launch the settings page for this app\'s notification listener in settings. Note what types were checked and which were disabled before you make any changes. View the list of apps and note any that are not allowed. Change the filter types to allow everything except ongoing and silent notifications, and then return to this screen</string>
     <string name="nls_original_filter_verification">Were only alerting and silent notifications allowed? Was the Settings app not allowed? Was the ongoing option disabled? Are all only conversations and alerting notification types allowed now?</string>
     <string name="nls_filter_test">Checking that an alerting notification is received and a silent one is not</string>
-    <string name="nls_reset_type_filter">Go to settings and allow all notification types, and then return here.</string>
+    <string name="nls_reset_type_add_app_filter">Go to settings and allow all possible notification types, then turn off \"CTS Verifier\" in the app filter, and then return here.</string>
+    <string name="nls_reset_app_filter">Go to settings and allow this listener to see notifications from all apps, and then return here.</string>
+    <string name="nls_confirm_filter_selection">Confirm that the type and app filters are updated</string>
+    <string name="nls_confirm_notification_not_visible">Checking visibility of notification from CTSVerifier</string>
     <string name="nas_note_missed_enqueued">Check that notification was not enqueued.</string>
     <string name="cp_test">Condition Provider test</string>
     <string name="cp_service_name">Condition Provider for CTS Verifier</string>
@@ -6716,6 +6734,8 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="stop_advertising_presence">Stop Advertising</string>
     <string name="device_id_info_presence">You are advertising with deviceId: %1$d</string>
     <string name="device_found_presence">Reference device found. %1$d of %2$d samples collected</string>
+    <string name="dut_test_result_info_presence">Tx RSSI median: %1$d. Rx RSSI median received from reference device: %2$d</string>
+    <string name="ref_test_result_info_presence">Rx RSSI median computed: %1$d.</string>
     <string name="reference_device_id_input_presence">Enter the device ID displayed on the advertising device</string>
 
     <!-- Strings for BLE RSSI Precision Test -->
@@ -6726,6 +6746,19 @@ Follow the instructions on the screen to measure the frequency response for the 
         \n1. Ensure that the reference device is already advertising.
         \n2. Input the device ID of the reference device (displayed on the reference device) into the provided field and click "Start Test"
         \n3. The test is automatically stopped and passed (or failed )when all the required data is collected
+        \nReference device instructions
+        \n1. Ensure that the "Is reference device" checkbox is checked, then click, "Start Advertising"
+    </string>
+
+    <!-- Strings for BLE Rx/Tx Offset Precision Test -->
+    <string name="ble_rx_tx_offset_precision_name">BLE Rx/Tx Offset Precision Test</string>
+    <string name="ble_rx_tx_offset_precision_test_instructions">
+        Place the device under test (DUT) at 1m from the reference device (advertising device) in line of sight environment
+        \nDUT instructions
+        \n1. Ensure that the test is already started on the reference device.
+        \n2. Input the device ID of the reference device (displayed on the reference device) into the provided field and click "Start Test"
+        \n3. The test is automatically stopped and passed (or failed) when all the required data is collected
+        \n4. The test is passed if the median RSSI from both DUT and reference device is between -45dBm and 65dBm.
         \nReference device instructions
         \n1. Ensure that the "Is reference device" checkbox is checked, then click, "Start Advertising"
     </string>

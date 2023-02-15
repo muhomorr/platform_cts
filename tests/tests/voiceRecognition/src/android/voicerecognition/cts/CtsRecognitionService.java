@@ -27,14 +27,17 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.fail;
 
+import android.content.AttributionSource;
 import android.content.Intent;
 import android.os.RemoteException;
+import android.speech.ModelDownloadListener;
 import android.speech.RecognitionService;
 import android.speech.SpeechRecognizer;
 import android.util.Log;
 import android.util.Pair;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -68,6 +71,7 @@ public class CtsRecognitionService extends RecognitionService {
     static final int MAX_CONCURRENT_SESSIONS_COUNT = 3;
 
     private final Random mRandom = new Random();
+    private final Map<String, ModelDownloadListener> mModelDownloadListenerMap = new HashMap<>();
 
     @Override
     protected void onStartListening(Intent recognizerIntent, Callback listener) {
@@ -100,18 +104,47 @@ public class CtsRecognitionService extends RecognitionService {
     @Override
     public void onCheckRecognitionSupport(
             @NonNull Intent recognizerIntent,
+            @NonNull AttributionSource attributionSource,
             @NonNull SupportCallback supportCallback) {
         Consumer<SupportCallback> consumer = sConsumerQueue.poll();
         if (consumer == null) {
             supportCallback.onError(SpeechRecognizer.ERROR_CANNOT_CHECK_SUPPORT);
         } else {
+            assertThat(attributionSource.getUid()).isEqualTo(android.os.Process.myUid());
             consumer.accept(supportCallback);
         }
     }
 
     @Override
-    public void onTriggerModelDownload(@NonNull Intent recognizerIntent) {
+    public void onTriggerModelDownload(
+            @NonNull Intent recognizerIntent,
+            @NonNull AttributionSource attributionSource) {
+        assertThat(attributionSource.getUid()).isEqualTo(android.os.Process.myUid());
+        ModelDownloadListener listener = mModelDownloadListenerMap.get(recognizerIntent.toUri(0));
+        if (listener != null) {
+            listener.onProgress(50);
+            listener.onScheduled();
+            listener.onSuccess();
+            listener.onError(0);
+        }
         sDownloadTriggers.add(recognizerIntent);
+    }
+
+    @Override
+    public void setModelDownloadListener(
+            @NonNull Intent recognizerIntent,
+            @NonNull AttributionSource attributionSource,
+            @Nullable ModelDownloadListener modelDownloadListener) {
+        assertThat(attributionSource.getUid()).isEqualTo(android.os.Process.myUid());
+        mModelDownloadListenerMap.put(recognizerIntent.toUri(0), modelDownloadListener);
+    }
+
+    @Override
+    public void clearModelDownloadListener(
+            @NonNull Intent recognizerIntent,
+            @NonNull AttributionSource attributionSource) {
+        assertThat(attributionSource.getUid()).isEqualTo(android.os.Process.myUid());
+        mModelDownloadListenerMap.remove(recognizerIntent.toUri(0));
     }
 
     @Override

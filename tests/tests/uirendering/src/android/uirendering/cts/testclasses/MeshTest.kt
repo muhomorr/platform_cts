@@ -25,6 +25,7 @@ import android.graphics.MeshSpecification
 import android.graphics.Paint
 import android.graphics.Point
 import android.graphics.Rect
+import android.graphics.RectF
 import android.uirendering.cts.bitmapverifiers.RectVerifier
 import android.uirendering.cts.bitmapverifiers.SamplePointVerifier
 import android.uirendering.cts.testinfrastructure.ActivityTestBase
@@ -32,6 +33,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import java.nio.FloatBuffer
 import java.nio.ShortBuffer
+import kotlin.test.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -106,20 +108,20 @@ class MeshTest : ActivityTestBase() {
                 simpleAttributeList, 8, simpleVaryingList,
                 simpleVertexShader, simpleFragmentShader,
                 ColorSpace.get(ColorSpace.Named.DISPLAY_P3),
-                MeshSpecification.PREMUL
+                MeshSpecification.ALPHA_TYPE_PREMUL
         )
     }
 
     @Test
     fun testMeshSpecMakeWithUnorderedAttributes() {
-        val attList = mutableListOf(
+        val attList = arrayOf(
                 MeshSpecification.Attribute(
-                        MeshSpecification.FLOAT2,
+                        MeshSpecification.TYPE_FLOAT2,
                         12,
                         "position"
                 ),
                 MeshSpecification.Attribute(
-                        MeshSpecification.FLOAT3,
+                        MeshSpecification.TYPE_FLOAT3,
                         0,
                         "test"
                 )
@@ -140,8 +142,8 @@ class MeshTest : ActivityTestBase() {
 
     @Test
     fun testMeshSpecMakeWithNonEmptyVaryings() {
-        val varyList = mutableListOf(
-                MeshSpecification.Varying(MeshSpecification.FLOAT2, "uv")
+        val varyList = arrayOf(
+                MeshSpecification.Varying(MeshSpecification.TYPE_FLOAT2, "uv")
         )
         MeshSpecification.make(
                 simpleAttributeList, 8, varyList, simpleVertexShader,
@@ -166,7 +168,7 @@ class MeshTest : ActivityTestBase() {
         vertexBuffer.put(50f)
         vertexBuffer.rewind()
         assertThrows(IllegalArgumentException::class.java) {
-            Mesh.make(meshSpec, 6, vertexBuffer, 3, Rect(0, 0, 0, 0))
+            Mesh(meshSpec, 6, vertexBuffer, 3, RectF(0f, 0f, 0f, 0f))
         }
     }
 
@@ -185,7 +187,7 @@ class MeshTest : ActivityTestBase() {
         vertexBuffer.put(50f)
         vertexBuffer.rewind()
         assertThrows(IllegalArgumentException::class.java) {
-            Mesh.make(meshSpec, Mesh.TRIANGLES, vertexBuffer, 1, Rect(0, 0, 0, 0))
+            Mesh(meshSpec, Mesh.TRIANGLES, vertexBuffer, 1, RectF(0f, 0f, 0f, 0f))
         }
     }
 
@@ -204,7 +206,7 @@ class MeshTest : ActivityTestBase() {
         vertexBuffer.put(50f)
         vertexBuffer.rewind()
         assertThrows(IllegalArgumentException::class.java) {
-            Mesh.make(meshSpec, Mesh.TRIANGLES, vertexBuffer, 100, Rect(0, 0, 0, 0))
+            Mesh(meshSpec, Mesh.TRIANGLES, vertexBuffer, 100, RectF(0f, 0f, 0f, 0f))
         }
     }
 
@@ -222,7 +224,7 @@ class MeshTest : ActivityTestBase() {
         vertexBuffer.put(0f)
         vertexBuffer.put(50f)
         assertThrows(IllegalArgumentException::class.java) {
-            Mesh.make(meshSpec, Mesh.TRIANGLES, vertexBuffer, 3, Rect(0, 0, 0, 0))
+            Mesh(meshSpec, Mesh.TRIANGLES, vertexBuffer, 3, RectF(0f, 0f, 0f, 0f))
         }
     }
 
@@ -240,7 +242,7 @@ class MeshTest : ActivityTestBase() {
         vertexBuffer.put(0f)
         vertexBuffer.put(50f)
         vertexBuffer.rewind()
-        val mesh = Mesh.make(meshSpec, Mesh.TRIANGLES, vertexBuffer, 3, Rect(0, 0, 0, 0))
+        val mesh = Mesh(meshSpec, Mesh.TRIANGLES, vertexBuffer, 3, RectF(0f, 0f, 0f, 0f))
 
         assertThrows(IllegalArgumentException::class.java) {
             mesh.setFloatUniform("test", 1f)
@@ -261,7 +263,7 @@ class MeshTest : ActivityTestBase() {
         vertexBuffer.put(0f)
         vertexBuffer.put(50f)
         vertexBuffer.rewind()
-        Mesh.make(meshSpec, Mesh.TRIANGLES, vertexBuffer, 3, Rect(0, 0, 0, 0))
+        Mesh(meshSpec, Mesh.TRIANGLES, vertexBuffer, 3, RectF(0f, 0f, 0f, 0f))
     }
 
     @Test
@@ -283,9 +285,9 @@ class MeshTest : ActivityTestBase() {
         indexBuffer.put(1, 1)
         indexBuffer.put(2, 2)
         indexBuffer.rewind()
-        Mesh.makeIndexed(
+        Mesh(
                 meshSpec, Mesh.TRIANGLES, vertexBuffer, 3, indexBuffer,
-                Rect(0, 0, 100, 100)
+                RectF(0f, 0f, 100f, 100f)
         )
     }
 
@@ -314,9 +316,9 @@ class MeshTest : ActivityTestBase() {
         val rect = Rect(20, 20, 80, 80)
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.make(
+        val mesh = Mesh(
                 meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
-                Rect(20, 20, 80, 80)
+                RectF(20f, 20f, 80f, 80f)
         )
 
         createTest().addCanvasClient({ canvas: Canvas, width: Int, height: Int ->
@@ -369,9 +371,9 @@ class MeshTest : ActivityTestBase() {
 
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.makeIndexed(
+        val mesh = Mesh(
                 meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
-                indexBuffer, Rect(20, 20, 90, 90)
+                indexBuffer, RectF(20f, 20f, 90f, 90f)
         )
         val points = Array(3) {
             Point(30, 30)
@@ -417,9 +419,9 @@ class MeshTest : ActivityTestBase() {
         val rect = Rect(20, 20, 80, 80)
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.make(
+        val mesh = Mesh(
                 meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
-                Rect(20, 20, 80, 80)
+                RectF(20f, 20f, 80f, 80f)
         )
 
         mesh.setColorUniform("color", Color.GREEN)
@@ -457,9 +459,9 @@ class MeshTest : ActivityTestBase() {
         val rect = Rect(20, 20, 80, 80)
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.make(
-            meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
-            Rect(20, 20, 80, 80)
+        val mesh = Mesh(
+                meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
+                RectF(20f, 20f, 80f, 80f)
         )
 
         mesh.setColorUniform("color", Color())
@@ -497,9 +499,9 @@ class MeshTest : ActivityTestBase() {
         val rect = Rect(20, 20, 80, 80)
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.make(
-            meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
-            Rect(20, 20, 80, 80)
+        val mesh = Mesh(
+                meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
+                RectF(20f, 20f, 80f, 80f)
         )
 
         mesh.setColorUniform("color", 0L)
@@ -537,9 +539,9 @@ class MeshTest : ActivityTestBase() {
         val rect = Rect(20, 20, 80, 80)
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.make(
-            meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
-            Rect(20, 20, 80, 80)
+        val mesh = Mesh(
+                meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
+                RectF(20f, 20f, 80f, 80f)
         )
 
         mesh.setIntUniform("test", 2)
@@ -577,9 +579,9 @@ class MeshTest : ActivityTestBase() {
         val rect = Rect(20, 20, 80, 80)
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.make(
-            meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
-            Rect(20, 20, 80, 80)
+        val mesh = Mesh(
+                meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
+                RectF(20f, 20f, 80f, 80f)
         )
 
         mesh.setIntUniform("test", 1, 2)
@@ -617,9 +619,9 @@ class MeshTest : ActivityTestBase() {
         val rect = Rect(20, 20, 80, 80)
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.make(
-            meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
-            Rect(20, 20, 80, 80)
+        val mesh = Mesh(
+                meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
+                RectF(20f, 20f, 80f, 80f)
         )
 
         mesh.setIntUniform("test", 1, 2, 3)
@@ -657,9 +659,9 @@ class MeshTest : ActivityTestBase() {
         val rect = Rect(20, 20, 80, 80)
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.make(
-            meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
-            Rect(20, 20, 80, 80)
+        val mesh = Mesh(
+                meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
+                RectF(20f, 20f, 80f, 80f)
         )
 
         mesh.setIntUniform("test", 1, 2, 3, 4)
@@ -697,9 +699,9 @@ class MeshTest : ActivityTestBase() {
         val rect = Rect(20, 20, 80, 80)
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.make(
-            meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
-            Rect(20, 20, 80, 80)
+        val mesh = Mesh(
+                meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
+                RectF(20f, 20f, 80f, 80f)
         )
 
         mesh.setIntUniform("test", intArrayOf(1, 2, 3, 4))
@@ -737,9 +739,9 @@ class MeshTest : ActivityTestBase() {
         val rect = Rect(20, 20, 80, 80)
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.make(
-            meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
-            Rect(20, 20, 80, 80)
+        val mesh = Mesh(
+                meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
+                RectF(20f, 20f, 80f, 80f)
         )
 
         mesh.setFloatUniform("test", 1f)
@@ -777,9 +779,9 @@ class MeshTest : ActivityTestBase() {
         val rect = Rect(20, 20, 80, 80)
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.make(
-            meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
-            Rect(20, 20, 80, 80)
+        val mesh = Mesh(
+                meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
+                RectF(20f, 20f, 80f, 80f)
         )
 
         mesh.setFloatUniform("test", 1f, 2f)
@@ -817,9 +819,9 @@ class MeshTest : ActivityTestBase() {
         val rect = Rect(20, 20, 80, 80)
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.make(
-            meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
-            Rect(20, 20, 80, 80)
+        val mesh = Mesh(
+                meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
+                RectF(20f, 20f, 80f, 80f)
         )
 
         mesh.setFloatUniform("test", 1f, 2f, 3f)
@@ -857,9 +859,9 @@ class MeshTest : ActivityTestBase() {
         val rect = Rect(20, 20, 80, 80)
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.make(
-            meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
-            Rect(20, 20, 80, 80)
+        val mesh = Mesh(
+                meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
+                RectF(20f, 20f, 80f, 80f)
         )
 
         mesh.setFloatUniform("test", 1f, 2f, 3f, 4f)
@@ -897,9 +899,9 @@ class MeshTest : ActivityTestBase() {
         val rect = Rect(20, 20, 80, 80)
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.make(
-            meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
-            Rect(20, 20, 80, 80)
+        val mesh = Mesh(
+                meshSpec, Mesh.TRIANGLES, vertexBuffer, 6,
+                RectF(20f, 20f, 80f, 80f)
         )
 
         mesh.setFloatUniform("test", floatArrayOf(1f, 2f))
@@ -910,14 +912,14 @@ class MeshTest : ActivityTestBase() {
 
     @Test
     fun testDrawMeshWithOutOfOrderAttributes() {
-        val attList = mutableListOf(
+        val attList = arrayOf(
                 MeshSpecification.Attribute(
-                        MeshSpecification.FLOAT,
+                        MeshSpecification.TYPE_FLOAT,
                         8,
                         "offset"
                 ),
                 MeshSpecification.Attribute(
-                        MeshSpecification.FLOAT2,
+                        MeshSpecification.TYPE_FLOAT2,
                         0,
                         "position"
                 )
@@ -950,9 +952,9 @@ class MeshTest : ActivityTestBase() {
         val rect = Rect(20, 20, 80, 80)
         val paint = Paint()
         paint.color = Color.BLUE
-        val mesh = Mesh.makeIndexed(
+        val mesh = Mesh(
                 meshSpec, Mesh.TRIANGLES, vertexBuffer, 4,
-                indexBuffer, Rect(20, 20, 80, 80)
+                indexBuffer, RectF(20f, 20f, 80f, 80f)
         )
 
         createTest().addCanvasClient({ canvas: Canvas, width: Int, height: Int ->
@@ -960,25 +962,44 @@ class MeshTest : ActivityTestBase() {
         }, true).runWithVerifier(RectVerifier(Color.WHITE, paint.color, rect))
     }
 
+    @Test
+    fun testAttributeParams() {
+        val attribute = MeshSpecification.Attribute(
+            MeshSpecification.TYPE_FLOAT3, 12, "myAttribute")
+        assertEquals(MeshSpecification.TYPE_FLOAT3, attribute.type)
+        assertEquals(12, attribute.offset)
+        assertEquals("myAttribute", attribute.name)
+    }
+
+    @Test
+    fun testVaryingParams() {
+        val varying = MeshSpecification.Varying(
+            MeshSpecification.TYPE_FLOAT2, "myVarying")
+        assertEquals(MeshSpecification.TYPE_FLOAT2, varying.type)
+        assertEquals("myVarying", varying.name)
+    }
+
     // /////////////    Test Values    ///////////////
 
-    val simpleAttributeList: MutableList<MeshSpecification.Attribute> = mutableListOf(
+    private val simpleAttributeList = arrayOf(
             MeshSpecification.Attribute(
-                    MeshSpecification.FLOAT2,
+                    MeshSpecification.TYPE_FLOAT2,
                     0,
                     "position"
             )
     )
 
-    val simpleVaryingList = java.util.ArrayList<MeshSpecification.Varying>()
+    private val simpleVaryingList = arrayOf<MeshSpecification.Varying>()
 
-    val simpleVertexShader = ("Varyings main(const Attributes attributes) { " +
+    private val simpleVertexShader =
+        ("Varyings main(const Attributes attributes) { " +
             "     Varyings varyings;" +
             "     varyings.position = attributes.position;" +
             "     return varyings;" +
             "}")
 
-    val simpleFragmentShader = ("float2 main(const Varyings varyings, out float4 color) {\n" +
+    private val simpleFragmentShader =
+        ("float2 main(const Varyings varyings, out float4 color) {\n" +
             "      color = vec4(1.0, 0.0, 0.0, 1.0);" +
             "      return varyings.position;\n" +
             "}")

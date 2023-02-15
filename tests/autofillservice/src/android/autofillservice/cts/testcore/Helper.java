@@ -1016,6 +1016,15 @@ public final class Helper {
     }
 
     /**
+     * Sets the pcc detection service temporarily for 300 seconds.
+     */
+    public static void setAutofillDetectionService(String service) {
+        Log.d(TAG, "setAutofillDetectionService");
+        runShellCommand("cmd autofill set temporary-detection-service 0 %s 30000",
+                service);
+    }
+
+    /**
      * Gets the instrumentation context.
      */
     public static Context getContext() {
@@ -1685,6 +1694,31 @@ public final class Helper {
                 new DeviceConfigStateManager(context, DeviceConfig.NAMESPACE_AUTOFILL,
                         AutofillFeatureFlags.DEVICE_CONFIG_AUTOFILL_DIALOG_ENABLED);
         setDeviceConfig(deviceConfigStateManager, "true");
+    }
+
+    /**
+     * Enable PCC Detection Feature Hints
+     */
+    public static void enablePccDetectionFeature(@NonNull Context context, String...types) {
+        DeviceConfigStateManager deviceConfigStateManager =
+                new DeviceConfigStateManager(context, DeviceConfig.NAMESPACE_AUTOFILL,
+                        AutofillFeatureFlags.DEVICE_CONFIG_AUTOFILL_PCC_FEATURE_PROVIDER_HINTS);
+        setDeviceConfig(deviceConfigStateManager, TextUtils.join(",", types));
+
+        DeviceConfigStateManager deviceConfigStateManager2 =
+                new DeviceConfigStateManager(context, DeviceConfig.NAMESPACE_AUTOFILL,
+                        AutofillFeatureFlags.DEVICE_CONFIG_AUTOFILL_PCC_CLASSIFICATION_ENABLED);
+        setDeviceConfig(deviceConfigStateManager2, "true");
+    }
+
+    /**
+     * Disable PCC Detection Feature
+     */
+    public static void disablePccDetectionFeature(@NonNull Context context) {
+        DeviceConfigStateManager deviceConfigStateManager2 =
+                new DeviceConfigStateManager(context, DeviceConfig.NAMESPACE_AUTOFILL,
+                        AutofillFeatureFlags.DEVICE_CONFIG_AUTOFILL_PCC_CLASSIFICATION_ENABLED);
+        setDeviceConfig(deviceConfigStateManager2, "false");
     }
 
     /**

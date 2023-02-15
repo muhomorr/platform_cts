@@ -1,0 +1,12 @@
+{
+  "presubmit": [
+    {
+      "name": "CtsDevicePolicyTestCases",
+      "options": [
+        {
+          "include-annotation": "com.android.bedstead.harrier.annotations.LocalPresubmit"
+        }
+      ]
+    }
+  ]
+}

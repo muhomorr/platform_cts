@@ -20,6 +20,7 @@ import static android.Manifest.permission.POST_NOTIFICATIONS;
 import static android.accessibility.cts.common.InstrumentedAccessibilityService.TIMEOUT_SERVICE_ENABLE;
 import static android.accessibility.cts.common.InstrumentedAccessibilityService.enableService;
 import static android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK;
+import static android.accessibilityservice.MagnificationConfig.MAGNIFICATION_MODE_FULLSCREEN;
 import static android.accessibilityservice.cts.utils.AccessibilityEventFilterUtils.filterForEventType;
 import static android.accessibilityservice.cts.utils.AccessibilityEventFilterUtils.filterForEventTypeWithAction;
 import static android.accessibilityservice.cts.utils.AccessibilityEventFilterUtils.filterForEventTypeWithResource;
@@ -55,6 +56,7 @@ import android.accessibility.cts.common.InstrumentedAccessibilityService;
 import android.accessibility.cts.common.InstrumentedAccessibilityServiceTestRule;
 import android.accessibility.cts.common.ShellCommandBuilder;
 import android.accessibilityservice.AccessibilityServiceInfo;
+import android.accessibilityservice.MagnificationConfig;
 import android.accessibilityservice.cts.activities.AccessibilityEndToEndActivity;
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -1120,7 +1122,7 @@ public class AccessibilityEndToEndTest extends StsExtraBusinessLogicTestCase {
             sUiAutomation.executeAndWaitForEvent(
                     () -> assertTrue(root.findAccessibilityNodeInfosByViewId(adpViewName).get(
                             0).performAction(ACTION_ACCESSIBILITY_FOCUS)),
-                    filterForEventType(TYPE_VIEW_ACCESSIBILITY_FOCUSED),
+                    filterForEventTypeWithResource(TYPE_VIEW_ACCESSIBILITY_FOCUSED, adpViewName),
                     DEFAULT_TIMEOUT_MS);
             assertThat(sUiAutomation.findFocus(
                     AccessibilityNodeInfo.FOCUS_ACCESSIBILITY).getContentDescription()).isEqualTo(
@@ -1130,6 +1132,32 @@ public class AccessibilityEndToEndTest extends StsExtraBusinessLogicTestCase {
                     containerViewName).get(0);
             assertThat(parent.getChildCount()).isEqualTo(1);
             assertThat(parent.getChild(0)).isNotNull();
+        } finally {
+            enableTouchExploration(false);
+        }
+    }
+
+    @Test
+    @ApiTest(apis = {"android.view.View#isAccessibilityDataPrivate"})
+    public void testAccessibilityDataPrivate_canObserveHoverEvent() throws Throwable {
+        try {
+            setAccessibilityTool(true);
+            enableTouchExploration(true);
+
+            final long time = SystemClock.uptimeMillis();
+            final View view = mActivity.findViewById(R.id.innerView);
+            final int[] viewLocation = new int[2];
+            view.getLocationOnScreen(viewLocation);
+            final int x = viewLocation[0] + view.getWidth() / 2;
+            final int y = viewLocation[1] + view.getHeight() / 2;
+
+            sUiAutomation.executeAndWaitForEvent(
+                    () -> injectHoverEvent(time, true, x, y),
+                    filterForEventTypeWithResource(
+                            AccessibilityEvent.TYPE_VIEW_HOVER_ENTER,
+                            sInstrumentation.getTargetContext().getResources()
+                                    .getResourceName(R.id.innerView)),
+                    DEFAULT_TIMEOUT_MS);
         } finally {
             enableTouchExploration(false);
         }
@@ -1467,6 +1495,43 @@ public class AccessibilityEndToEndTest extends StsExtraBusinessLogicTestCase {
         mActivity.runOnUiThread(() -> mActivity.finish());
         TestUtils.waitOn(waitLock, () -> !hasAnyDirectConnection.get(), DEFAULT_TIMEOUT_MS,
                 "AccessibilityManager#hasAnyDirectConnection() still true");
+    }
+
+    @Test
+    @ApiTest(apis = {
+            "android.view.accessibility.AccessibilityNodeInfo#setQueryFromAppProcessEnabled"})
+    public void testDirectAccessibilityConnection_UsesCurrentWindowSpec() throws Throwable {
+        // Store the initial bounds of the ANI.
+        final View layoutView = mActivity.findViewById(R.id.buttonLayout);
+        final AccessibilityNodeInfo layoutNode = layoutView.createAccessibilityNodeInfo();
+        final Rect initialBounds = new Rect();
+        layoutNode.setQueryFromAppProcessEnabled(layoutView, true);
+        layoutNode.getBoundsInScreen(initialBounds);
+
+        // Magnify the screen.
+        final StubMagnificationAccessibilityService service =
+                InstrumentedAccessibilityService.enableService(
+                        StubMagnificationAccessibilityService.class);
+        try {
+            final MagnificationConfig magnificationConfig =
+                    new MagnificationConfig.Builder().setMode(MAGNIFICATION_MODE_FULLSCREEN)
+                            .setScale(2f).build();
+            service.runOnServiceSync(
+                    () -> service.getMagnificationController()
+                            .setMagnificationConfig(magnificationConfig, false));
+
+            // Check that the ANI bounds have changed.
+            TestUtils.waitUntil("Failed to refresh node with updated boundsInScreen",
+                    (int) DEFAULT_TIMEOUT_MS / 1000,
+                    () -> {
+                        final Rect boundsAfterMagnification = new Rect();
+                        layoutNode.refresh();
+                        layoutNode.getBoundsInScreen(boundsAfterMagnification);
+                        return !boundsAfterMagnification.equals(initialBounds);
+                    });
+        } finally {
+            service.disableSelfAndRemove();
+        }
     }
 
     @Test

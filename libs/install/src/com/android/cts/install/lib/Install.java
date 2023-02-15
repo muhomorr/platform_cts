@@ -20,8 +20,10 @@ import static com.google.common.truth.Truth.assertThat;
 
 import android.content.Intent;
 import android.content.pm.PackageInstaller;
+import android.os.Build;
 import android.text.TextUtils;
 
+import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.SystemUtil;
 
 import java.io.IOException;
@@ -245,8 +247,11 @@ public class Install {
         if (isApex && mBypassAllowedApexUpdateCheck) {
             SystemUtil.runShellCommandForNoOutput("pm bypass-allowed-apex-update-check true");
         }
-        SystemUtil.runShellCommandForNoOutput("pm disable-verification-for-uid "
-                + android.os.Process.myUid());
+        if (ApiLevelUtil.isAfter(Build.VERSION_CODES.TIRAMISU)) {
+            // This command is only available in U and later
+            SystemUtil.runShellCommandForNoOutput("pm disable-verification-for-uid "
+                    + android.os.Process.myUid());
+        }
         try {
             PackageInstaller.SessionParams params =
                     new PackageInstaller.SessionParams(mSessionMode);

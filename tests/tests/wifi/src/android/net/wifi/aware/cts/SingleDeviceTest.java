@@ -77,9 +77,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * Wi-Fi Aware CTS test suite: single device testing. Performs tests on a single
@@ -1714,6 +1718,65 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
             return;
         }
         assertThrows(SecurityException.class, () -> mWifiAwareManager.setAwareParams(null));
+    }
+
+    /**
+     * Verify {@link WifiAwareManager#setOpportunisticModeEnabled(boolean)} and
+     * {@link WifiAwareManager#isOpportunisticModeEnabled(Executor, Consumer)}
+     */
+    public void testSetOpportunistic() throws InterruptedException {
+        if (!TestUtils.shouldTestWifiAware(getContext())) {
+            return;
+        }
+        AtomicBoolean enabled = new AtomicBoolean(false);
+        Consumer<Boolean> result = value -> {
+            synchronized (mLock) {
+                enabled.set(value);
+                mLock.notify();
+            }
+        };
+        try {
+            mWifiAwareManager.setOpportunisticModeEnabled(true);
+            mWifiAwareManager.isOpportunisticModeEnabled(
+                    Executors.newSingleThreadScheduledExecutor(),
+                    result);
+            synchronized (mLock) {
+                mLock.wait(WAIT_FOR_AWARE_CHANGE_SECS * 1000);
+            }
+            assertTrue(enabled.get());
+        } finally {
+            mWifiAwareManager.setOpportunisticModeEnabled(false);
+        }
+    }
+
+    public void testSetMasterPreference() throws InterruptedException  {
+        if (!TestUtils.shouldTestWifiAware(getContext())) {
+            return;
+        }
+        UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        try {
+            uiAutomation.adoptShellPermissionIdentity();
+            AtomicInteger mp = new AtomicInteger(-1);
+            Consumer<Integer> result = value -> {
+                mp.set(value);
+                mLock.notify();
+            };
+            Executor executor = Executors.newSingleThreadScheduledExecutor();
+            WifiAwareSession session = attachAndGetSession();
+            session.getMasterPreference(executor, result);
+            synchronized (mLock) {
+                mLock.wait(WAIT_FOR_AWARE_CHANGE_SECS * 1000);
+            }
+            assertEquals(0, mp.get());
+            session.setMasterPreference(254);
+            session.getMasterPreference(executor, result);
+            synchronized (mLock) {
+                mLock.wait(WAIT_FOR_AWARE_CHANGE_SECS * 1000);
+            }
+            assertEquals(254, mp.get());
+        } finally {
+            uiAutomation.dropShellPermissionIdentity();
+        }
     }
 
     // local utilities

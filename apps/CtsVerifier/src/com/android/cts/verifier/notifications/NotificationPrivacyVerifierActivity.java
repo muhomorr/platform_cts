@@ -115,20 +115,17 @@ public class NotificationPrivacyVerifierActivity extends InteractiveVerifierActi
             tests.add(new SetChannelLockscreenVisibilityPrivateStep());
             // NOW TESTING: redacted by channel
             tests.add(new NotificationWhenLockedShowsRedactedTest());
-            // TODO: Test: notification CAN be dismissed on lockscreen
             tests.add(new NotificationWhenOccludedShowsRedactedTest());
 
             tests.add(new SetChannelLockscreenVisibilityPublicStep());
             // NOW TESTING: not redacted at all
             tests.add(new SecureActionOnLockScreenTest());
             tests.add(new NotificationWhenLockedShowsPrivateTest());
-            // TODO: Test: notification can NOT be dismissed on lockscreen
             tests.add(new NotificationWhenOccludedShowsPrivateTest());
 
             tests.add(new SetGlobalVisibilityPrivateStep());
             // NOW TESTING: redacted globally
             tests.add(new NotificationWhenLockedShowsRedactedTest());
-            // TODO: Test: notification CAN be dismissed on lockscreen
             tests.add(new NotificationWhenOccludedShowsRedactedTest());
 
             tests.add(new SetGlobalVisibilitySecretStep());
@@ -417,7 +414,6 @@ public class NotificationPrivacyVerifierActivity extends InteractiveVerifierActi
         }
     }
 
-
     private abstract class NotificationPrivacyBaseTest extends InteractiveTestCase {
         private View mView;
         @StringRes
@@ -550,5 +546,4 @@ public class NotificationPrivacyVerifierActivity extends InteractiveVerifierActi
             super(R.string.np_occluding_hidden);
         }
     }
-
 }

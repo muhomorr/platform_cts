@@ -125,15 +125,6 @@ class PhotoPickerPermissionTest : BaseUsePermissionTest() {
     }
 
     @Test
-    fun testAppShowsPickerWhenOnlySelectRequested() {
-        installPackage(APP_APK_PATH_IMPLICIT_USER_SELECT_STORAGE)
-        requestAppPermissions(READ_MEDIA_VISUAL_USER_SELECTED) {
-            findImageOrVideo(expected = true)
-            uiDevice.pressBack()
-        }
-    }
-
-    @Test
     fun testNoPhotoSelectionTreatedAsCancel() {
         installPackage(APP_APK_PATH_IMPLICIT_USER_SELECT_STORAGE)
         requestAppPermissionsAndAssertResult(
@@ -159,28 +150,19 @@ class PhotoPickerPermissionTest : BaseUsePermissionTest() {
         eventually {
             // USER_SELECTED should be granted, but not returned in the result
             assertAppHasPermission(READ_MEDIA_VISUAL_USER_SELECTED, expectPermission = true)
+            assertAppHasPermission(READ_MEDIA_VIDEO, expectPermission = true)
             assertPermissionFlags(
                 READ_MEDIA_IMAGES,
+                FLAG_PERMISSION_ONE_TIME to true,
+                FLAG_PERMISSION_REVOKED_COMPAT to true)
+            assertPermissionFlags(
+                READ_MEDIA_VIDEO,
                 FLAG_PERMISSION_ONE_TIME to true,
                 FLAG_PERMISSION_REVOKED_COMPAT to true)
             assertPermissionFlags(
                 READ_MEDIA_VISUAL_USER_SELECTED,
                 FLAG_PERMISSION_ONE_TIME to false,
                 FLAG_PERMISSION_REVOKED_COMPAT to false)
-        }
-    }
-
-    @Test
-    fun testImplicitShowsMorePhotosOnceSet() {
-        installPackage(APP_APK_PATH_IMPLICIT_USER_SELECT_STORAGE)
-        requestAppPermissions(READ_MEDIA_VISUAL_USER_SELECTED) {
-            clickImageOrVideo()
-            clickAllow()
-        }
-
-        requestAppPermissions(READ_MEDIA_IMAGES) {
-            waitFindObject(By.res(SELECT_MORE_PHOTOS_BUTTON))
-            uiDevice.pressBack()
         }
     }
 
@@ -278,8 +260,6 @@ class PhotoPickerPermissionTest : BaseUsePermissionTest() {
         installPackage(APP_APK_PATH_IMPLICIT_USER_SELECT_STORAGE)
         navigateToIndividualPermissionSetting(READ_MEDIA_IMAGES)
         click(By.res(SELECT_PHOTOS_RADIO_BUTTON))
-        clickImageOrVideo()
-        clickAllow()
 
         eventually {
             assertAppHasPermission(READ_MEDIA_IMAGES, expectPermission = false)
