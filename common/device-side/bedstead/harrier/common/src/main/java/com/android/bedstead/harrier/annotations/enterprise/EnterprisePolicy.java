@@ -83,7 +83,8 @@ public @interface EnterprisePolicy {
             APPLIES_TO_UNAFFILIATED_OTHER_USERS | APPLIES_TO_AFFILIATED_OTHER_USERS;
 
     /** A policy that applies to all users on the device. */
-    int APPLIES_GLOBALLY = APPLIES_TO_OWN_USER | APPLIES_TO_OTHER_USERS | APPLIES_TO_CHILD_PROFILES;
+    int APPLIES_GLOBALLY = APPLIES_TO_OWN_USER | APPLIES_TO_OTHER_USERS
+            | APPLIES_TO_CHILD_PROFILES | APPLIES_TO_PARENT;
 
 
     // Applied by
@@ -134,13 +135,17 @@ public @interface EnterprisePolicy {
     int APPLIED_BY_PARENT_INSTANCE_OF_PROFILE_OWNER_PROFILE =
             APPLIED_BY_PARENT_INSTANCE_OF_NON_ORGANIZATIONAL_OWNED_PROFILE_OWNER_PROFILE | APPLIED_BY_PARENT_INSTANCE_OF_ORGANIZATIONAL_OWNED_PROFILE_OWNER_PROFILE;
 
-    /** A policy that the DPM Role Holder has permission access to */
-    int APPLIED_BY_DPM_ROLE_HOLDER = 1 << 16;
-
     // Modifiers
     /** Internal use only. Do not use */
     // This is to be used to mark specific annotations as not generating PolicyDoesNotApply tests
     int DO_NOT_APPLY_TO_POLICY_DOES_NOT_APPLY_TESTS = 1 << 17;
+
+    /** Internal use only. Do not use */
+    // This is to be used to mark specific annotations as not generating PolicyDoesNotApply tests
+    int DO_NOT_APPLY_TO_CANNOT_SET_POLICY_TESTS = 1 << 23;
+
+    /** A policy that the DPM Role Holder has permission access to */
+    int APPLIED_BY_DPM_ROLE_HOLDER = 1 << 16 | (DO_NOT_APPLY_TO_CANNOT_SET_POLICY_TESTS);
 
     /**
      * A policy which applies even when the user is not in the foreground.

@@ -28,11 +28,13 @@ import static com.android.compatibility.common.util.SystemUtil.runWithShellPermi
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeThat;
 
 import android.Manifest;
 import android.app.PendingIntent;
@@ -52,6 +54,7 @@ import android.os.SystemProperties;
 import android.os.UserManager;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.annotations.SystemUserOnly;
+import android.provider.Settings;
 import android.server.wm.backgroundactivity.appa.Components;
 import android.server.wm.backgroundactivity.appa.IBackgroundActivityTestService;
 import android.server.wm.backgroundactivity.common.CommonComponents.Event;
@@ -188,7 +191,7 @@ public class BackgroundActivityLaunchTest extends BackgroundActivityTestBase {
     }
 
     @Test
-    public void testBackgroundActivityWhenSystemAlertWindowGrantedUsingsdk33_isNotBlocked()
+    public void testBackgroundActivityWhenSystemAlertWindowGranted_isNotBlocked()
             throws Exception {
         // enable appopp for SAW for this test
         AppOpsUtils.setOpMode(APP_A_33.APP_PACKAGE_NAME, "android:system_alert_window",
@@ -203,22 +206,6 @@ public class BackgroundActivityLaunchTest extends BackgroundActivityTestBase {
         mContext.sendBroadcast(intent);
         boolean result = waitForActivityFocused(APP_A_33.BACKGROUND_ACTIVITY);
         assertTrue("Not able to start foreground activity", result);
-    }
-
-    @Test
-    public void testBackgroundActivityBlockedWhenSystemAlertWindowGranted() throws Exception {
-        // enable appopp for SAW for this test
-        AppOpsUtils.setOpMode(APP_A.APP_PACKAGE_NAME, "android:system_alert_window",
-                MODE_ALLOWED);
-        assertEquals(AppOpsUtils.getOpMode(APP_A.APP_PACKAGE_NAME, "android:system_alert_window"),
-                MODE_ALLOWED);
-
-        // Start AppA background activity successfully as the package has SAW
-        Intent intent = new Intent();
-        intent.setComponent(APP_A.START_ACTIVITY_RECEIVER);
-        mContext.sendBroadcast(intent);
-        boolean result = waitForActivityFocused(APP_A.BACKGROUND_ACTIVITY);
-        assertFalse("Able to start foreground activity", result);
     }
 
     @Test
@@ -996,13 +983,20 @@ public class BackgroundActivityLaunchTest extends BackgroundActivityTestBase {
     }
 
     private void pressHomeAndWaitHomeResumed() {
+        assumeSetupComplete();
         pressHomeButton();
         mWmState.waitForHomeActivityVisible();
     }
 
     private void pressHomeAndWaitHomeResumed(int timeoutMs) {
+        assumeSetupComplete();
         pressHomeButton();
         assertActivityFocused(timeoutMs, mWmState.getHomeActivityName());
+    }
+
+    private void assumeSetupComplete() {
+        assumeThat(Settings.Secure.getInt(mContext.getContentResolver(),
+                Settings.Secure.USER_SETUP_COMPLETE, 0), is(1));
     }
 
     private boolean checkPackageResumed(String pkg) {

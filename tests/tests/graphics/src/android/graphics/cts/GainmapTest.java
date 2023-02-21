@@ -23,6 +23,7 @@ import android.graphics.Bitmap;
 import android.graphics.ColorSpace;
 import android.graphics.Gainmap;
 import android.graphics.ImageDecoder;
+import android.os.Parcel;
 
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -60,9 +61,9 @@ public class GainmapTest {
     }
 
     @Test
-    public void testJpegR() throws Exception {
+    public void testDecodeGainmap() throws Exception {
         Bitmap bitmap = ImageDecoder.decodeBitmap(
-                ImageDecoder.createSource(sContext.getResources(), R.raw.jpegr),
+                ImageDecoder.createSource(sContext.getResources(), R.raw.gainmap),
                 (decoder, info, source) -> decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE));
         assertNotNull(bitmap);
         assertTrue("Missing gainmap", bitmap.hasGainmap());
@@ -72,18 +73,16 @@ public class GainmapTest {
         assertNotNull(gainmap);
         Bitmap gainmapData = gainmap.getGainmapContents();
         assertNotNull(gainmapData);
-        assertEquals(Bitmap.Config.ALPHA_8, gainmapData.getConfig());
-        assertNull(gainmapData.getColorSpace());
+        assertEquals(Bitmap.Config.ARGB_8888, gainmapData.getConfig());
 
         assertAllAre(0.f, gainmap.getEpsilonSdr());
         assertAllAre(0.f, gainmap.getEpsilonHdr());
         assertAllAre(1.f, gainmap.getGamma());
         assertEquals(1.f, gainmap.getMinDisplayRatioForHdrTransition(), EPSILON);
 
-        final float ratioScalingFactor = 10.6643f;
-        assertAllAre(ratioScalingFactor, gainmap.getRatioMax());
-        assertAllAre(1.0f / ratioScalingFactor, gainmap.getRatioMin());
-        assertEquals(ratioScalingFactor, gainmap.getDisplayRatioForFullHdr(), EPSILON);
+        assertAllAre(4f, gainmap.getRatioMax());
+        assertAllAre(1.0f, gainmap.getRatioMin());
+        assertEquals(5f, gainmap.getDisplayRatioForFullHdr(), EPSILON);
     }
 
     @Test
@@ -116,5 +115,43 @@ public class GainmapTest {
         assertAre(3.1f, 3.2f, 3.3f, gainmap.getRatioMax());
         assertAre(0.1f, 0.2f, 0.3f, gainmap.getEpsilonSdr());
         assertAre(0.01f, 0.02f, 0.03f, gainmap.getEpsilonHdr());
+    }
+
+    @Test
+    public void testWriteToParcel() throws Exception {
+        Bitmap bitmap = ImageDecoder.decodeBitmap(
+                ImageDecoder.createSource(sContext.getResources(), R.raw.gainmap),
+                (decoder, info, source) -> decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE));
+        assertNotNull(bitmap);
+
+        Gainmap gainmap = bitmap.getGainmap();
+        assertNotNull(gainmap);
+        Bitmap gainmapData = gainmap.getGainmapContents();
+        assertNotNull(gainmapData);
+
+        Parcel p = Parcel.obtain();
+        gainmap.writeToParcel(p, 0);
+        p.setDataPosition(0);
+
+        Gainmap unparceledGainmap = Gainmap.CREATOR.createFromParcel(p);
+        assertNotNull(unparceledGainmap);
+        Bitmap unparceledGainmapData = unparceledGainmap.getGainmapContents();
+        assertNotNull(unparceledGainmapData);
+
+        assertTrue(gainmapData.sameAs(unparceledGainmapData));
+        assertEquals(gainmapData.getConfig(), unparceledGainmapData.getConfig());
+        assertEquals(gainmapData.getColorSpace(), unparceledGainmapData.getColorSpace());
+
+        assertArrayEquals(gainmap.getEpsilonSdr(), unparceledGainmap.getEpsilonSdr(), 0f);
+        assertArrayEquals(gainmap.getEpsilonHdr(), unparceledGainmap.getEpsilonHdr(), 0f);
+        assertArrayEquals(gainmap.getGamma(), unparceledGainmap.getGamma(), 0f);
+        assertEquals(gainmap.getMinDisplayRatioForHdrTransition(),
+                unparceledGainmap.getMinDisplayRatioForHdrTransition(), 0f);
+
+        assertArrayEquals(gainmap.getRatioMax(), unparceledGainmap.getRatioMax(), 0f);
+        assertArrayEquals(gainmap.getRatioMin(), unparceledGainmap.getRatioMin(), 0f);
+        assertEquals(gainmap.getDisplayRatioForFullHdr(),
+                unparceledGainmap.getDisplayRatioForFullHdr(), 0f);
+        p.recycle();
     }
 }
