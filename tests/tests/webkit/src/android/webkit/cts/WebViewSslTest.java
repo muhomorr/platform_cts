@@ -16,11 +16,11 @@
 
 package android.webkit.cts;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import android.annotation.CallSuper;
@@ -36,6 +36,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.cts.WebViewSyncLoader.WaitForLoadedClient;
 
+import androidx.annotation.Nullable;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
@@ -62,6 +63,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @AppModeFull(reason = "Instant apps cannot bind sockets")
+@MediumTest
 @RunWith(AndroidJUnit4.class)
 public class WebViewSslTest extends SharedWebViewTest {
     private static final String LOGTAG = "WebViewSslTest";
@@ -505,13 +507,14 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     private void startWebServer(@SslMode int sslMode) throws Exception {
-        startWebServer(new SharedSdkWebServer.Config().setSslMode(sslMode));
+        startWebServer(sslMode, null);
     }
 
-    private void startWebServer(SharedSdkWebServer.Config config) throws Exception {
+    private void startWebServer(@SslMode int sslMode,
+            @Nullable byte[] acceptedIssuerDer) throws Exception {
         assertNull(mWebServer);
         mWebServer = getTestEnvironment().getWebServer();
-        mWebServer.start(config);
+        mWebServer.start(sslMode, acceptedIssuerDer, 0, 0);
     }
 
     private void stopWebServer() throws Exception {
@@ -527,7 +530,6 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     @Test
-    @MediumTest
     public void testInsecureSiteClearsCertificate() throws Throwable {
         final class MockWebViewClient extends WaitForLoadedClient {
             public MockWebViewClient() {
@@ -556,7 +558,6 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     @Test
-    @MediumTest
     public void testSecureSiteSetsCertificate() throws Throwable {
         final class MockWebViewClient extends WaitForLoadedClient {
             public MockWebViewClient() {
@@ -585,7 +586,6 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     @Test
-    @MediumTest
     public void testClearSslPreferences() throws Throwable {
         // Load the first page. We expect a call to
         // WebViewClient.onReceivedSslError().
@@ -617,7 +617,6 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     @Test
-    @MediumTest
     public void testOnReceivedSslError() throws Throwable {
         final class MockWebViewClient extends WaitForLoadedClient {
             private String mErrorUrl;
@@ -652,7 +651,6 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     @Test
-    @MediumTest
     public void testOnReceivedSslErrorProceed() throws Throwable {
         final class MockWebViewClient extends WaitForLoadedClient {
             public MockWebViewClient() {
@@ -672,7 +670,6 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     @Test
-    @MediumTest
     public void testOnReceivedSslErrorCancel() throws Throwable {
         final class MockWebViewClient extends WaitForLoadedClient {
             public MockWebViewClient() {
@@ -693,7 +690,6 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     @Test
-    @MediumTest
     public void testSslErrorProceedResponseReusedForSameHost() throws Throwable {
         // Load the first page. We expect a call to
         // WebViewClient.onReceivedSslError().
@@ -717,7 +713,6 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     @Test
-    @MediumTest
     public void testSslErrorProceedResponseNotReusedForDifferentHost() throws Throwable {
         // Load the first page. We expect a call to
         // WebViewClient.onReceivedSslError().
@@ -744,7 +739,6 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     @Test
-    @MediumTest
     public void testSecureServerRequestingClientCertDoesNotCancelRequest() throws Throwable {
         startWebServer(SslMode.WANTS_CLIENT_AUTH);
         final String url = mWebServer.getAssetUrl(TestHtmlConstants.HELLO_WORLD_URL);
@@ -760,7 +754,6 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     @Test
-    @MediumTest
     public void testSecureServerRequiringClientCertDoesCancelRequest() throws Throwable {
         startWebServer(SslMode.NEEDS_CLIENT_AUTH);
         final String url = mWebServer.getAssetUrl(TestHtmlConstants.HELLO_WORLD_URL);
@@ -787,7 +780,6 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     @Test
-    @MediumTest
     public void testProceedClientCertRequest() throws Throwable {
         startWebServer(SslMode.NEEDS_CLIENT_AUTH);
         String url = mWebServer.getAssetUrl(TestHtmlConstants.HELLO_WORLD_URL);
@@ -816,7 +808,6 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     @Test
-    @MediumTest
     public void testProceedClientCertRequestKeyWithAndroidKeystoreKey() throws Throwable {
         startWebServer(SslMode.NEEDS_CLIENT_AUTH);
         String url = mWebServer.getAssetUrl(TestHtmlConstants.HELLO_WORLD_URL);
@@ -868,7 +859,6 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     @Test
-    @MediumTest
     public void testIgnoreClientCertRequest() throws Throwable {
         startWebServer(SslMode.NEEDS_CLIENT_AUTH);
         String url = mWebServer.getAssetUrl(TestHtmlConstants.HELLO_WORLD_URL);
@@ -903,7 +893,6 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     @Test
-    @MediumTest
     public void testCancelClientCertRequest() throws Throwable {
         startWebServer(SslMode.NEEDS_CLIENT_AUTH);
         final String url = mWebServer.getAssetUrl(TestHtmlConstants.HELLO_WORLD_URL);
@@ -929,12 +918,8 @@ public class WebViewSslTest extends SharedWebViewTest {
     }
 
     @Test
-    @MediumTest
     public void testClientCertIssuersReceivedCorrectly() throws Throwable {
-
-        startWebServer(new SharedSdkWebServer.Config()
-                .setSslMode(SslMode.NEEDS_CLIENT_AUTH)
-                .setAcceptedIssuer(FAKE_RSA_CA_1));
+        startWebServer(SslMode.NEEDS_CLIENT_AUTH, FAKE_RSA_CA_1);
         final String url = mWebServer.getAssetUrl(TestHtmlConstants.HELLO_WORLD_URL);
         final ClientCertWebViewClient webViewClient = new ClientCertWebViewClient(mOnUiThread);
         mOnUiThread.setWebViewClient(webViewClient);
