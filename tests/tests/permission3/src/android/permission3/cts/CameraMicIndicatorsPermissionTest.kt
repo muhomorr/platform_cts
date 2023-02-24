@@ -87,6 +87,7 @@ private const val TV_MIC_INDICATOR_WINDOW_TITLE = "MicrophoneCaptureIndicator"
 private const val MIC_LABEL_NAME = "microphone_toggle_label_qs"
 private const val CAMERA_LABEL_NAME = "camera_toggle_label_qs"
 
+@SdkSuppress(minSdkVersion = Build.VERSION_CODES.S, codeName = "S")
 class CameraMicIndicatorsPermissionTest : StsExtraBusinessLogicTestCase {
     private val instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context: Context = instrumentation.context
@@ -229,7 +230,7 @@ class CameraMicIndicatorsPermissionTest : StsExtraBusinessLogicTestCase {
     // TODO b/269687722: remove once mainline presubmit uses a more recent S build
     @Test
     @AsbSecurityTest(cveBugId = [258672042])
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.UPSIDE_DOWN_CAKE, codeName = "UpsideDownCake")
     fun testMicIndicatorWithManualFinishOpStillShows() {
         changeSafetyCenterFlag(false.toString())
         testCameraAndMicIndicator(useMic = true, useCamera = false, finishEarly = true)

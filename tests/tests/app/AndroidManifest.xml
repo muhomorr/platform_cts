@@ -22,7 +22,7 @@
         <uses-library android:name="android.test.runner" />
 
         <activity android:name=".ApplyOverrideConfigurationActivity"
-                  android:configChanges="orientation|screenSize" />
+                  android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout" />
 
         <activity android:name=".PictureInPictureActivity"
                   android:resizeableActivity="false"
@@ -43,8 +43,6 @@
     <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
                      android:targetPackage="android.app.cts"
                      android:label="CTS tests of android.app">
-        <meta-data android:name="listener"
-            android:value="com.android.cts.runner.CtsTestRunListener" />
     </instrumentation>
 
 </manifest>
