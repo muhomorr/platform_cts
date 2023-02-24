@@ -24,6 +24,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 import android.graphics.ImageFormat;
 import android.media.Image;
@@ -37,6 +38,7 @@ import android.util.Pair;
 
 import com.android.compatibility.common.util.Preconditions;
 
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -60,17 +62,25 @@ public class CodecDecoderTestBase extends CodecTestBase {
 
     protected MediaExtractor mExtractor;
 
-    public CodecDecoderTestBase(String codecName, String mime, String testFile,
+    public CodecDecoderTestBase(String codecName, String mediaType, String testFile,
             String allTestParams) {
-        super(codecName, mime, allTestParams);
+        super(codecName, mediaType, allTestParams);
         mTestFile = testFile;
         mCsdBuffers = new ArrayList<>();
     }
 
     @Before
     public void setUpCodecDecoderTestBase() {
-        assertTrue("Testing a mime that is neither audio nor video is not supported \n"
+        assertTrue("Testing a mediaType that is neither audio nor video is not supported \n"
                 + mTestConfig, mIsAudio || mIsVideo);
+    }
+
+    @After
+    public void tearDownCodecDecoderTestBase() {
+        if (mExtractor != null) {
+            mExtractor.release();
+            mExtractor = null;
+        }
     }
 
     protected MediaFormat setUpSource(String srcFile) throws IOException {
@@ -79,18 +89,28 @@ public class CodecDecoderTestBase extends CodecTestBase {
         mExtractor.setDataSource(srcFile);
         for (int trackID = 0; trackID < mExtractor.getTrackCount(); trackID++) {
             MediaFormat format = mExtractor.getTrackFormat(trackID);
-            if (mMime.equalsIgnoreCase(format.getString(MediaFormat.KEY_MIME))) {
+            if (mMediaType.equalsIgnoreCase(format.getString(MediaFormat.KEY_MIME))) {
                 mExtractor.selectTrack(trackID);
                 if (mIsVideo) {
                     ArrayList<MediaFormat> formatList = new ArrayList<>();
                     formatList.add(format);
-                    boolean selectHBD = doesAnyFormatHaveHDRProfile(mMime, formatList)
+                    boolean selectHBD = doesAnyFormatHaveHDRProfile(mMediaType, formatList)
                             || srcFile.contains("10bit");
                     format.setInteger(MediaFormat.KEY_COLOR_FORMAT,
-                            getColorFormat(mCodecName, mMime, mSurface != null, selectHBD));
+                            getColorFormat(mCodecName, mMediaType, mSurface != null, selectHBD));
                     if (selectHBD && (format.getInteger(MediaFormat.KEY_COLOR_FORMAT)
                             != COLOR_FormatYUVP010)) {
                         mSkipChecksumVerification = true;
+                    }
+
+                    if ((format.getInteger(MediaFormat.KEY_COLOR_FORMAT) != COLOR_FormatYUVP010)
+                            && selectHBD && mSurface == null) {
+                        // Codecs that do not advertise P010 on devices with VNDK version < T, do
+                        // not support decoding high bit depth clips when color format is set to
+                        // COLOR_FormatYUV420Flexible in byte buffer mode. Since byte buffer mode
+                        // for high bit depth decoding wasn't tested prior to Android T, skip this
+                        // when device is older
+                        assumeTrue("Skipping High Bit Depth tests on VNDK < T", VNDK_IS_AT_LEAST_T);
                     }
                 }
                 // TODO: determine this from the extractor format when it becomes exposed.
@@ -98,8 +118,8 @@ public class CodecDecoderTestBase extends CodecTestBase {
                 return format;
             }
         }
-        fail("No track with mime: " + mMime + " found in file: " + srcFile + "\n" + mTestConfig
-                + mTestEnv);
+        fail("No track with mediaType: " + mMediaType + " found in file: " + srcFile + "\n"
+                + mTestConfig + mTestEnv);
         return null;
     }
 
@@ -345,7 +365,7 @@ public class CodecDecoderTestBase extends CodecTestBase {
     protected PersistableBundle validateMetrics(String decoder, MediaFormat format) {
         PersistableBundle metrics = super.validateMetrics(decoder, format);
         assertEquals("error! metrics#MetricsConstants.MIME_TYPE is not as expected \n" + mTestConfig
-                + mTestEnv, metrics.getString(MediaCodec.MetricsConstants.MIME_TYPE), mMime);
+                + mTestEnv, metrics.getString(MediaCodec.MetricsConstants.MIME_TYPE), mMediaType);
         assertEquals("error! metrics#MetricsConstants.ENCODER is not as expected \n" + mTestConfig
                 + mTestEnv, 0, metrics.getInt(MediaCodec.MetricsConstants.ENCODER));
         return metrics;

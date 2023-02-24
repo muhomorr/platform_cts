@@ -29,7 +29,6 @@ import androidx.test.filters.SmallTest;
 
 import com.android.compatibility.common.util.ApiTest;
 
-import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
@@ -65,10 +64,10 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
     private final SupportClass mSupportRequirements;
     private ArrayList<String> mCheckESList;
 
-    public DecoderColorAspectsTest(String decoderName, String mime, String testFile, int range,
+    public DecoderColorAspectsTest(String decoderName, String mediaType, String testFile, int range,
             int standard, int transferCurve, boolean canIgnoreColorBox,
             SupportClass supportRequirements, String allTestParams) {
-        super(decoderName, mime, MEDIA_DIR + testFile, allTestParams);
+        super(decoderName, mediaType, MEDIA_DIR + testFile, allTestParams);
         mColorRange = range;
         mColorStandard = standard;
         mColorTransferCurve = transferCurve;
@@ -143,6 +142,9 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
                 {MediaFormat.MIMETYPE_VIDEO_HEVC,
                         "bikes_qcif_color_bt2020_smpte2086Hlg_bt2020Ncl_fr_hevc.mp4",
                         MediaFormat.COLOR_RANGE_FULL, MediaFormat.COLOR_STANDARD_BT2020,
+                        MediaFormat.COLOR_TRANSFER_HLG, true, CODEC_OPTIONAL},
+                {MediaFormat.MIMETYPE_VIDEO_HEVC, "cosmat_352x288_hlg_hevc.mkv",
+                        MediaFormat.COLOR_RANGE_LIMITED, MediaFormat.COLOR_STANDARD_BT709,
                         MediaFormat.COLOR_TRANSFER_HLG, true, CODEC_OPTIONAL},
 
                 // Mpeg2 clips
@@ -228,6 +230,9 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
                         "bikes_qcif_color_bt2020_smpte2086Hlg_bt2020Ncl_fr_vp9.mkv",
                         MediaFormat.COLOR_RANGE_FULL, MediaFormat.COLOR_STANDARD_BT2020,
                         MediaFormat.COLOR_TRANSFER_HLG, false, CODEC_ANY},
+                {MediaFormat.MIMETYPE_VIDEO_VP9, "cosmat_352x288_hlg_vp9.mkv",
+                        MediaFormat.COLOR_RANGE_LIMITED, MediaFormat.COLOR_STANDARD_BT709,
+                        MediaFormat.COLOR_TRANSFER_HLG, false, CODEC_OPTIONAL},
 
                 // AV1 clips
                 {MediaFormat.MIMETYPE_VIDEO_AV1, "bbb_qcif_color_bt709_lr_sdr_av1.mp4",
@@ -255,6 +260,9 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
                         "bikes_qcif_color_bt2020_smpte2086Hlg_bt2020Ncl_fr_av1.mp4",
                         MediaFormat.COLOR_RANGE_FULL, MediaFormat.COLOR_STANDARD_BT2020,
                         MediaFormat.COLOR_TRANSFER_HLG, true, CODEC_OPTIONAL},
+                {MediaFormat.MIMETYPE_VIDEO_AV1, "cosmat_352x288_hlg_av1.mkv",
+                        MediaFormat.COLOR_RANGE_LIMITED, MediaFormat.COLOR_STANDARD_BT709,
+                        MediaFormat.COLOR_TRANSFER_HLG, true, CODEC_OPTIONAL},
         });
         return prepareParamList(exhaustiveArgsList, isEncoder, needAudio, needVideo, false);
     }
@@ -267,11 +275,6 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
     public void setUp() throws IOException, InterruptedException {
         mActivityRule.getScenario().onActivity(activity -> mActivity = activity);
         setUpSurface(mActivity);
-    }
-
-    @After
-    public void tearDown() {
-        tearDownSurface();
     }
 
     /**
@@ -287,17 +290,17 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
         mExtractor.release();
         ArrayList<MediaFormat> formats = new ArrayList<>();
         formats.add(format);
-        if (doesAnyFormatHaveHDRProfile(mMime, formats)) {
+        if (doesAnyFormatHaveHDRProfile(mMediaType, formats)) {
             Assume.assumeTrue(canDisplaySupportHDRContent());
         }
-        checkFormatSupport(mCodecName, mMime, false, formats, null, mSupportRequirements);
+        checkFormatSupport(mCodecName, mMediaType, false, formats, null, mSupportRequirements);
 
         mActivity.setScreenParams(getWidth(format), getHeight(format), true);
         {
             validateColorAspects(mColorRange, mColorStandard, mColorTransferCurve, false);
             // If color metadata can also be signalled via elementary stream, then verify if the
             // elementary stream contains color aspects as expected
-            if (mCanIgnoreColorBox && mCheckESList.contains(mMime)) {
+            if (mCanIgnoreColorBox && mCheckESList.contains(mMediaType)) {
                 validateColorAspects(mColorRange, mColorStandard, mColorTransferCurve, true);
             }
         }

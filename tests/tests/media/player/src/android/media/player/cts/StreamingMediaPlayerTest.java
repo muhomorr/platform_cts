@@ -24,7 +24,6 @@ import android.media.MediaPlayer;
 import android.media.MediaPlayer.TrackInfo;
 import android.media.TimedMetaData;
 import android.media.cts.MediaPlayerTestBase;
-import android.media.cts.Preconditions;
 import android.net.Uri;
 import android.os.Looper;
 import android.os.PowerManager;
@@ -37,6 +36,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.compatibility.common.util.MediaUtils;
 import com.android.compatibility.common.util.NonMainlineTest;
+import com.android.compatibility.common.util.Preconditions;
 
 import org.junit.After;
 import org.junit.Before;
@@ -446,9 +446,9 @@ public class StreamingMediaPlayerTest extends MediaPlayerTestBase {
         });
 
         mMediaPlayer.prepare();
-        mMediaPlayer.start();
-        assertTrue("MediaPlayer not playing", mMediaPlayer.isPlaying());
 
+        // Select the ID3 track before calling start() to ensure all the timed
+        // ID3s are received.
         int i = -1;
         TrackInfo[] trackInfos = mMediaPlayer.getTrackInfo();
         for (i = 0; i < trackInfos.length; i++) {
@@ -459,6 +459,9 @@ public class StreamingMediaPlayerTest extends MediaPlayerTestBase {
         }
         assertTrue("Stream has no timed ID3 track", i >= 0);
         mMediaPlayer.selectTrack(i);
+
+        mMediaPlayer.start();
+        assertTrue("MediaPlayer not playing", mMediaPlayer.isPlaying());
 
         synchronized (completion) {
             completion.wait();

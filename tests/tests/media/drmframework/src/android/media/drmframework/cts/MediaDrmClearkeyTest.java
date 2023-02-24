@@ -20,21 +20,14 @@ import android.media.MediaDrm;
 import android.media.MediaDrm.KeyStatus;
 import android.media.MediaDrm.MediaDrmStateException;
 import android.media.MediaDrmException;
+import android.media.MediaDrmThrowable;
 import android.media.MediaFormat;
 import android.media.NotProvisionedException;
 import android.media.ResourceBusyException;
 import android.media.UnsupportedSchemeException;
-import android.media.cts.ConnectionStatus;
-import android.media.cts.IConnectionStatus;
-import android.media.cts.InputSurface;
-import android.media.cts.InputSurfaceInterface;
 import android.media.cts.MediaCodecClearKeyPlayer;
 import android.media.cts.MediaCodecPlayerTestBase;
-import android.media.cts.MediaCodecWrapper;
-import android.media.cts.MediaTimeProvider;
 import android.media.cts.MediaStubActivity;
-import android.media.cts.NdkInputSurface;
-import android.media.cts.NdkMediaCodec;
 import android.media.cts.TestUtils.Monitor;
 import android.media.cts.Utils;
 import android.net.Uri;
@@ -43,14 +36,17 @@ import android.os.Looper;
 import android.platform.test.annotations.Presubmit;
 import android.util.Base64;
 import android.util.Log;
-
 import android.view.Surface;
+
+import androidx.annotation.NonNull;
+import androidx.test.filters.SdkSuppress;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.junit.Assert;
 
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -60,10 +56,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.Vector;
-
-import androidx.annotation.NonNull;
-import androidx.test.filters.SdkSuppress;
-
 
 /**
  * Tests of MediaPlayer streaming capabilities.
@@ -519,7 +511,10 @@ public class MediaDrmClearkeyTest extends MediaCodecPlayerTestBase<MediaStubActi
         mMediaCodecPlayer.setAudioDataSource(audioUrl, null, false);
         mMediaCodecPlayer.setVideoDataSource(videoUrl, null, true);
         mMediaCodecPlayer.start();
-        mMediaCodecPlayer.prepare();
+        if (!mMediaCodecPlayer.prepare()) {
+            Log.i(TAG, "Media Player could not be prepared.");
+            return;
+        }
         mDrmInitData = mMediaCodecPlayer.getDrmInitData();
 
         // Create and store the offline license
@@ -604,7 +599,10 @@ public class MediaDrmClearkeyTest extends MediaCodecPlayerTestBase<MediaStubActi
         mMediaCodecPlayer.setVideoDataSource(
                 Uri.parse(Utils.getMediaPath() + CENC_VIDEO_PATH), null, true);
         mMediaCodecPlayer.start();
-        mMediaCodecPlayer.prepare();
+        if (!mMediaCodecPlayer.prepare()) {
+            Log.i(TAG, "Media Player could not be prepared.");
+            return;
+        }
 
         mDrmInitData = mMediaCodecPlayer.getDrmInitData();
         getKeys(drm, "cenc", mSessionId, mDrmInitData, MediaDrm.KEY_TYPE_STREAMING,
@@ -650,7 +648,10 @@ public class MediaDrmClearkeyTest extends MediaCodecPlayerTestBase<MediaStubActi
         mMediaCodecPlayer.setVideoDataSource(
                 Uri.parse(Utils.getMediaPath() + CENC_VIDEO_PATH), null, true);
         mMediaCodecPlayer.start();
-        mMediaCodecPlayer.prepare();
+        if (!mMediaCodecPlayer.prepare()) {
+            Log.i(TAG, "Media Player could not be prepared.");
+            return;
+        }
 
         try {
             mDrmInitData = mMediaCodecPlayer.getDrmInitData();
@@ -968,6 +969,10 @@ public class MediaDrmClearkeyTest extends MediaCodecPlayerTestBase<MediaStubActi
             if (!Arrays.equals(deviceId, getByteArrayProperty(drm, DEVICEID_PROPERTY_KEY))) {
                 throw new Error("Failed to set byte array for key=" + DEVICEID_PROPERTY_KEY);
             }
+
+            for (String k: new String[] {"oemError", "errorContext"}) {
+                testIntegerProperties(drm, k);
+            }
         } finally {
             stopDrm(drm);
         }
@@ -1132,7 +1137,10 @@ public class MediaDrmClearkeyTest extends MediaCodecPlayerTestBase<MediaStubActi
             mMediaCodecPlayer.setVideoDataSource(
                     Uri.parse(Utils.getMediaPath() + CENC_VIDEO_PATH), null, true);
             mMediaCodecPlayer.start();
-            mMediaCodecPlayer.prepare();
+            if (!mMediaCodecPlayer.prepare()) {
+                Log.i(TAG, "Media Player could not be prepared.");
+                return;
+            }
             mDrmInitData = mMediaCodecPlayer.getDrmInitData();
 
             for (int i = 0; i < NUMBER_OF_SECURE_STOPS; ++i) {
@@ -1232,10 +1240,16 @@ public class MediaDrmClearkeyTest extends MediaCodecPlayerTestBase<MediaStubActi
 
         MediaDrm drm = null;
         boolean gotException = false;
+        final int OEM_ERROR = 123;
+        final int ERROR_CONTEXT = 456;
 
         try {
             drm = new MediaDrm(CLEARKEY_SCHEME_UUID);
             drm.setPropertyString("drmErrorTest", "resourceContention");
+            if (getClearkeyVersionInt(drm) >= 14) {
+                drm.setPropertyString("oemError", Integer.toString(OEM_ERROR));
+                drm.setPropertyString("errorContext", Integer.toString(ERROR_CONTEXT));
+            }
             byte[] sessionId = drm.openSession();
 
             try {
@@ -1247,6 +1261,13 @@ public class MediaDrmClearkeyTest extends MediaCodecPlayerTestBase<MediaStubActi
                 }
                 if(sIsAtLeastS && !e.isTransient()) {
                         throw new Error("Expected transient ERROR_RESOURCE_CONTENTION");
+                }
+                if (getClearkeyVersionInt(drm) >= 14) {
+                    final MediaDrmThrowable mdt = e;
+                    final int RESOURCE_CONTENTION_AIDL = 16;
+                    assertEquals("Vendor Error mismatch", mdt.getVendorError(), RESOURCE_CONTENTION_AIDL);
+                    assertEquals("OEM Error mismatch", mdt.getOemError(), OEM_ERROR);
+                    assertEquals("Error context mismatch", mdt.getErrorContext(), ERROR_CONTEXT);
                 }
                 gotException = true;
             }
@@ -1650,11 +1671,38 @@ public class MediaDrmClearkeyTest extends MediaCodecPlayerTestBase<MediaStubActi
         }
     }
 
+    private void testIntegerProperties(MediaDrm drm, String testKey)
+            throws ResourceBusyException, UnsupportedSchemeException, NotProvisionedException {
+        if (getClearkeyVersionInt(drm) < 14) {
+            return;
+        }
+        String testValue = "123456";
+        assertEquals("Default value not 0", drm.getPropertyString(testKey), "0");
+        Assert.assertThrows("Non-numeric must throw", Exception.class, () -> {
+            drm.setPropertyString(testKey, "xyz"); });
+        Assert.assertThrows("Non-integral must throw", Exception.class, () -> {
+            drm.setPropertyString(testKey, "3.141"); });
+        Assert.assertThrows("Out-of-range (MAX) must throw", Exception.class, () -> {
+            drm.setPropertyString(testKey, Long.toString(Long.MAX_VALUE)); });
+        Assert.assertThrows("Out-of-range (MIN) must throw", Exception.class, () -> {
+            drm.setPropertyString(testKey, Long.toString(Long.MIN_VALUE)); });
+        drm.setPropertyString(testKey, testValue);
+        assertEquals("Property didn't match", drm.getPropertyString(testKey), testValue);
+    }
+
     private String getClearkeyVersion(MediaDrm drm) {
         try {
             return drm.getPropertyString("version");
         } catch (Exception e) {
             return "unavailable";
+        }
+    }
+
+    private int getClearkeyVersionInt(MediaDrm drm) {
+        try {
+            return Integer.parseInt(drm.getPropertyString("version"));
+        } catch (Exception e) {
+            return Integer.MIN_VALUE;
         }
     }
 

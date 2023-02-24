@@ -16,8 +16,12 @@
 
 package android.mediav2.cts;
 
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible;
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010;
+
 import android.graphics.ImageFormat;
 import android.media.AudioFormat;
+import android.mediav2.common.cts.EncoderConfigParams;
 import android.mediav2.common.cts.RawResource;
 
 /**
@@ -65,11 +69,20 @@ public class EncoderInput {
                     .setAudioEncoding(AudioFormat.ENCODING_PCM_FLOAT)
                     .build();
 
-    public static RawResource getRawResource(String mediaType, boolean isHighBitDepth) {
-        if (mediaType.startsWith("audio/")) {
-            return isHighBitDepth ? INPUT_AUDIO_FILE_HBD : INPUT_AUDIO_FILE;
+    public static RawResource getRawResource(EncoderConfigParams cfg) {
+        if (cfg.mIsAudio) {
+            if (cfg.mPcmEncoding == AudioFormat.ENCODING_PCM_FLOAT) {
+                return INPUT_AUDIO_FILE_HBD;
+            } else if (cfg.mPcmEncoding == AudioFormat.ENCODING_PCM_16BIT) {
+                return INPUT_AUDIO_FILE;
+            }
         } else {
-            return isHighBitDepth ? INPUT_VIDEO_FILE_HBD : INPUT_VIDEO_FILE;
+            if (cfg.mColorFormat == COLOR_FormatYUV420Flexible) {
+                return INPUT_VIDEO_FILE;
+            } else if (cfg.mColorFormat == COLOR_FormatYUVP010) {
+                return INPUT_VIDEO_FILE_HBD;
+            }
         }
+        return null;
     }
 }

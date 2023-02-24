@@ -744,7 +744,11 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
         new ImmutableMap.Builder<String, ImmutableSet<String>>()
             .put("/apex/com.android.btservices/app/Bluetooth/Bluetooth.apk",
                 BLUETOOTH_APK_IN_APEX_BURNDOWN_LIST)
+            .put("/apex/com.android.btservices/app/BluetoothArc/BluetoothArc.apk",
+                BLUETOOTH_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.btservices/app/BluetoothGoogle/BluetoothGoogle.apk",
+                BLUETOOTH_APK_IN_APEX_BURNDOWN_LIST)
+            .put("/apex/com.android.bluetooth/app/BluetoothGoogle/BluetoothGoogle.apk",
                 BLUETOOTH_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.permission/priv-app/PermissionController/PermissionController.apk",
                 PERMISSION_CONTROLLER_APK_IN_APEX_BURNDOWN_LIST)
@@ -989,7 +993,7 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
 
     /**
      * Ensure that no apk-in-apex bundles classes that could be eclipsed by jars in
-     * BOOTCLASSPATH, SYSTEMSERVERCLASSPATH.
+     * BOOTCLASSPATH.
      */
     @Test
     public void testApkInApex_nonClasspathClasses() throws Exception {
@@ -1017,9 +1021,12 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                                     className -> !burndownClasses.contains(className)
                                             // TODO: b/225341497
                                             && !className.equals("Landroidx/annotation/Keep;"));
-                        if (!filteredDuplicates.isEmpty()) {
+                        final Multimap<String, String> bcpOnlyDuplicates =
+                                Multimaps.filterKeys(filteredDuplicates,
+                                    sBootclasspathJars::contains);
+                        if (!bcpOnlyDuplicates.isEmpty()) {
                             synchronized (perApkClasspathDuplicates) {
-                                perApkClasspathDuplicates.put(apk, filteredDuplicates);
+                                perApkClasspathDuplicates.put(apk, bcpOnlyDuplicates);
                             }
                         }
                     } catch (Exception e) {
@@ -1055,6 +1062,7 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
             + "bootclasspath. Please use alternatives provided by the platform instead. "
             + "See go/androidx-api-guidelines#module-naming.")
                 .that(sJarsToClasses.entries().stream()
+                        .filter(e -> e.getKey().endsWith(".jar"))
                         .filter(e -> e.getValue().startsWith("Landroidx/"))
                         .filter(e -> !isLegacyAndroidxDependency(
                             LegacyExemptAndroidxSharedLibsNamesToClasses, e.getKey(), e.getValue()))

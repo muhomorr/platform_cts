@@ -44,6 +44,7 @@ import static android.provider.Settings.Global.APPLY_RAMPING_RINGER;
 import static android.provider.Settings.System.SOUND_EFFECTS_ENABLED;
 
 import static org.junit.Assert.assertNotEquals;
+import static org.testng.Assert.assertThrows;
 
 import android.Manifest;
 import android.app.NotificationChannel;
@@ -59,13 +60,13 @@ import android.media.AudioDescriptor;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
 import android.media.AudioFormat;
+import android.media.AudioHalVersionInfo;
 import android.media.AudioManager;
 import android.media.AudioProfile;
 import android.media.AudioTrack;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
 import android.media.MicrophoneInfo;
-import android.media.audio.cts.R;
 import android.media.audiopolicy.AudioProductStrategy;
 import android.media.cts.NonMediaMainlineTest;
 import android.media.cts.Utils;
@@ -2042,8 +2043,38 @@ public class AudioManagerTest extends InstrumentationTestCase {
         }
     }
 
+    @AppModeFull(reason = "Instant apps cannot hold android.permission.MODIFY_AUDIO_ROUTING")
+    public void testBluetoothVariableLatency() throws Exception {
+        assertThrows(SecurityException.class,
+                () -> mAudioManager.supportsBluetoothVariableLatency());
+        assertThrows(SecurityException.class,
+                () -> mAudioManager.setBluetoothVariableLatencyEnabled(false));
+        assertThrows(SecurityException.class,
+                () -> mAudioManager.setBluetoothVariableLatencyEnabled(true));
+        assertThrows(SecurityException.class,
+                () -> mAudioManager.isBluetoothVariableLatencyEnabled());
+
+        getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity(Manifest.permission.MODIFY_AUDIO_ROUTING);
+        if (mAudioManager.supportsBluetoothVariableLatency()) {
+            boolean savedEnabled = mAudioManager.isBluetoothVariableLatencyEnabled();
+            mAudioManager.setBluetoothVariableLatencyEnabled(false);
+            assertFalse(mAudioManager.isBluetoothVariableLatencyEnabled());
+            mAudioManager.setBluetoothVariableLatencyEnabled(true);
+            assertTrue(mAudioManager.isBluetoothVariableLatencyEnabled());
+            mAudioManager.setBluetoothVariableLatencyEnabled(savedEnabled);
+        }
+        getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
+    }
+
     public void testGetHalVersion() {
-        assertNotEquals(null, AudioManager.getHalVersion());
+        AudioHalVersionInfo halVersion = AudioManager.getHalVersion();
+        assertNotEquals(null, halVersion);
+        assertTrue(
+                AudioHalVersionInfo.AUDIO_HAL_TYPE_AIDL == halVersion.getHalType()
+                        || AudioHalVersionInfo.AUDIO_HAL_TYPE_HIDL == halVersion.getHalType());
+        assertTrue(halVersion.getMajorVersion() > 0);
+        assertTrue(halVersion.getMinorVersion() >= 0);
     }
 
     private void assertStreamVolumeEquals(int stream, int expectedVolume) throws Exception {

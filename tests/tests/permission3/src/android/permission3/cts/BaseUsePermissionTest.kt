@@ -421,6 +421,9 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                         "com.android.permissioncontroller:id/detail_message"
                 )[0]
             }
+            if (!node.isVisibleToUser) {
+                scrollToBottom()
+            }
             assertTrue(node.isVisibleToUser)
             val text = node.text as Spanned
             val clickableSpan = text.getSpans(0, text.length, ClickableSpan::class.java)[0]
@@ -597,15 +600,20 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                 button.click()
             }
 
-            val shouldShowStorageWarning = !isWatch &&
-                SdkLevel.isAtLeastT() && targetSdk <= Build.VERSION_CODES.S_V2 &&
+            val shouldShowStorageWarning = SdkLevel.isAtLeastT() &&
+                targetSdk <= Build.VERSION_CODES.S_V2 &&
                 permission in MEDIA_PERMISSIONS
             if (shouldShowStorageWarning) {
                 click(By.res(ALERT_DIALOG_OK_BUTTON))
             } else if (!alreadyChecked && isLegacyApp && wasGranted) {
                 if (!isTv) {
                     // Wait for alert dialog to popup, then scroll to the bottom of it
-                    waitFindObject(By.res(ALERT_DIALOG_MESSAGE))
+                    if (isWatch) {
+                        waitFindObject(By.text(
+                                getPermissionControllerString("old_sdk_deny_warning")))
+                    } else {
+                        waitFindObject(By.res(ALERT_DIALOG_MESSAGE))
+                    }
                     scrollToBottom()
                 }
 

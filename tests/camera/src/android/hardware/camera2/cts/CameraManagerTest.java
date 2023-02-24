@@ -33,6 +33,7 @@ import android.hardware.camera2.cts.Camera2ParameterizedTestCase;
 import android.hardware.camera2.cts.CameraTestUtils.HandlerExecutor;
 import android.hardware.camera2.cts.CameraTestUtils.MockStateCallback;
 import android.hardware.camera2.cts.helpers.CameraErrorCollector;
+import android.hardware.camera2.cts.helpers.StaticMetadata;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -669,18 +670,23 @@ public class CameraManagerTest extends Camera2ParameterizedTestCase {
     }
 
     private <T> void verifyAvailabilityCbsReceived(HashSet<T> expectedCameras,
-            LinkedBlockingQueue<T> queue, LinkedBlockingQueue<T> otherQueue,
+            LinkedBlockingQueue<T> expectedEventQueue, LinkedBlockingQueue<T> unExpectedEventQueue,
             boolean available) throws Exception {
         while (expectedCameras.size() > 0) {
-            T id = queue.poll(AVAILABILITY_TIMEOUT_MS,
+            T id = expectedEventQueue.poll(AVAILABILITY_TIMEOUT_MS,
                     java.util.concurrent.TimeUnit.MILLISECONDS);
             assertTrue("Did not receive initial " + (available ? "available" : "unavailable")
                     + " notices for some cameras", id != null);
+            assertTrue("Received initial " + (available ? "available" : "unavailable")
+                    + " notice for wrong camera " + id, expectedCameras.contains(id));
             expectedCameras.remove(id);
         }
-        // Verify no unavailable/available cameras were reported
-        assertTrue("Some camera devices are initially " + (available ? "unavailable" : "available"),
-                otherQueue.size() == 0);
+        // Verify no unexpected unavailable/available cameras were reported
+        if (unExpectedEventQueue != null) {
+            assertTrue("Received unexpected initial "
+                    + (available ? "unavailable" : "available"),
+                    unExpectedEventQueue.size() == 0);
+        }
     }
 
     private void verifySingleAvailabilityCbsReceived(LinkedBlockingQueue<String> expectedEventQueue,
@@ -781,14 +787,14 @@ public class CameraManagerTest extends Camera2ParameterizedTestCase {
         verifyAvailabilityCbsReceived(expectedAvailableCameras, availableEventQueue,
                 unavailableEventQueue, true /*available*/);
 
+        // Clear physical camera callback queue in case the initial state of certain physical
+        // cameras are unavailable.
+        unavailablePhysicalCamEventQueue.clear();
+
         // Verify transitions for individual cameras
         for (String id : cameras) {
             MockStateCallback mockListener = MockStateCallback.mock();
             mCameraListener = new BlockingStateCallback(mockListener);
-
-            // Clear logical camera callback queue in case the initial state of certain physical
-            // cameras are unavailable.
-            unavailablePhysicalCamEventQueue.clear();
 
             if (useExecutor) {
                 mCameraManager.openCamera(id, executor, mCameraListener);
@@ -843,8 +849,13 @@ public class CameraManagerTest extends Camera2ParameterizedTestCase {
 
             expectedLogicalCameras = new HashSet<Pair<String, String>>(relatedLogicalCameras);
             verifyAvailabilityCbsReceived(expectedLogicalCameras,
-                    availablePhysicalCamEventQueue, unavailablePhysicalCamEventQueue,
+                    availablePhysicalCamEventQueue,
+                    null /*unExpectedEventQueue*/,
                     true /*available*/);
+
+            // Clear physical camera callback queue in case the initial state of certain physical
+            // cameras are unavailable.
+            unavailablePhysicalCamEventQueue.clear();
         }
 
         // Verify that we can unregister the listener and see no more events
@@ -938,8 +949,141 @@ public class CameraManagerTest extends Camera2ParameterizedTestCase {
 
             verifySingleAvailabilityCbsReceived(onCameraClosedEventQueue,
                     onCameraOpenedEventQueue, cameras[0], "onCameraClosed", "onCameraOpened");
+
+            mCameraManager.unregisterAvailabilityCallback(ac);
         }
     } // testCameraManagerListenerCallbacks
+
+    /**
+     * Test that the physical camera available/unavailable callback behavior is consistent
+     * between:
+     *
+     * - No camera is open, and
+     * - camera opens, close camera, expect callback
+     */
+    @Test
+    public void testPhysicalCameraAvailabilityConsistency() throws Throwable {
+        final LinkedBlockingQueue<String> availableEventQueue = new LinkedBlockingQueue<>();
+        final LinkedBlockingQueue<String> unavailableEventQueue = new LinkedBlockingQueue<>();
+        final LinkedBlockingQueue<Pair<String, String>> unavailablePhysicalCamEventQueue =
+                new LinkedBlockingQueue<>();
+        CameraManager.AvailabilityCallback ac = new CameraManager.AvailabilityCallback() {
+            @Override
+            public void onCameraAvailable(String cameraId) {
+                super.onCameraAvailable(cameraId);
+                availableEventQueue.offer(cameraId);
+            }
+
+            @Override
+            public void onCameraUnavailable(String cameraId) {
+                super.onCameraUnavailable(cameraId);
+                unavailableEventQueue.offer(cameraId);
+            }
+
+            @Override
+            public void onPhysicalCameraAvailable(String cameraId, String physicalCameraId) {
+                super.onPhysicalCameraAvailable(cameraId, physicalCameraId);
+                unavailablePhysicalCamEventQueue.remove(new Pair<>(cameraId, physicalCameraId));
+            }
+
+            @Override
+            public void onPhysicalCameraUnavailable(String cameraId, String physicalCameraId) {
+                super.onPhysicalCameraUnavailable(cameraId, physicalCameraId);
+                unavailablePhysicalCamEventQueue.offer(new Pair<>(cameraId, physicalCameraId));
+            }
+        };
+
+        String[] cameras = mCameraIdsUnderTest;
+        if (cameras.length == 0) {
+            Log.i(TAG, "Skipping testPhysicalCameraAvailabilityConsistency, no cameras");
+            return;
+        }
+
+        for (String cameraId : cameras) {
+            CameraCharacteristics ch = mCameraManager.getCameraCharacteristics(cameraId);
+            StaticMetadata staticInfo = new StaticMetadata(ch);
+            if (!staticInfo.isLogicalMultiCamera()) {
+                // Test is only applicable for logical multi-camera.
+                continue;
+            }
+
+            // Get initial physical unavailable callbacks without opening camera
+            mCameraManager.registerAvailabilityCallback(ac, mHandler);
+            Set<String> unavailablePhysicalCameras = getUnavailablePhysicalCamerasAndDrain(
+                    unavailablePhysicalCamEventQueue, cameraId);
+
+            // Open camera
+            MockStateCallback mockListener = MockStateCallback.mock();
+            mCameraListener = new BlockingStateCallback(mockListener);
+            mCameraManager.openCamera(cameraId, mCameraListener, mHandler);
+            // Block until opened
+            mCameraListener.waitForState(BlockingStateCallback.STATE_OPENED,
+                    CameraTestUtils.CAMERA_IDLE_TIMEOUT_MS);
+            // Then verify only open happened, and get the camera handle
+            CameraDevice camera = verifyCameraStateOpened(cameraId, mockListener);
+
+            // The camera should be in available->unavailable state.
+            String candidateUnavailableId = unavailableEventQueue.poll(AVAILABILITY_TIMEOUT_MS,
+                    java.util.concurrent.TimeUnit.MILLISECONDS);
+            assertNotNull("No unavailable notice for expected ID " + cameraId,
+                    candidateUnavailableId);
+            assertTrue("Received unavailable notice for wrong ID, "
+                    + "expected " + cameraId + ", got " + candidateUnavailableId,
+                    cameraId.equals(candidateUnavailableId));
+            assertTrue("Received >  1 unavailable callback for id " + cameraId,
+                    unavailableEventQueue.size() == 0);
+            availableEventQueue.clear();
+            unavailableEventQueue.clear();
+
+            // Close camera device
+            camera.close();
+            mCameraListener.waitForState(BlockingStateCallback.STATE_CLOSED,
+                    CameraTestUtils.CAMERA_CLOSE_TIMEOUT_MS);
+            verifySingleAvailabilityCbsReceived(availableEventQueue, unavailableEventQueue,
+                    cameraId, "availability", "Unavailability");
+
+            // Get physical unavailable callbacks after opening and closing camera
+            Set<String> unavailablePhysicalCamerasAfterClose =
+                    getUnavailablePhysicalCamerasAndDrain(
+                            unavailablePhysicalCamEventQueue, cameraId);
+
+            assertTrue("The unavailable physical cameras must be the same between before open "
+                    + unavailablePhysicalCameras.toString()  + " and after close "
+                    + unavailablePhysicalCamerasAfterClose.toString(),
+                    unavailablePhysicalCameras.equals(unavailablePhysicalCamerasAfterClose));
+
+            mCameraManager.unregisterAvailabilityCallback(ac);
+        }
+    }
+
+    /**
+     * This function polls on the event queue to get unavailable physical camera IDs belonging
+     * to a particular logical camera. The event queue is drained before the function returns.
+     *
+     * @param queue The event queue capturing unavailable physical cameras
+     * @param cameraId The logical camera ID
+     *
+     * @return The currently unavailable physical cameras
+     */
+    private Set<String> getUnavailablePhysicalCamerasAndDrain(
+            LinkedBlockingQueue<Pair<String, String>> queue, String cameraId) throws Exception {
+        Set<String> unavailablePhysicalCameras = new HashSet<String>();
+
+        while (true) {
+            Pair<String, String> unavailableIdCombo = queue.poll(
+                    AVAILABILITY_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
+            if (unavailableIdCombo == null) {
+                // No more entries in the queue. Break out of the loop and return.
+                break;
+            }
+
+            if (cameraId.equals(unavailableIdCombo.first)) {
+                unavailablePhysicalCameras.add(unavailableIdCombo.second);
+            }
+        };
+
+        return unavailablePhysicalCameras;
+    }
 
     // Verify no LEGACY-level devices appear on devices first launched in the Q release or newer
     @Test

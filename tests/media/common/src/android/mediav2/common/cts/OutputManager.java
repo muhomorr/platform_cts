@@ -18,6 +18,7 @@ package android.mediav2.common.cts;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
@@ -25,6 +26,8 @@ import android.media.AudioFormat;
 import android.media.Image;
 import android.media.MediaCodec;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -38,25 +41,45 @@ import java.util.zip.CRC32;
  * in memory and outPtsList fields of this class. For video decoders, the decoded information can
  * be overwhelming as it is uncompressed YUV. For them we compute the CRC32 checksum of the
  * output image and buffer and store it instead.
+ *
+ * ByteBuffer output of encoder/decoder components can be written to disk by setting ENABLE_DUMP
+ * to true. Exercise CAUTION while running tests with ENABLE_DUMP set to true as this will crowd
+ * the storage with files. These files are configured to be deleted on exit. So, in order to see
+ * the captured output, File.deleteOnExit() needs to be be commented. Also it might be necessary
+ * to set option name="cleanup-apks" to "false" in AndroidTest.xml.
  */
 public class OutputManager {
     private static final String LOG_TAG = OutputManager.class.getSimpleName();
+    private static final boolean ENABLE_DUMP = false;
+
     private byte[] mMemory;
     private int mMemIndex;
     private final CRC32 mCrc32UsingImage;
     private final CRC32 mCrc32UsingBuffer;
     private final ArrayList<Long> mInpPtsList;
     private final ArrayList<Long> mOutPtsList;
-    private String mErrorLogs;
+    private final StringBuilder mErrorLogs;
+    private final StringBuilder mSharedErrorLogs;
+    private File mOutFileYuv;
+    private boolean mAppendToYuvFile;
+    private File mOutFileY;
+    private boolean mAppendToYFile;
+    private File mOutFileDefault;
 
     public OutputManager() {
+        this(new StringBuilder());
+    }
+
+    public OutputManager(StringBuilder sharedErrorLogs) {
         mMemory = new byte[1024];
         mMemIndex = 0;
         mCrc32UsingImage = new CRC32();
         mCrc32UsingBuffer = new CRC32();
         mInpPtsList = new ArrayList<>();
         mOutPtsList = new ArrayList<>();
-        mErrorLogs = "###################       Error Details         #####################\n";
+        mErrorLogs = new StringBuilder(
+                "##################       Error Details         ####################\n");
+        mSharedErrorLogs = sharedErrorLogs;
     }
 
     public void saveInPTS(long pts) {
@@ -76,17 +99,15 @@ public class OutputManager {
             if (lastPts < mOutPtsList.get(i)) {
                 lastPts = mOutPtsList.get(i);
             } else {
-                StringBuilder msg = new StringBuilder(1024);
-                msg.append("Frame indices around which timestamp values decreased :- \n");
+                mErrorLogs.append("Timestamp values are not strictly increasing. \n");
+                mErrorLogs.append("Frame indices around which timestamp values decreased :- \n");
                 for (int j = Math.max(0, i - 3); j < Math.min(mOutPtsList.size(), i + 3); j++) {
                     if (j == 0) {
-                        msg.append(String.format("pts of frame idx -1 is %d \n", lastPts));
+                        mErrorLogs.append(String.format("pts of frame idx -1 is %d \n", lastPts));
                     }
-                    msg.append(String.format("pts of frame idx %d is %d \n", j,
+                    mErrorLogs.append(String.format("pts of frame idx %d is %d \n", j,
                             mOutPtsList.get(j)));
                 }
-                mErrorLogs += "Timestamp values are not strictly increasing. \n";
-                mErrorLogs += msg.toString();
                 res = false;
                 break;
             }
@@ -135,15 +156,11 @@ public class OutputManager {
     }
 
     public boolean isOutPtsListIdenticalToInpPtsList(boolean requireSorting) {
-        boolean res;
         Collections.sort(mInpPtsList);
         if (requireSorting) {
             Collections.sort(mOutPtsList);
         }
-        StringBuilder msg = new StringBuilder();
-        res = arePtsListsIdentical(mInpPtsList, mOutPtsList, msg);
-        mErrorLogs += msg.toString();
-        return res;
+        return arePtsListsIdentical(mInpPtsList, mOutPtsList, mErrorLogs);
     }
 
     public int getOutStreamSize() {
@@ -169,6 +186,9 @@ public class OutputManager {
                     offset += stride;
                 }
                 mCrc32UsingBuffer.update(bb, 0, width * height * bytesPerSample);
+                if (ENABLE_DUMP) {
+                    dumpY(bb, 0, width * height * bytesPerSample);
+                }
             } else {
                 mCrc32UsingBuffer.update(buf.array(), buf.position() + buf.arrayOffset(), size);
             }
@@ -183,6 +203,9 @@ public class OutputManager {
                 offset += stride;
             }
             mCrc32UsingBuffer.update(bb, 0, width * height * bytesPerSample);
+            if (ENABLE_DUMP) {
+                dumpY(bb, 0, width * height * bytesPerSample);
+            }
             buf.position(pos);
         } else {
             int pos = buf.position();
@@ -281,6 +304,9 @@ public class OutputManager {
                 buf.position(base);
             }
             mCrc32UsingImage.update(bb, 0, width * height * bytesPerSample);
+            if (ENABLE_DUMP) {
+                dumpYuv(bb, 0, width * height * bytesPerSample);
+            }
         }
     }
 
@@ -302,13 +328,31 @@ public class OutputManager {
         return ByteBuffer.wrap(mMemory);
     }
 
+    public StringBuilder getSharedErrorLogs() {
+        return mSharedErrorLogs;
+    }
+
     public void reset() {
         position(0);
         mCrc32UsingImage.reset();
         mCrc32UsingBuffer.reset();
         mInpPtsList.clear();
         mOutPtsList.clear();
-        mErrorLogs = "###################       Error Details         #####################\n";
+        mSharedErrorLogs.setLength(0);
+        mErrorLogs.setLength(0);
+        mErrorLogs.append("##################       Error Details         ####################\n");
+        cleanUp();
+    }
+
+    public void cleanUp() {
+        if (mOutFileYuv != null && mOutFileYuv.exists()) mOutFileYuv.delete();
+        mOutFileYuv = null;
+        mAppendToYuvFile = false;
+        if (mOutFileY != null && mOutFileY.exists()) mOutFileY.delete();
+        mOutFileY = null;
+        mAppendToYFile = false;
+        if (mOutFileDefault != null && mOutFileDefault.exists()) mOutFileDefault.delete();
+        mOutFileDefault = null;
     }
 
     public float getRmsError(Object refObject, int audioFormat) {
@@ -393,10 +437,7 @@ public class OutputManager {
         OutputManager that = (OutputManager) o;
 
         if (!this.equalsInterlaced(o)) return false;
-        StringBuilder msg = new StringBuilder();
-        boolean res = arePtsListsIdentical(mOutPtsList, that.mOutPtsList, msg);
-        that.mErrorLogs += msg.toString();
-        return res;
+        return arePtsListsIdentical(mOutPtsList, that.mOutPtsList, mSharedErrorLogs);
     }
 
     // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
@@ -408,21 +449,55 @@ public class OutputManager {
         boolean isEqual = true;
         if (mCrc32UsingImage.getValue() != that.mCrc32UsingImage.getValue()) {
             isEqual = false;
-            that.mErrorLogs += "CRC32 checksums computed for image buffers received from "
-                    + "getOutputImage() do not match between ref and test runs. \n";
-            that.mErrorLogs += String.format("Ref CRC32 checksum value is %d \n",
-                    mCrc32UsingImage.getValue());
-            that.mErrorLogs += String.format("Test CRC32 checksum value is %d \n",
-                    that.mCrc32UsingImage.getValue());
+            mSharedErrorLogs.append("CRC32 checksums computed for image buffers received from "
+                    + "getOutputImage() do not match between ref and test runs. \n");
+            mSharedErrorLogs.append(String.format("Ref CRC32 checksum value is %d \n",
+                    mCrc32UsingImage.getValue()));
+            mSharedErrorLogs.append(String.format("Test CRC32 checksum value is %d \n",
+                    that.mCrc32UsingImage.getValue()));
+            if (ENABLE_DUMP) {
+                mSharedErrorLogs.append(String.format("Decoded Ref YUV file is at : %s \n",
+                        mOutFileYuv.getAbsolutePath()));
+                mSharedErrorLogs.append(String.format("Decoded Test YUV file is at : %s \n",
+                        that.mOutFileYuv.getAbsolutePath()));
+            } else {
+                mSharedErrorLogs.append("As the reference YUV and test YUV are different, try "
+                        + "re-running the test by changing ENABLE_DUMP of OutputManager class to "
+                        + "'true' to dump the decoded YUVs for further analysis. \n");
+            }
         }
         if (mCrc32UsingBuffer.getValue() != that.mCrc32UsingBuffer.getValue()) {
             isEqual = false;
-            that.mErrorLogs += "CRC32 checksums computed for byte buffers received from "
-                    + "getOutputBuffer() do not match between ref and test runs. \n";
-            that.mErrorLogs += String.format("Ref CRC32 checksum value is %d \n",
-                    mCrc32UsingBuffer.getValue());
-            that.mErrorLogs += String.format("Test CRC32 checksum value is %d \n",
-                    that.mCrc32UsingBuffer.getValue());
+            mSharedErrorLogs.append("CRC32 checksums computed for byte buffers received from "
+                    + "getOutputBuffer() do not match between ref and test runs. \n");
+            mSharedErrorLogs.append(String.format("Ref CRC32 checksum value is %d \n",
+                    mCrc32UsingBuffer.getValue()));
+            mSharedErrorLogs.append(String.format("Test CRC32 checksum value is %d \n",
+                    that.mCrc32UsingBuffer.getValue()));
+            if (ENABLE_DUMP) {
+                if (mOutFileY != null) {
+                    mSharedErrorLogs.append(String.format("Decoded Ref Y file is at : %s \n",
+                            mOutFileY.getAbsolutePath()));
+                }
+                if (that.mOutFileY != null) {
+                    mSharedErrorLogs.append(String.format("Decoded Test Y file is at : %s \n",
+                            that.mOutFileY.getAbsolutePath()));
+                }
+                if (mMemIndex > 0) {
+                    mSharedErrorLogs.append(
+                            String.format("Output Ref ByteBuffer is dumped at : %s \n",
+                                    dumpBuffer()));
+                }
+                if (that.mMemIndex > 0) {
+                    mSharedErrorLogs.append(
+                            String.format("Output Test ByteBuffer is dumped at : %s \n",
+                                    that.dumpBuffer()));
+                }
+            } else {
+                mSharedErrorLogs.append("As the output of the component is not consistent, try "
+                        + "re-running the test by changing ENABLE_DUMP of OutputManager class to "
+                        + "'true' to dump the outputs for further analysis. \n");
+            }
             if (mMemIndex == that.mMemIndex) {
                 int count = 0;
                 StringBuilder msg = new StringBuilder();
@@ -438,20 +513,75 @@ public class OutputManager {
                     }
                 }
                 if (count != 0) {
-                    that.mErrorLogs += "Ref and Test outputs are not identical \n";
-                    that.mErrorLogs += msg.toString();
+                    mSharedErrorLogs.append("Ref and Test outputs are not identical \n");
+                    mSharedErrorLogs.append(msg);
                 }
             } else {
-                that.mErrorLogs += "CRC32 byte buffer checksums are different because ref and test "
-                        + "output sizes are not identical \n";
-                that.mErrorLogs += String.format("Ref output buffer size %d \n", mMemIndex);
-                that.mErrorLogs += String.format("Test output buffer size %d \n", that.mMemIndex);
+                mSharedErrorLogs.append("CRC32 byte buffer checksums are different because ref and"
+                        + " test output sizes are not identical \n");
+                mSharedErrorLogs.append(String.format("Ref output buffer size %d \n", mMemIndex));
+                mSharedErrorLogs.append(String.format("Test output buffer size %d \n",
+                        that.mMemIndex));
             }
         }
         return isEqual;
     }
 
     public String getErrMsg() {
-        return mErrorLogs;
+        return (mErrorLogs.toString() + mSharedErrorLogs.toString());
+    }
+
+    public void dumpYuv(byte[] mem, int offset, int size) {
+        try {
+            if (mOutFileYuv == null) {
+                mOutFileYuv = File.createTempFile(LOG_TAG + "YUV", ".bin");
+                mOutFileYuv.deleteOnExit();
+            }
+            try (FileOutputStream outputStream = new FileOutputStream(mOutFileYuv,
+                    mAppendToYuvFile)) {
+                outputStream.write(mem, offset, size);
+                mAppendToYuvFile = true;
+            }
+        } catch (Exception e) {
+            fail("Encountered IOException during output image write. Exception is" + e);
+        }
+    }
+
+    public void dumpY(byte[] mem, int offset, int size) {
+        try {
+            if (mOutFileY == null) {
+                mOutFileY = File.createTempFile(LOG_TAG + "Y", ".bin");
+                mOutFileY.deleteOnExit();
+            }
+            try (FileOutputStream outputStream = new FileOutputStream(mOutFileY, mAppendToYFile)) {
+                outputStream.write(mem, offset, size);
+                mAppendToYFile = true;
+            }
+        } catch (Exception e) {
+            fail("Encountered IOException during output image write. Exception is" + e);
+        }
+    }
+
+    public String dumpBuffer() {
+        if (ENABLE_DUMP) {
+            try {
+                if (mOutFileDefault == null) {
+                    mOutFileDefault = File.createTempFile(LOG_TAG + "OUT", ".bin");
+                    mOutFileDefault.deleteOnExit();
+                }
+                try (FileOutputStream outputStream = new FileOutputStream(mOutFileDefault)) {
+                    outputStream.write(mMemory, 0, mMemIndex);
+                }
+            } catch (Exception e) {
+                fail("Encountered IOException during output buffer write. Exception is" + e);
+            }
+            return mOutFileDefault.getAbsolutePath();
+        }
+        return "file not dumped yet, re-run the test by changing ENABLE_DUMP of OutputManager "
+                + "class to 'true' to dump the buffer";
+    }
+
+    public String getOutYuvFileName() {
+        return (mOutFileYuv != null) ? mOutFileYuv.getAbsolutePath() : null;
     }
 }

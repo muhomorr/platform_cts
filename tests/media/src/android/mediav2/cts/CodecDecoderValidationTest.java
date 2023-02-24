@@ -103,10 +103,10 @@ public class CodecDecoderValidationTest extends CodecDecoderTestBase {
     private final int mHeight;
     private final SupportClass mSupportRequirements;
 
-    public CodecDecoderValidationTest(String decoder, String mime, String[] srcFiles,
+    public CodecDecoderValidationTest(String decoder, String mediaType, String[] srcFiles,
             String refFile, float rmsError, long refCRC, int sampleRate, int channelCount,
             int width, int height, SupportClass supportRequirements, String allTestParams) {
-        super(decoder, mime, null, allTestParams);
+        super(decoder, mediaType, null, allTestParams);
         mSrcFiles = srcFiles;
         mRefFile = MEDIA_DIR + refFile;
         mRmsError = rmsError;
@@ -648,12 +648,15 @@ public class CodecDecoderValidationTest extends CodecDecoderTestBase {
             formats.add(setUpSource(MEDIA_DIR + file));
             mExtractor.release();
         }
-        checkFormatSupport(mCodecName, mMime, false, formats, null, mSupportRequirements);
+        checkFormatSupport(mCodecName, mMediaType, false, formats, null, mSupportRequirements);
         {
-            OutputManager ref = null;
+            OutputManager ref = new OutputManager();
+            OutputManager test = new OutputManager(ref.getSharedErrorLogs());
             mSaveToMem = true;
+            int loopCounter = 0;
             for (String file : mSrcFiles) {
-                mOutputBuff = new OutputManager();
+                mOutputBuff = loopCounter == 0 ? ref : test;
+                mOutputBuff.reset();
                 mCodec = MediaCodec.createByCodecName(mCodecName);
                 MediaFormat format = setUpSource(MEDIA_DIR + file);
                 configureCodec(format, false, true, false);
@@ -666,7 +669,6 @@ public class CodecDecoderValidationTest extends CodecDecoderTestBase {
                 mCodec.stop();
                 mCodec.release();
                 mExtractor.release();
-                if (ref == null) ref = mOutputBuff;
                 if (!(mIsInterlaced ? ref.equalsInterlaced(mOutputBuff) :
                         ref.equals(mOutputBuff))) {
                     fail("Decoder output received for file " + mSrcFiles[0]
@@ -683,11 +685,12 @@ public class CodecDecoderValidationTest extends CodecDecoderTestBase {
                         + mTestEnv, mWidth, getWidth(mOutFormat));
                 assertEquals("Output height is different from configured height \n" + mTestConfig
                         + mTestEnv, mHeight, getHeight(mOutFormat));
+                loopCounter++;
             }
             Assume.assumeFalse("skip checksum verification due to tone mapping",
                     mSkipChecksumVerification);
             CodecDecoderTest.verify(ref, mRefFile, mRmsError, AudioFormat.ENCODING_PCM_16BIT,
-                    mRefCRC, mTestConfig + mTestEnv);
+                    mRefCRC, mTestConfig.toString() + mTestEnv.toString());
         }
     }
 }

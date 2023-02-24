@@ -106,10 +106,10 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         System.loadLibrary("ctsmediav2codecdec_jni");
     }
 
-    public CodecDecoderTest(String decoder, String mime, String testFile, String refFile,
+    public CodecDecoderTest(String decoder, String mediaType, String testFile, String refFile,
             String reconfigFile, float rmsError, long refCRC, SupportClass supportRequirements,
             String allTestParams) {
-        super(decoder, mime, MEDIA_DIR + testFile, allTestParams);
+        super(decoder, mediaType, MEDIA_DIR + testFile, allTestParams);
         mRefFile = MEDIA_DIR + refFile;
         mReconfigFile = MEDIA_DIR + reconfigFile;
         mRmsError = rmsError;
@@ -341,11 +341,12 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         mExtractor.release();
         ArrayList<MediaFormat> formatList = new ArrayList<>();
         formatList.add(format);
-        checkFormatSupport(mCodecName, mMime, false, formatList, null, mSupportRequirements);
+        checkFormatSupport(mCodecName, mMediaType, false, formatList, null, mSupportRequirements);
     }
 
-    private native boolean nativeTestSimpleDecode(String decoder, Surface surface, String mime,
-            String testFile, String refFile, int colorFormat, float rmsError, long checksum);
+    private native boolean nativeTestSimpleDecode(String decoder, Surface surface, String mediaType,
+            String testFile, String refFile, int colorFormat, float rmsError, long checksum,
+            StringBuilder retMsg);
 
     /**
      * Verifies if the component under test can decode the test file correctly. The decoding
@@ -370,7 +371,7 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         boolean[] boolStates = {true, false};
         mSaveToMem = true;
         OutputManager ref = new OutputManager();
-        OutputManager test = new OutputManager();
+        OutputManager test = new OutputManager(ref.getSharedErrorLogs());
         {
             mCodec = MediaCodec.createByCodecName(mCodecName);
             assertEquals("codec name act/got: " + mCodec.getName() + '/' + mCodecName,
@@ -412,14 +413,15 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
             mCodec.release();
             mExtractor.release();
             int colorFormat = mIsAudio ? 0 : format.getInteger(MediaFormat.KEY_COLOR_FORMAT);
-            assertTrue(nativeTestSimpleDecode(mCodecName, null, mMime, mTestFile, mRefFile,
-                    colorFormat, mRmsError, ref.getCheckSumBuffer()));
+            boolean isPass = nativeTestSimpleDecode(mCodecName, null, mMediaType, mTestFile,
+                    mRefFile, colorFormat, mRmsError, ref.getCheckSumBuffer(), mTestConfig);
+            assertTrue(mTestConfig.toString(), isPass);
             if (mSaveToMem) {
                 int audioEncoding = mIsAudio ? format.getInteger(MediaFormat.KEY_PCM_ENCODING,
                         AudioFormat.ENCODING_PCM_16BIT) : AudioFormat.ENCODING_INVALID;
                 Assume.assumeFalse("skip checksum due to tone mapping", mSkipChecksumVerification);
                 verify(mOutputBuff, mRefFile, mRmsError, audioEncoding, mRefCRC,
-                        mTestConfig + mTestEnv);
+                        mTestConfig.toString() + mTestEnv.toString());
             }
         }
     }
@@ -462,10 +464,10 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         final long pts = 500000;
         final int mode = MediaExtractor.SEEK_TO_CLOSEST_SYNC;
         boolean[] boolStates = {true, false};
-        OutputManager test = new OutputManager();
         {
             decodeToMemory(mTestFile, mCodecName, pts, mode, Integer.MAX_VALUE);
             OutputManager ref = mOutputBuff;
+            OutputManager test = new OutputManager(ref.getSharedErrorLogs());
             mOutputBuff = test;
             setUpSource(mTestFile);
             mCodec = MediaCodec.createByCodecName(mCodecName);
@@ -513,7 +515,7 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                 doWork(Integer.MAX_VALUE);
                 queueEOS();
                 waitForAllOutputs();
-                if (isMediaTypeOutputUnAffectedBySeek(mMime) && (!ref.equals(test))) {
+                if (isMediaTypeOutputUnAffectedBySeek(mMediaType) && (!ref.equals(test))) {
                     fail("Decoder output is not consistent across runs \n" + mTestConfig + mTestEnv
                             + test.getErrMsg());
                 }
@@ -527,7 +529,7 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                 queueEOS();
                 waitForAllOutputs();
                 mCodec.stop();
-                if (isMediaTypeOutputUnAffectedBySeek(mMime) && (!ref.equals(test))) {
+                if (isMediaTypeOutputUnAffectedBySeek(mMediaType) && (!ref.equals(test))) {
                     fail("Decoder output is not consistent across runs \n" + mTestConfig + mTestEnv
                             + test.getErrMsg());
                 }
@@ -541,8 +543,8 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         }
     }
 
-    private native boolean nativeTestFlush(String decoder, Surface surface, String mime,
-            String testFile, int colorFormat);
+    private native boolean nativeTestFlush(String decoder, Surface surface, String mediaType,
+            String testFile, int colorFormat, StringBuilder retMsg);
 
     /**
      * Test is similar to {@link #testFlush()} but uses ndk api
@@ -557,7 +559,9 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
             mExtractor.release();
             colorFormat = format.getInteger(MediaFormat.KEY_COLOR_FORMAT);
         }
-        assertTrue(nativeTestFlush(mCodecName, null, mMime, mTestFile, colorFormat));
+        boolean isPass = nativeTestFlush(mCodecName, null, mMediaType, mTestFile,
+                colorFormat, mTestConfig);
+        assertTrue(mTestConfig.toString(), isPass);
     }
 
     /**
@@ -602,20 +606,21 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         mExtractor.release();
         ArrayList<MediaFormat> formatList = new ArrayList<>();
         formatList.add(newFormat);
-        checkFormatSupport(mCodecName, mMime, false, formatList, null, mSupportRequirements);
+        checkFormatSupport(mCodecName, mMediaType, false, formatList, null, mSupportRequirements);
         final long startTs = 0;
         final long seekTs = 500000;
         final int mode = MediaExtractor.SEEK_TO_CLOSEST_SYNC;
         boolean[] boolStates = {true, false};
-        OutputManager test = new OutputManager();
         {
             decodeToMemory(mTestFile, mCodecName, startTs, mode, Integer.MAX_VALUE);
             OutputManager ref = mOutputBuff;
             decodeToMemory(mReconfigFile, mCodecName, seekTs, mode, Integer.MAX_VALUE);
             OutputManager configRef = mOutputBuff;
-            mOutputBuff = test;
+            OutputManager test = new OutputManager(ref.getSharedErrorLogs());
+            OutputManager configTest = new OutputManager(configRef.getSharedErrorLogs());
             mCodec = MediaCodec.createByCodecName(mCodecName);
             for (boolean isAsync : boolStates) {
+                mOutputBuff = test;
                 setUpSource(mTestFile);
                 mExtractor.seekTo(startTs, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
                 configureCodec(format, isAsync, true, false);
@@ -681,6 +686,7 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                 mExtractor.release();
 
                 /* test reconfigure codec for new file */
+                mOutputBuff = configTest;
                 setUpSource(mReconfigFile);
                 reConfigureCodec(newFormat, isAsync, false, false);
                 if (isFormatSimilar(newFormat, defFormat)) {
@@ -690,16 +696,16 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                     validateFormat = false;
                 }
                 mCodec.start();
-                test.reset();
+                configTest.reset();
                 mExtractor.seekTo(seekTs, mode);
                 doWork(Integer.MAX_VALUE);
                 queueEOS();
                 waitForAllOutputs();
                 validateMetrics(mCodecName, newFormat);
                 mCodec.stop();
-                if (!configRef.equals(test)) {
+                if (!configRef.equals(configTest)) {
                     fail("Decoder output is not consistent across runs \n" + mTestConfig + mTestEnv
-                            + test.getErrMsg());
+                            + configTest.getErrMsg());
                 }
                 if (validateFormat) {
                     doOutputFormatChecks(defFormat, newFormat);
@@ -723,7 +729,7 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         MediaFormat format = setUpSource(mTestFile);
         boolean[] boolStates = {true, false};
         OutputManager ref = new OutputManager();
-        OutputManager test = new OutputManager();
+        OutputManager test = new OutputManager(ref.getSharedErrorLogs());
         mSaveToMem = true;
         {
             mCodec = MediaCodec.createByCodecName(mCodecName);
@@ -747,8 +753,8 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         mExtractor.release();
     }
 
-    private native boolean nativeTestOnlyEos(String decoder, String mime, String testFile,
-            int colorFormat);
+    private native boolean nativeTestOnlyEos(String decoder, String mediaType, String testFile,
+            int colorFormat, StringBuilder retMsg);
 
     /**
      * Test is similar to {@link #testOnlyEos()} but uses ndk api
@@ -763,7 +769,9 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
             mExtractor.release();
             colorFormat = format.getInteger(MediaFormat.KEY_COLOR_FORMAT);
         }
-        assertTrue(nativeTestOnlyEos(mCodecName, mMime, mTestFile, colorFormat));
+        boolean isPass = nativeTestOnlyEos(mCodecName, mMediaType, mTestFile, colorFormat,
+                mTestConfig);
+        assertTrue(mTestConfig.toString(), isPass);
     }
 
     /**
@@ -793,7 +801,7 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         boolean[] boolStates = {true, false};
         mSaveToMem = true;
         OutputManager ref = new OutputManager();
-        OutputManager test = new OutputManager();
+        OutputManager test = new OutputManager(ref.getSharedErrorLogs());
         {
             mCodec = MediaCodec.createByCodecName(mCodecName);
             int loopCounter = 0;
@@ -837,8 +845,8 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         mExtractor.release();
     }
 
-    private native boolean nativeTestSimpleDecodeQueueCSD(String decoder, String mime,
-            String testFile, int colorFormat);
+    private native boolean nativeTestSimpleDecodeQueueCSD(String decoder, String mediaType,
+            String testFile, int colorFormat, StringBuilder retMsg);
 
     /**
      * Test is similar to {@link #testSimpleDecodeQueueCSD()} but uses ndk api
@@ -854,7 +862,9 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         }
         mExtractor.release();
         int colorFormat = mIsAudio ? 0 : format.getInteger(MediaFormat.KEY_COLOR_FORMAT);
-        assertTrue(nativeTestSimpleDecodeQueueCSD(mCodecName, mMime, mTestFile, colorFormat));
+        boolean isPass = nativeTestSimpleDecodeQueueCSD(mCodecName, mMediaType, mTestFile,
+                colorFormat, mTestConfig);
+        assertTrue(mTestConfig.toString(), isPass);
     }
 
     /**
@@ -868,19 +878,19 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testDecodePartialFrame() throws IOException, InterruptedException {
         Assume.assumeTrue("codec: " + mCodecName + " does not advertise FEATURE_PartialFrame",
-                isFeatureSupported(mCodecName, mMime,
+                isFeatureSupported(mCodecName, mMediaType,
                         MediaCodecInfo.CodecCapabilities.FEATURE_PartialFrame));
         MediaFormat format = setUpSource(mTestFile);
         boolean[] boolStates = {true, false};
         int frameLimit = 10;
         ByteBuffer buffer = ByteBuffer.allocate(4 * 1024 * 1024);
-        OutputManager test = new OutputManager();
         {
             decodeToMemory(mTestFile, mCodecName, 0, MediaExtractor.SEEK_TO_CLOSEST_SYNC,
                     frameLimit);
             mCodec = MediaCodec.createByCodecName(mCodecName);
             OutputManager ref = mOutputBuff;
             mSaveToMem = true;
+            OutputManager test = new OutputManager(ref.getSharedErrorLogs());
             mOutputBuff = test;
             for (boolean isAsync : boolStates) {
                 mExtractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
