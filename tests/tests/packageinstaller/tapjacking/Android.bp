@@ -20,7 +20,7 @@ android_test {
     name: "CtsPackageInstallerTapjackingTestCases",
     defaults: ["cts_defaults"],
     static_libs: [
-        "androidx.test.uiautomator_uiautomator",
+        "ub-uiautomator",
         "androidx.test.rules",
         "androidx.test.runner",
         "androidx.test.core",

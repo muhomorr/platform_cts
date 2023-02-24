@@ -38,6 +38,5 @@ java_test_host {
     data: [
         ":CtsLocaleManagerTestDeviceApp",
         ":CtsAtomTestApp",
-        ":CtsOverrideLocaleConfigAtomTestApp",
     ],
 }

@@ -388,7 +388,6 @@ public class ProxyVoiceInteractionService extends VoiceInteractionService {
             triggerHardwareRecognitionEventForTest(
                     SOUND_TRIGGER_RECOGNITION_STATUS_SUCCESS,
                     /* soundModelHandle */ 0,
-                    /* halEventReceivedMillis */ 12345,
                     /* captureAvailable */ true,
                     /* captureSession */ 0,
                     /* captureDelayMs */ 0,
@@ -404,7 +403,6 @@ public class ProxyVoiceInteractionService extends VoiceInteractionService {
         public void triggerHardwareRecognitionEventForTest(
                 int status,
                 int soundModelHandle,
-                long halEventReceivedMillis,
                 boolean captureAvailable,
                 int captureSession,
                 int captureDelayMs,
@@ -414,9 +412,8 @@ public class ProxyVoiceInteractionService extends VoiceInteractionService {
                 @Nullable byte[] data,
                 List<KeyphraseRecognitionExtra> keyphraseExtras) {
             mAlwaysOnHotwordDetector.triggerHardwareRecognitionEventForTest(status,
-                    soundModelHandle, halEventReceivedMillis, captureAvailable,
-                    captureSession, captureDelayMs, capturePreambleMs, triggerInData, audioFormat,
-                    data, keyphraseExtras);
+                    soundModelHandle, captureAvailable, captureSession, captureDelayMs,
+                    capturePreambleMs, triggerInData, audioFormat, data, keyphraseExtras);
         }
 
         @Override

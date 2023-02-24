@@ -39,7 +39,6 @@ interface IProxyAlwaysOnHotwordDetector {
     void triggerHardwareRecognitionEventForTest(
             int status,
             int soundModelHandle,
-            long halEventReceivedMillis,
             boolean captureAvailable,
             int captureSession,
             int captureDelayMs,

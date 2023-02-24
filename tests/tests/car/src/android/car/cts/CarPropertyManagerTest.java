@@ -740,19 +740,14 @@ public final class CarPropertyManagerTest extends AbstractCarTestCase {
                             VehiclePropertyIds.EMERGENCY_LANE_KEEP_ASSIST_STATE,
                             VehiclePropertyIds.CRUISE_CONTROL_TYPE,
                             VehiclePropertyIds.CRUISE_CONTROL_STATE,
-                            VehiclePropertyIds.CRUISE_CONTROL_TARGET_SPEED,
-                            VehiclePropertyIds.ADAPTIVE_CRUISE_CONTROL_TARGET_TIME_GAP,
-                            VehiclePropertyIds
-                                    .ADAPTIVE_CRUISE_CONTROL_LEAD_VEHICLE_MEASURED_DISTANCE)
+                            VehiclePropertyIds.CRUISE_CONTROL_TARGET_SPEED)
                     .build();
     private static final ImmutableList<Integer> PERMISSION_CONTROL_ADAS_STATES_PROPERTIES =
             ImmutableList.<Integer>builder()
                     .add(
                             VehiclePropertyIds.LANE_CENTERING_ASSIST_COMMAND,
                             VehiclePropertyIds.CRUISE_CONTROL_TYPE,
-                            VehiclePropertyIds.CRUISE_CONTROL_COMMAND,
-                            VehiclePropertyIds.CRUISE_CONTROL_TARGET_SPEED,
-                            VehiclePropertyIds.ADAPTIVE_CRUISE_CONTROL_TARGET_TIME_GAP)
+                            VehiclePropertyIds.CRUISE_CONTROL_COMMAND)
                     .build();
     private static final ImmutableList<Integer> PERMISSION_CONTROL_GLOVE_BOX_PROPERTIES =
             ImmutableList.<Integer>builder()
@@ -1190,58 +1185,6 @@ public final class CarPropertyManagerTest extends AbstractCarTestCase {
                                         .isAtLeast(0F);
                             }
                         })
-                .addReadPermission(Car.PERMISSION_READ_ADAS_STATES)
-                .build()
-                .verify(mCarPropertyManager);
-    }
-
-    @Test
-    public void testAdaptiveCruiseControlTargetTimeGapIfSupported() {
-        VehiclePropertyVerifier.newBuilder(
-                        VehiclePropertyIds.ADAPTIVE_CRUISE_CONTROL_TARGET_TIME_GAP,
-                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE,
-                        VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
-                        CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE,
-                        Integer.class)
-                .setCarPropertyConfigVerifier(
-                        carPropertyConfig -> {
-                            List<Integer> configArray = carPropertyConfig.getConfigArray();
-
-                            for (Integer configArrayValue : configArray) {
-                                assertWithMessage("configArray values of "
-                                        + "ADAPTIVE_CRUISE_CONTROL_TARGET_TIME_GAP must be "
-                                        + "positive. Detected value " + configArrayValue + " in "
-                                        + "configArray " + configArray)
-                                        .that(configArrayValue)
-                                        .isGreaterThan(0);
-                            }
-
-                            for (int i = 0; i < configArray.size() - 1; i++) {
-                                assertWithMessage("configArray values of "
-                                        + "ADAPTIVE_CRUISE_CONTROL_TARGET_TIME_GAP must be in "
-                                        + "ascending order. Detected value " + configArray.get(i)
-                                        + " is greater than or equal to " + configArray.get(i + 1)
-                                        + " in configArray " + configArray)
-                                        .that(configArray.get(i))
-                                        .isLessThan(configArray.get(i + 1));
-                            }
-                        })
-                .addReadPermission(Car.PERMISSION_READ_ADAS_STATES)
-                .addWritePermission(Car.PERMISSION_CONTROL_ADAS_STATES)
-                .build()
-                .verify(mCarPropertyManager);
-    }
-
-    @Test
-    public void testAdaptiveCruiseControlLeadVehicleMeasuredDistanceIfSupported() {
-        VehiclePropertyVerifier.newBuilder(
-                        VehiclePropertyIds.ADAPTIVE_CRUISE_CONTROL_LEAD_VEHICLE_MEASURED_DISTANCE,
-                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ,
-                        VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
-                        CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS,
-                        Integer.class)
-                .requireMinMaxValues()
-                .requireMinValuesToBeZero()
                 .addReadPermission(Car.PERMISSION_READ_ADAS_STATES)
                 .build()
                 .verify(mCarPropertyManager);

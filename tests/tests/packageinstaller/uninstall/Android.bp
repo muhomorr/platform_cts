@@ -20,7 +20,7 @@ android_test {
     name: "CtsPackageUninstallTestCases",
     defaults: ["cts_defaults"],
     static_libs: [
-        "androidx.test.uiautomator_uiautomator",
+        "ub-uiautomator",
         "androidx.test.rules",
         "compatibility-device-util-axt",
         "platform-test-annotations",

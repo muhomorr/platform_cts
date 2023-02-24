@@ -149,43 +149,18 @@ public final class UserReference implements AutoCloseable {
         try {
             // Expected success string is "Success: removed user"
             ShellCommand.builder("pm remove-user")
-                    .addOperand("-w") // Wait for remove-user to complete
-                    .withTimeout(Duration.ofMinutes(1))
                     .addOperand(mId)
                     .validate(ShellCommandUtils::startsWithSuccess)
                     .execute();
+
+            Poll.forValue("User exists", this::exists)
+                    .toBeEqualTo(false)
+                    // TODO(b/203630556): Reduce timeout once we have a faster way of removing users
+                    .timeout(Duration.ofMinutes(1))
+                    .errorOnFail()
+                    .await();
         } catch (AdbException e) {
             throw new NeneException("Could not remove user " + this, e);
-        }
-        if (exists()) {
-            // This should never happen
-            throw new NeneException("Failed to remove user " + this);
-        }
-    }
-
-    /**
-     * Remove the user from device when it is next possible.
-     *
-     * <p>If the user is the current foreground user, removal is deferred until the user is switched
-     * away. Otherwise, it'll be removed immediately.
-     *
-     * <p>If the user does not exist, or setting the user ephemeral fails for any other reason, a
-     * {@link NeneException} will be thrown.
-     */
-    @Experimental
-    public void removeWhenPossible() {
-        try {
-            // Expected success strings are:
-            // ("Success: user %d removed\n", userId)
-            // ("Success: user %d set as ephemeral\n", userId)
-            // ("Success: user %d is already being removed\n", userId)
-            ShellCommand.builder("pm remove-user")
-                    .addOperand("--set-ephemeral-if-in-use")
-                    .addOperand(mId)
-                    .validate(ShellCommandUtils::startsWithSuccess)
-                    .execute();
-        } catch (AdbException e) {
-            throw new NeneException("Could not remove or mark ephemeral user " + this, e);
         }
     }
 
@@ -233,19 +208,20 @@ public final class UserReference implements AutoCloseable {
         try {
             // Expects no output on success or failure - stderr output on failure
             ShellCommand.builder("am stop-user")
-                    .addOperand("-w") // Wait for stop-user to complete
-                    .withTimeout(Duration.ofMinutes(1))
                     .addOperand("-f") // Force stop
                     .addOperand(mId)
                     .allowEmptyOutput(true)
                     .validate(String::isEmpty)
                     .execute();
+
+            Poll.forValue("User running", this::isRunning)
+                    .toBeEqualTo(false)
+                    // TODO(b/203630556): Replace stopping with something faster
+                    .timeout(Duration.ofMinutes(10))
+                    .errorOnFail()
+                    .await();
         } catch (AdbException e) {
             throw new NeneException("Could not stop user " + this, e);
-        }
-        if (isRunning()) {
-            // This should never happen
-            throw new NeneException("Failed to stop user " + this);
         }
 
         return this;

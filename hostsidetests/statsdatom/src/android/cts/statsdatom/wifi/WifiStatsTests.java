@@ -179,8 +179,7 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
             assertThat(event.getAtom().getWifiLockStateChanged().getMode())
                     .isEqualTo(
                             (ApiLevelUtil.isAfter(getDevice(), "TIRAMISU")
-                                    || ApiLevelUtil.codenameStartsWith(getDevice(), "U")
-                                    || ApiLevelUtil.codenameStartsWith(getDevice(), "V"))
+                                    || ApiLevelUtil.codenameStartsWith(getDevice(), "U"))
                                     ? WifiModeEnum.WIFI_MODE_FULL_LOW_LATENCY
                                     : WifiModeEnum.WIFI_MODE_FULL_HIGH_PERF);
         }

@@ -38,8 +38,6 @@ import android.platform.test.annotations.AppModeFull;
 import android.server.wm.TestTaskOrganizer;
 import android.view.View;
 
-import androidx.test.filters.FlakyTest;
-
 import com.android.compatibility.common.util.AdoptShellPermissionsRule;
 
 import org.junit.After;
@@ -113,7 +111,6 @@ public class MultiWindowLoginActivityTest
         runAmStartActivity(activity2.getName());
     }
 
-    @FlakyTest(bugId = 267196677) // TODO: find out why this test fails
     @Test
     public void testSplitWindow() throws Exception {
         enableService();

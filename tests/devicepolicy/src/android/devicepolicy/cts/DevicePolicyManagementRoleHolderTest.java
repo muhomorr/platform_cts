@@ -61,7 +61,6 @@ import com.android.compatibility.common.util.CddTest;
 import com.android.eventlib.truth.EventLogsSubject;
 
 import org.junit.ClassRule;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -87,7 +86,6 @@ public class DevicePolicyManagementRoleHolderTest { // TODO: This is crashing on
     private static final String FEATURE_ALLOW =
             "android.account.DEVICE_OR_PROFILE_OWNER_ALLOWED";
 
-    @Ignore("b/268616097 fix issue with pre-existing accounts on the device")
     @Postsubmit(reason = "new test")
     @RequireFeature(FEATURE_MANAGED_USERS)
     @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
@@ -108,7 +106,6 @@ public class DevicePolicyManagementRoleHolderTest { // TODO: This is crashing on
             }
     }
 
-    @Ignore("b/268616097 fix issue with pre-existing accounts on the device")
     @Postsubmit(reason = "new test")
     @RequireFeature(FEATURE_MANAGED_USERS)
     @EnsureHasDeviceOwner
@@ -132,7 +129,6 @@ public class DevicePolicyManagementRoleHolderTest { // TODO: This is crashing on
         }
     }
 
-    @Ignore("b/268616097 fix issue with pre-existing accounts on the device")
     @Postsubmit(reason = "new test")
     @RequireFeature(FEATURE_MANAGED_USERS)
     @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
@@ -150,7 +146,6 @@ public class DevicePolicyManagementRoleHolderTest { // TODO: This is crashing on
                 .eventOccurred();
     }
 
-    @Ignore("b/268616097 fix issue with pre-existing accounts on the device")
     @Postsubmit(reason = "new test")
     @RequireFeature(FEATURE_MANAGED_USERS)
     @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
@@ -169,7 +164,6 @@ public class DevicePolicyManagementRoleHolderTest { // TODO: This is crashing on
         }
     }
 
-    @Ignore("b/268616097 fix issue with pre-existing accounts on the device")
     @Postsubmit(reason = "new test")
     @RequireFeature(FEATURE_MANAGED_USERS)
     @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
@@ -190,7 +184,6 @@ public class DevicePolicyManagementRoleHolderTest { // TODO: This is crashing on
         }
     }
 
-    @Ignore("b/268616097 fix issue with pre-existing accounts on the device")
     @Postsubmit(reason = "New test")
     @Test
     @EnsureHasPermission(MANAGE_ROLE_HOLDERS)
@@ -203,7 +196,6 @@ public class DevicePolicyManagementRoleHolderTest { // TODO: This is crashing on
                 .isTrue();
     }
 
-    @Ignore("b/268616097 fix issue with pre-existing accounts on the device")
     @Postsubmit(reason = "New test")
     @Test
     @EnsureHasPermission(MANAGE_ROLE_HOLDERS)
@@ -223,7 +215,6 @@ public class DevicePolicyManagementRoleHolderTest { // TODO: This is crashing on
         }
     }
 
-    @Ignore("b/268616097 fix issue with pre-existing accounts on the device")
     @Postsubmit(reason = "New test")
     @Test
     @EnsureHasPermission(MANAGE_ROLE_HOLDERS)
@@ -243,7 +234,6 @@ public class DevicePolicyManagementRoleHolderTest { // TODO: This is crashing on
         }
     }
 
-    @Ignore("b/268616097 fix issue with pre-existing accounts on the device")
     @Postsubmit(reason = "New test")
     @Test
     @EnsureHasPermission(MANAGE_ROLE_HOLDERS)
@@ -259,7 +249,6 @@ public class DevicePolicyManagementRoleHolderTest { // TODO: This is crashing on
                 .isFalse();
     }
 
-    @Ignore("b/268616097 fix issue with pre-existing accounts on the device")
     @Postsubmit(reason = "New test")
     @Test
     @EnsureHasPermission(MANAGE_ROLE_HOLDERS)
@@ -275,7 +264,6 @@ public class DevicePolicyManagementRoleHolderTest { // TODO: This is crashing on
                 .isTrue();
     }
 
-    @Ignore("b/268616097 fix issue with pre-existing accounts on the device")
     @Postsubmit(reason = "New test")
     @Test
     @EnsureDoesNotHavePermission(MANAGE_ROLE_HOLDERS)

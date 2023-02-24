@@ -23,7 +23,7 @@ android_test {
     srcs: ["src/**/*.kt"],
 
     static_libs: [
-        "androidx.test.uiautomator_uiautomator",
+        "ub-uiautomator",
         "androidx.test.rules",
         "compatibility-device-util-axt",
         "androidx.legacy_legacy-support-v4",
