@@ -21,6 +21,7 @@ import static android.app.admin.DevicePolicyManager.ID_TYPE_IMEI;
 import static android.app.admin.DevicePolicyManager.ID_TYPE_MEID;
 import static android.app.admin.DevicePolicyManager.ID_TYPE_SERIAL;
 
+import static com.google.android.attestation.ParsedAttestationRecord.createParsedAttestationRecord;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -28,12 +29,15 @@ import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.keystore.cts.util.TestUtils;
 import android.os.Build;
+import android.os.SystemProperties;
 import android.security.AttestedKeyPair;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.security.keystore.StrongBoxUnavailableException;
 import android.telephony.TelephonyManager;
+import android.text.TextUtils;
 
 import com.android.bedstead.deviceadminapp.DeviceAdminApp;
 import com.android.bedstead.harrier.DeviceState;
@@ -44,10 +48,13 @@ import com.android.bedstead.nene.devicepolicy.DeviceOwner;
 import com.android.bedstead.nene.permissions.PermissionContext;
 import com.android.compatibility.common.util.ApiTest;
 
+import com.google.android.attestation.ParsedAttestationRecord;
+
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.PrivateKey;
@@ -113,22 +120,131 @@ public class DeviceOwnerKeyManagementTest {
                 signDataWithKey(algoIdentifier, keyPair.getPrivate()));
     }
 
+    int getDeviceFirstSdkLevel() {
+        return SystemProperties.getInt("ro.board.first_api_level", 0);
+    }
+
     private void validateDeviceIdAttestationData(Certificate leaf,
                                                  String expectedSerial,
                                                  String expectedImei,
-                                                 String expectedMeid)
+                                                 String expectedMeid,
+                                                 String expectedSecondImei)
             throws CertificateParsingException {
         Attestation attestationRecord = Attestation.loadFromCertificate((X509Certificate) leaf);
         AuthorizationList teeAttestation = attestationRecord.getTeeEnforced();
         assertThat(teeAttestation).isNotNull();
-        assertThat(teeAttestation.getBrand()).isEqualTo(Build.BRAND);
+        final String platformReportedBrand =
+                TestUtils.isPropertyEmptyOrUnknown(Build.BRAND_FOR_ATTESTATION)
+                ? Build.BRAND : Build.BRAND_FOR_ATTESTATION;
+        assertThat(teeAttestation.getBrand()).isEqualTo(platformReportedBrand);
         assertThat(teeAttestation.getDevice()).isEqualTo(Build.DEVICE);
-        assertThat(teeAttestation.getProduct()).isEqualTo(Build.PRODUCT);
+        final String platformReportedProduct =
+                TestUtils.isPropertyEmptyOrUnknown(Build.PRODUCT_FOR_ATTESTATION)
+                ? Build.PRODUCT : Build.PRODUCT_FOR_ATTESTATION;
+        assertThat(teeAttestation.getProduct()).isEqualTo(platformReportedProduct);
         assertThat(teeAttestation.getManufacturer()).isEqualTo(Build.MANUFACTURER);
-        assertThat(teeAttestation.getModel()).isEqualTo(Build.MODEL);
+        final String platformReportedModel =
+                TestUtils.isPropertyEmptyOrUnknown(Build.MODEL_FOR_ATTESTATION)
+                ? Build.MODEL : Build.MODEL_FOR_ATTESTATION;
+        assertThat(teeAttestation.getModel()).isEqualTo(platformReportedModel);
         assertThat(teeAttestation.getSerialNumber()).isEqualTo(expectedSerial);
         assertThat(teeAttestation.getImei()).isEqualTo(expectedImei);
         assertThat(teeAttestation.getMeid()).isEqualTo(expectedMeid);
+
+        validateSecondImei(teeAttestation.getSecondImei(), expectedSecondImei);
+    }
+
+    private void validateSecondImei(String attestedSecondImei, String expectedSecondImei) {
+        /**
+         * Test attestation support for 2nd IMEI:
+         * * Attestation of 2nd IMEI (if present on the device) is required for devices shipping
+         *   with VSR-U (device's first SDK level U and above).
+         * * KeyMint v3 implementations on devices that shipped with earlier VSR, MAY support
+         *   attesting to the 2nd IMEI. In that case, if the 2nd IMEI tag is included in the
+         *   attestation record, it must match what the platform provided.
+         * * Other KeyMint implementations must not include anything in this tag.
+         */
+        final boolean isKeyMintV3 = TestUtils.getFeatureVersionKeystore(sContext) >= 300;
+        final boolean emptySecondImei = TextUtils.isEmpty(expectedSecondImei);
+        final boolean deviceShippedWithKeyMint3 =
+                getDeviceFirstSdkLevel() >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE;
+
+        if (!isKeyMintV3) {
+            // Earlier versions of KeyMint must not attest to second IMEI values as they are not
+            // allowed to emit an attestation extension version that includes it.
+            assertThat(attestedSecondImei).isNull();
+        } else if (emptySecondImei) {
+            // Device doesn't have a second IMEI, so none should be included in the attestation
+            // extension.
+            assertThat(attestedSecondImei).isNull();
+        } else if (deviceShippedWithKeyMint3) {
+            // The device has a second IMEI and should attest to it.
+            assertThat(attestedSecondImei).isEqualTo(expectedSecondImei);
+        } else {
+            // Device has KeyMint 3, but originally shipped with an earlier KeyMint and
+            // may not have provisioned the second IMEI as an attestation ID.
+            // It does not have to support attesting to the second IMEI, but if there is something
+            // in the attestation record, it must match the platform-provided second IMEI.
+            if (!TextUtils.isEmpty(attestedSecondImei)) {
+                assertThat(attestedSecondImei).isEqualTo(expectedSecondImei);
+            }
+        }
+    }
+
+    private void validateDeviceIdAttestationDataUsingExtLib(Certificate leaf,
+                                                            String expectedSerial,
+                                                            String expectedImei,
+                                                            String expectedMeid,
+                                                            String expectedSecondImei)
+            throws CertificateParsingException, IOException {
+        ParsedAttestationRecord parsedAttestationRecord =
+                createParsedAttestationRecord((X509Certificate) leaf);
+
+        com.google.android.attestation.AuthorizationList teeAttestation =
+                parsedAttestationRecord.teeEnforced;
+
+        assertThat(teeAttestation).isNotNull();
+        final String platformReportedBrand =
+                TestUtils.isPropertyEmptyOrUnknown(Build.BRAND_FOR_ATTESTATION)
+                ? Build.BRAND : Build.BRAND_FOR_ATTESTATION;
+        assertThat(new String(teeAttestation.attestationIdBrand.get()))
+                .isEqualTo(platformReportedBrand);
+        assertThat(new String(teeAttestation.attestationIdDevice.get())).isEqualTo(Build.DEVICE);
+        final String platformReportedProduct =
+                TestUtils.isPropertyEmptyOrUnknown(Build.PRODUCT_FOR_ATTESTATION)
+                ? Build.PRODUCT : Build.PRODUCT_FOR_ATTESTATION;
+        assertThat(new String(teeAttestation.attestationIdProduct.get()))
+                .isEqualTo(platformReportedProduct);
+        assertThat(new String(teeAttestation.attestationIdManufacturer.get()))
+                .isEqualTo(Build.MANUFACTURER);
+        final String platformReportedModel =
+                TestUtils.isPropertyEmptyOrUnknown(Build.MODEL_FOR_ATTESTATION)
+                ? Build.MODEL : Build.MODEL_FOR_ATTESTATION;
+        assertThat(new String(teeAttestation.attestationIdModel.get()))
+                .isEqualTo(platformReportedModel);
+
+        assertThat(!TextUtils.isEmpty(expectedSerial))
+                .isEqualTo(teeAttestation.attestationIdSerial.isPresent());
+        if (!TextUtils.isEmpty(expectedSerial)) {
+            assertThat(new String(teeAttestation.attestationIdSerial.get()))
+                    .isEqualTo(expectedSerial);
+        }
+        assertThat(!TextUtils.isEmpty(expectedImei))
+                .isEqualTo(teeAttestation.attestationIdImei.isPresent());
+        if (!TextUtils.isEmpty(expectedImei)) {
+            assertThat(new String(teeAttestation.attestationIdImei.get()))
+                    .isEqualTo(expectedImei);
+        }
+        assertThat(!TextUtils.isEmpty(expectedMeid))
+                .isEqualTo(teeAttestation.attestationIdMeid.isPresent());
+        if (!TextUtils.isEmpty(expectedMeid)) {
+            assertThat(new String(teeAttestation.attestationIdMeid.get()))
+                    .isEqualTo(expectedMeid);
+        }
+        // TODO: Second IMEI parsing is not supported by external library yet,
+        //  hence skipping for now.
+        /* validateSecondImei(new String(teeAttestation.attestationIdSecondImei.get()),
+                expectedSecondImei); */
     }
 
     private void validateAttestationRecord(List<Certificate> attestation, byte[] providedChallenge)
@@ -239,7 +355,11 @@ public class DeviceOwnerKeyManagementTest {
         } catch (UnsupportedOperationException ex) {
             assertWithMessage(
                     String.format(
-                            "Unexpected failure while generating key %s with ID flags %d: %s",
+                            "Unexpected failure while generating key %s with ID flags %d: %s"
+                            + "\nIn case of AOSP/GSI builds, system provided properties could be"
+                            + " different from provisioned properties in KeyMaster/KeyMint. In"
+                            + " such cases, make sure attestation specific properties"
+                            + " (Build.*_FOR_ATTESTATION) are configured correctly.",
                             keyAlgorithm, deviceIdAttestationFlags, ex))
                     .that(
                             isDeviceIdAttestationRequested(deviceIdAttestationFlags)
@@ -255,6 +375,7 @@ public class DeviceOwnerKeyManagementTest {
     public void assertAllVariantsOfDeviceIdAttestation(boolean useStrongBox) throws Exception {
         List<Integer> modesToTest = new ArrayList<Integer>();
         String imei = null;
+        String secondImei = null;
         String meid = null;
         // All devices must support at least basic device information attestation as well as serial
         // number attestation. Although attestation of unique device ids are only callable by
@@ -269,8 +390,8 @@ public class DeviceOwnerKeyManagementTest {
                     .that(telephonyService)
                     .isNotNull();
             imei = telephonyService.getImei(0);
+            secondImei = telephonyService.getImei(1);
             meid = telephonyService.getMeid(0);
-            assertThat(imei).isNotNull();
             // If the device has a valid IMEI it must support attestation for it.
             if (imei != null) {
                 modesToTest.add(ID_TYPE_IMEI);
@@ -322,8 +443,20 @@ public class DeviceOwnerKeyManagementTest {
                         if ((devIdOpt & ID_TYPE_MEID) != 0) {
                             expectedMeid = meid;
                         }
+                        String expectedSecondImei = null;
+                        if ((devIdOpt & ID_TYPE_IMEI) != 0) {
+                            // TODO(b/262255219): Remove this condition when StrongBox supports 2nd
+                            // IMEI attestation.
+                            if (!useStrongBox) {
+                                expectedSecondImei = secondImei;
+                            }
+                        }
                         validateDeviceIdAttestationData(attestation, expectedSerial,
-                                expectedImei, expectedMeid);
+                                expectedImei, expectedMeid, expectedSecondImei);
+                        // Validate attestation record using external library. As above validation
+                        // is successful external library validation should also pass.
+                        validateDeviceIdAttestationDataUsingExtLib(attestation, expectedSerial,
+                                expectedImei, expectedMeid, expectedSecondImei);
                     }
                 } catch (UnsupportedOperationException expected) {
                     // Make sure the test only fails if the device is not meant to support Device

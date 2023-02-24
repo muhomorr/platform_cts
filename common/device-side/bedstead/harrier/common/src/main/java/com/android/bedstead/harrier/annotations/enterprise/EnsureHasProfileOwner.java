@@ -43,12 +43,11 @@ import java.lang.annotation.Target;
 // TODO(b/206441366): Add instant app support
 @RequireNotInstantApp(reason = "Instant Apps cannot run Enterprise Tests")
 public @interface EnsureHasProfileOwner {
-    /** Which user type the work profile should be attached to. */
+    /** Which user type the profile owner should be installed on. */
     UserType onUser() default INSTRUMENTED_USER;
 
     /**
-     * Whether this DPC should be returned by calls to {@code Devicestate#dpc()} or
-     * {@code Devicestate#policyManager()}}.
+     * Whether this DPC should be returned by calls to {@code Devicestate#dpc()}.
      *
      * <p>Only one policy manager per test should be marked as primary.
      */

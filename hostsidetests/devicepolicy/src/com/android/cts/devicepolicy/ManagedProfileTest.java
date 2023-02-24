@@ -15,6 +15,7 @@
  */
 package com.android.cts.devicepolicy;
 
+import com.android.tradefed.util.RunUtil;
 import static com.android.cts.devicepolicy.metrics.DevicePolicyEventLogVerifier.assertMetricsLogged;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -526,7 +527,7 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
                     "startSwitchToOtherProfileIntent", mProfileUserId);
 
             // TODO(b/223178698): Investigate potential increase in latency
-            Thread.sleep(30000);
+            RunUtil.getDefault().sleep(30000);
 
             assertResolverActivityInForeground(mProfileUserId);
         } finally {
@@ -569,7 +570,7 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
             runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".CrossProfileSharingTest",
                     "startSwitchToOtherProfileIntent_chooser", mProfileUserId);
 
-            Thread.sleep(30000);
+            RunUtil.getDefault().sleep(30000);
 
             assertChooserActivityInForeground(mProfileUserId);
         } finally {
@@ -599,7 +600,7 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
             assertActivityInForeground("android/com.android.internal.app.ResolverActivity", userId);
         } catch (AssertionError e) {
             CLog.v("ResolverActivity is not the default: " + e);
-            assertActivityInForeground(resolveActivity("android.intent.action.SEND"), userId);
+            assertActivityInForeground(getCustomResolverActivity(), userId);
         }
     }
 
@@ -643,5 +644,17 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
                    + " --brief' is " + outputs[0], outputs.length >= 2);
 
         return outputs[1];
+    }
+
+    private String getCustomResolverActivity() throws Exception {
+        final String[] outputs = getDevice().executeShellCommand(
+                "cmd overlay lookup android android:string/config_customResolverActivity")
+                .split("\n");
+
+        String customResolverActivity = resolveActivity("android.intent.action.SEND");
+        if (outputs != null && outputs.length >= 1 && outputs[0] != null && !outputs[0].isEmpty()) {
+            customResolverActivity = outputs[0];
+        }
+        return customResolverActivity;
     }
 }

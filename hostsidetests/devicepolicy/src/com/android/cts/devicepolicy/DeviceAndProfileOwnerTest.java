@@ -16,6 +16,7 @@
 
 package com.android.cts.devicepolicy;
 
+import com.android.tradefed.util.RunUtil;
 import static com.android.cts.devicepolicy.metrics.DevicePolicyEventLogVerifier.assertMetricsLogged;
 
 import static org.junit.Assert.assertFalse;
@@ -383,15 +384,6 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         installAppPermissionAppAsUser();
         executeDeviceTestMethod(".PermissionsTest",
                 "testPermissionPolicyAutoGrant_multiplePermissionsInGroup");
-    }
-
-    @Test
-    public void testPermissionMixedPolicies() throws Exception {
-        installAppPermissionAppAsUser();
-        executeDeviceTestMethod(".PermissionsTest",
-                "testPermissionGrantStateDenied_mixedPolicies");
-        executeDeviceTestMethod(".PermissionsTest",
-                "testPermissionGrantStateGranted_mixedPolicies");
     }
 
     @Test
@@ -970,7 +962,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
             executeDeviceTestMethod(".GetPasswordExpirationTest",
                     "testGetPasswordExpirationUpdatedAfterPasswordReset_beforeReset");
             // Wait for 20 seconds so we can make sure that the expiration date is refreshed later.
-            Thread.sleep(20000);
+            RunUtil.getDefault().sleep(20000);
             changeUserCredential(TEST_PASSWORD, null, mUserId);
             executeDeviceTestMethod(".GetPasswordExpirationTest",
                     "testGetPasswordExpirationUpdatedAfterPasswordReset_afterReset");

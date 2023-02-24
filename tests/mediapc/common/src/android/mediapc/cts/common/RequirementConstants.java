@@ -50,8 +50,11 @@ public class RequirementConstants {
     public static final String R7_5__H_1_2 = "r7_5__h_1_2"; // 7.5/H-1-2
     public static final String R7_5__H_1_3 = "r7_5__h_1_3"; // 7.5/H-1-3
     public static final String R7_5__H_1_4 = "r7_5__h_1_4"; // 7.5/H-1-4
-    public static final String R7_5__H_1_5 = "r7_5__h_1_5"; // 7.5/H-1-5
-    public static final String R7_5__H_1_6 = "r7_5__h_1_6"; // 7.5/H-1-6
+
+    // these includes "its" because the proto in google3 was originally implemented incorrectly
+    public static final String R7_5__H_1_5 = "r7_5__h_1_5__its"; // 7.5/H-1-5
+    public static final String R7_5__H_1_6 = "r7_5__h_1_6__its"; // 7.5/H-1-6
+
     public static final String R7_5__H_1_8 = "r7_5__h_1_8"; // 7.5/H-1-8
     public static final String R7_5__H_1_9 = "r7_5__h_1_9"; // 7.5/H-1-9
     public static final String R7_5__H_1_10 = "r7_5__h_1_10"; // 7.5/H-1-10
@@ -128,6 +131,8 @@ public class RequirementConstants {
             "rear_camera_stream_usecase_supported";
     public static final String FRONT_CAMERA_STREAM_USECASE_SUPPORTED =
             "front_camera_stream_usecase_supported";
+    public static final String API_NATIVE_LATENCY = "native_latency_ms";
+    public static final String API_JAVA_LATENCY = "java_latency_ms";
 
     public enum Result {
         NA, MET, UNMET
@@ -140,6 +145,7 @@ public class RequirementConstants {
     public static final BiPredicate<Integer, Integer> INTEGER_LTE = RequirementConstants.lte();
     public static final BiPredicate<Integer, Integer> INTEGER_EQ = RequirementConstants.eq();
     public static final BiPredicate<Double, Double> DOUBLE_GTE = RequirementConstants.gte();
+    public static final BiPredicate<Double, Double> DOUBLE_LTE = RequirementConstants.lte();
     public static final BiPredicate<Double, Double> DOUBLE_EQ = RequirementConstants.eq();
     public static final BiPredicate<Boolean, Boolean> BOOLEAN_EQ = RequirementConstants.eq();
 

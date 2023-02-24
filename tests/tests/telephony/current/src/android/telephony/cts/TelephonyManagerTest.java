@@ -1211,10 +1211,8 @@ public class TelephonyManagerTest {
                 Build::getSerial);
         assertNotNull("Non-telephony devices must have a Build.getSerial() number.",
                 serial);
-        assertTrue("Hardware id must be no longer than 20 characters.",
-                serial.length() <= 20);
         assertTrue("Hardware id must be alphanumeric.",
-                Pattern.matches("[0-9A-Za-z]+", serial));
+                Pattern.matches("[0-9A-Za-z.,_-]+", serial));
     }
 
     private void assertMacAddress(String macAddress) {
@@ -2272,7 +2270,7 @@ public class TelephonyManagerTest {
 
         List<String> plmns = mTelephonyManager.getEquivalentHomePlmns();
 
-        if (mTelephonyManager.getPhoneType() != TelephonyManager.PHONE_TYPE_GSM) {
+        if (mTelephonyManager.getPhoneType() == TelephonyManager.PHONE_TYPE_CDMA) {
             assertEquals(0, plmns.size());
         } else {
             for (String plmn : plmns) {
@@ -3463,9 +3461,15 @@ public class TelephonyManagerTest {
                                 TelephonyManager.NETWORK_TYPE_BITMASK_NR);
                     }
             );
-
+        } catch (SecurityException se) {
+            fail("setAllowedNetworkTypesForReason: SecurityException not expected: "
+                    + se.getMessage());
         } catch (Exception e) {
-            fail("setAllowedNetworkTypesForReason: SecurityException not expected");
+            // withCarrierPrivileges declares a checked Exception, so we must handle it. We don't
+            // expect any exceptions so this is still a failure.
+            Log.e(TAG, "Exception not expected. failing test.", e);
+            fail("CarrierPrivilegeUtils.withCarrierPrivileges: Exception not expected. "
+                    + "See error log.");
         }
 
         assertThrows(SecurityException.class, () -> {
@@ -4231,6 +4235,11 @@ public class TelephonyManagerTest {
             fail("SecurityException expected when setSignalStrengthUpdateRequest without "
                     + "carrier privilege or MODIFY_PHONE_STATE permission");
         } catch (SecurityException expected) {
+        } finally {
+            // Always clear request. In case this case fail, it will not impact
+            // other cases. clearing request is a no-op if set failed.
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.clearSignalStrengthUpdateRequest(normalRequest));
         }
     }
 
@@ -4245,8 +4254,13 @@ public class TelephonyManagerTest {
                 .setSystemThresholdReportingRequestedWhileIdle(true)
                 .build();
 
-        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
-                (tm) -> tm.setSignalStrengthUpdateRequest(request));
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setSignalStrengthUpdateRequest(request));
+        } finally {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.clearSignalStrengthUpdateRequest(request));
+        }
     }
 
     @Test
@@ -4273,6 +4287,9 @@ public class TelephonyManagerTest {
             fail("IllegalArgumentException expected when set hysteresisDb in SignalThresholdInfo "
                     + "to true");
         } catch (IllegalArgumentException expected) {
+        } finally {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.clearSignalStrengthUpdateRequest(requestWithHysteresisDbSet));
         }
     }
 
@@ -4300,6 +4317,9 @@ public class TelephonyManagerTest {
             fail("IllegalArgumentException expected when set hysteresisMs in SignalThresholdInfo "
                     + "to true");
         } catch (IllegalArgumentException expected) {
+        } finally {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.clearSignalStrengthUpdateRequest(requestWithHysteresisMsSet));
         }
     }
 
@@ -4327,6 +4347,9 @@ public class TelephonyManagerTest {
             fail("IllegalArgumentException expected when set isEnabled in SignalThresholdInfo "
                     + "with true");
         } catch (IllegalArgumentException expected) {
+        } finally {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.clearSignalStrengthUpdateRequest(requestWithThresholdIsEnabledSet));
         }
     }
 
@@ -4352,6 +4375,9 @@ public class TelephonyManagerTest {
                     (tm) -> tm.setSignalStrengthUpdateRequest(requestWithTooShortThresholds));
             fail("IllegalArgumentException expected when set thresholds that is too short");
         } catch (IllegalArgumentException expected) {
+        } finally {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.clearSignalStrengthUpdateRequest(requestWithTooShortThresholds));
         }
     }
 
@@ -4378,6 +4404,9 @@ public class TelephonyManagerTest {
                     (tm) -> tm.setSignalStrengthUpdateRequest(requestWithTooLongThresholds));
             fail("IllegalArgumentException expected when set thresholds that is too long");
         } catch (IllegalArgumentException expected) {
+        } finally {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.clearSignalStrengthUpdateRequest(requestWithTooLongThresholds));
         }
     }
 

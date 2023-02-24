@@ -34,8 +34,6 @@ import static android.app.admin.DevicePolicyManager.PERMISSION_POLICY_AUTO_DENY;
 import static android.app.admin.DevicePolicyManager.PERMISSION_POLICY_AUTO_GRANT;
 import static android.app.admin.DevicePolicyManager.PERMISSION_POLICY_PROMPT;
 
-import static com.android.bedstead.nene.notifications.NotificationListenerQuerySubject.assertThat;
-
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -57,11 +55,13 @@ import com.android.bedstead.harrier.annotations.enterprise.PolicyDoesNotApplyTes
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnFinancedDeviceOwnerUser;
 import com.android.bedstead.harrier.policies.SetPermissionGrantState;
 import com.android.bedstead.harrier.policies.SetSensorPermissionGranted;
+import com.android.bedstead.harrier.policies.SetSensorPermissionPolicyPromptForOrganizationOwnedWorkProfile;
 import com.android.bedstead.harrier.policies.SetSmsPermissionGranted;
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.devicepolicy.DeviceOwner;
 import com.android.bedstead.nene.devicepolicy.DeviceOwnerType;
 import com.android.bedstead.nene.notifications.NotificationListener;
+import com.android.bedstead.nene.notifications.NotificationListenerQuerySubject;
 import com.android.bedstead.nene.utils.Poll;
 import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppActivity;
@@ -648,8 +648,9 @@ public final class PermissionGrantTest {
             sDeviceState.dpc().devicePolicyManager().setPermissionPolicy(
                     sDeviceState.dpc().componentName(), policy);
 
-            assertThat(sDeviceState.dpc().devicePolicyManager().getPermissionPolicy(
-                    sDeviceState.dpc().componentName())).isEqualTo(policy);
+            assertThat(
+                    sDeviceState.dpc().devicePolicyManager().getPermissionPolicy(
+                            sDeviceState.dpc().componentName())).isEqualTo(policy);
         } finally {
             sDeviceState.dpc().devicePolicyManager().setPermissionPolicy(
                     sDeviceState.dpc().componentName(), PERMISSION_POLICY_PROMPT);
@@ -691,7 +692,7 @@ public final class PermissionGrantTest {
             TestAppActivity activity = testApp.activities().any().start().activity();
             activity.requestPermissions(new String[]{GRANTABLE_PERMISSION}, /* requestCode= */ 0);
 
-            Poll.forValue("Permission granted",
+            Poll.forValue("Permission not granted",
                     () -> sNotInstalledTestApp.pkg().hasPermission(GRANTABLE_PERMISSION))
                     .toBeEqualTo(false)
                     .errorOnFail()
@@ -707,7 +708,7 @@ public final class PermissionGrantTest {
     @NotificationsTest
     @Ignore("TODO(198280344): Re-enable when we can set sensor permissions using device owner")
     public void grantLocationPermission_userNotified(
-            @LocationPermissionTestParameter String permission) throws Exception {
+            @LocationPermissionTestParameter String permission) {
         int existingGrantState = sDeviceState.dpc().devicePolicyManager()
                 .getPermissionGrantState(sDeviceState.dpc().componentName(),
                         sTestApp.packageName(), permission);
@@ -719,7 +720,7 @@ public final class PermissionGrantTest {
                     sDeviceState.dpc().componentName(), sTestApp.packageName(),
                     permission, PERMISSION_GRANT_STATE_GRANTED);
 
-            assertThat(notifications.query()
+            NotificationListenerQuerySubject.assertThat(notifications.query()
                     .wherePackageName().isEqualTo(PERMISSION_CONTROLLER_PACKAGE_NAME)
                     .whereNotification().channelId().isEqualTo(
                             AUTO_GRANTED_PERMISSIONS_CHANNEL_ID)
@@ -744,6 +745,179 @@ public final class PermissionGrantTest {
                         sDeviceState.dpc().componentName(), sTestApp.packageName(),
                         NOT_DECLARED_PERMISSION))
                 .isEqualTo(PERMISSION_GRANT_STATE_DEFAULT);
+    }
+
+    @PolicyAppliesTest(policy = SetPermissionGrantState.class)
+    public void setPermissionGrantStateDeny_autoGrantPermission_deniesPermissions(
+            @DeniablePermissionTestParameter String permission) {
+        try (TestAppInstance testApp = sNotInstalledTestApp.install()) {
+            // We install fresh so the permissions are not granted
+            sDeviceState.dpc().devicePolicyManager()
+                    .setPermissionGrantState(sDeviceState.dpc().componentName(),
+                            sNotInstalledTestApp.packageName(),
+                            permission, PERMISSION_GRANT_STATE_DENIED);
+            sDeviceState.dpc().devicePolicyManager().setPermissionPolicy(
+                    sDeviceState.dpc().componentName(), PERMISSION_POLICY_AUTO_GRANT);
+
+            TestAppActivity activity = testApp.activities().any().start().activity();
+            activity.requestPermissions(new String[]{ permission }, /* requestCode= */ 0);
+
+            Poll.forValue("Permission granted",
+                    () -> sNotInstalledTestApp.pkg().hasPermission(permission))
+                    .toBeEqualTo(false)
+                    .errorOnFail()
+                    .await();
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setPermissionGrantState(
+                    sDeviceState.dpc().componentName(), sNotInstalledTestApp.packageName(),
+                    permission, PERMISSION_GRANT_STATE_DEFAULT);
+            sDeviceState.dpc().devicePolicyManager().setPermissionPolicy(
+                    sDeviceState.dpc().componentName(), PERMISSION_POLICY_PROMPT);
+        }
+    }
+
+    @PolicyAppliesTest(policy = SetPermissionGrantState.class)
+    public void setPermissionGrantStateDeny_autoDenyPermission_deniesPermissions(
+            @DeniablePermissionTestParameter String permission) {
+        try (TestAppInstance testApp = sNotInstalledTestApp.install()) {
+            // We install fresh so the permissions are not granted
+            sDeviceState.dpc().devicePolicyManager()
+                    .setPermissionGrantState(sDeviceState.dpc().componentName(),
+                            sNotInstalledTestApp.packageName(),
+                            permission, PERMISSION_GRANT_STATE_DENIED);
+            sDeviceState.dpc().devicePolicyManager().setPermissionPolicy(
+                    sDeviceState.dpc().componentName(), PERMISSION_POLICY_AUTO_DENY);
+
+            TestAppActivity activity = testApp.activities().any().start().activity();
+            activity.requestPermissions(new String[]{ permission }, /* requestCode= */ 0);
+
+            Poll.forValue("Permission granted",
+                    () -> sNotInstalledTestApp.pkg().hasPermission(permission))
+                    .toBeEqualTo(false)
+                    .errorOnFail()
+                    .await();
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setPermissionGrantState(
+                    sDeviceState.dpc().componentName(), sNotInstalledTestApp.packageName(),
+                    permission, PERMISSION_GRANT_STATE_DEFAULT);
+            sDeviceState.dpc().devicePolicyManager().setPermissionPolicy(
+                    sDeviceState.dpc().componentName(), PERMISSION_POLICY_PROMPT);
+        }
+    }
+
+    @PolicyAppliesTest(policy = SetPermissionGrantState.class)
+    @EnsureScreenIsOn
+    @EnsureUnlocked
+    public void setPermissionGrantStateDeny_promptPermission_deniesPermissions() {
+        try (TestAppInstance testApp = sNotInstalledTestApp.install()) {
+            // We install fresh so the permissions are not granted
+            sDeviceState.dpc().devicePolicyManager()
+                    .setPermissionGrantState(sDeviceState.dpc().componentName(),
+                            sNotInstalledTestApp.packageName(),
+                            ACCESS_FINE_LOCATION, PERMISSION_GRANT_STATE_DENIED);
+            sDeviceState.dpc().devicePolicyManager().setPermissionPolicy(
+                    sDeviceState.dpc().componentName(), PERMISSION_POLICY_PROMPT);
+
+            TestAppActivity activity = testApp.activities().any().start().activity();
+            activity.requestPermissions(
+                    new String[]{ ACCESS_FINE_LOCATION }, /* requestCode= */ 0);
+
+            Poll.forValue("Permission granted",
+                    () -> sNotInstalledTestApp.pkg().hasPermission(ACCESS_FINE_LOCATION))
+                    .toBeEqualTo(false)
+                    .errorOnFail()
+                    .await();
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setPermissionGrantState(
+                    sDeviceState.dpc().componentName(), sNotInstalledTestApp.packageName(),
+                    ACCESS_FINE_LOCATION, PERMISSION_GRANT_STATE_DEFAULT);
+        }
+    }
+
+    @PolicyAppliesTest(policy = SetPermissionGrantState.class)
+    public void setPermissionStateGranted_autoDenyPermission_grantsPermissions() {
+        try (TestAppInstance testApp = sNotInstalledTestApp.install()) {
+            // We install fresh so the permissions are not granted
+            sDeviceState.dpc().devicePolicyManager()
+                    .setPermissionGrantState(sDeviceState.dpc().componentName(),
+                            testApp.packageName(),
+                            GRANTABLE_PERMISSION, PERMISSION_GRANT_STATE_GRANTED);
+            sDeviceState.dpc().devicePolicyManager().setPermissionPolicy(
+                    sDeviceState.dpc().componentName(), PERMISSION_POLICY_AUTO_DENY);
+
+            TestAppActivity activity = testApp.activities().any().start().activity();
+            activity.requestPermissions(
+                    new String[]{ GRANTABLE_PERMISSION }, /* requestCode= */ 0);
+
+            Poll.forValue("Permission granted",
+                            () -> sNotInstalledTestApp.pkg().hasPermission(GRANTABLE_PERMISSION))
+                    .toBeEqualTo(true)
+                    .errorOnFail()
+                    .await();
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setPermissionGrantState(
+                    sDeviceState.dpc().componentName(), sNotInstalledTestApp.packageName(),
+                    GRANTABLE_PERMISSION, PERMISSION_GRANT_STATE_DEFAULT);
+            sDeviceState.dpc().devicePolicyManager().setPermissionPolicy(
+                    sDeviceState.dpc().componentName(), PERMISSION_POLICY_PROMPT);
+        }
+    }
+
+    @PolicyAppliesTest(policy = SetPermissionGrantState.class)
+    @EnsureScreenIsOn
+    @EnsureUnlocked
+    public void setPermissionStateGranted_promptPermission_grantsPermissions() {
+        try (TestAppInstance testApp = sNotInstalledTestApp.install()) {
+            // We install fresh so the permissions are not granted
+            sDeviceState.dpc().devicePolicyManager()
+                    .setPermissionGrantState(sDeviceState.dpc().componentName(),
+                            sNotInstalledTestApp.packageName(),
+                            GRANTABLE_PERMISSION, PERMISSION_GRANT_STATE_GRANTED);
+            sDeviceState.dpc().devicePolicyManager().setPermissionPolicy(
+                    sDeviceState.dpc().componentName(), PERMISSION_POLICY_PROMPT);
+
+            TestAppActivity activity = testApp.activities().any().start().activity();
+            activity.requestPermissions(
+                    new String[]{ GRANTABLE_PERMISSION },  /* requestCode= */ 0);
+
+            Poll.forValue("Permission granted",
+                            () -> sNotInstalledTestApp.pkg().hasPermission(GRANTABLE_PERMISSION))
+                    .toBeEqualTo(true)
+                    .errorOnFail()
+                    .await();
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setPermissionGrantState(
+                    sDeviceState.dpc().componentName(), sNotInstalledTestApp.packageName(),
+                    GRANTABLE_PERMISSION, PERMISSION_GRANT_STATE_DEFAULT);
+        }
+    }
+
+    @PolicyAppliesTest(
+            policy = SetSensorPermissionPolicyPromptForOrganizationOwnedWorkProfile.class)
+    public void setSensorPermissionStateGranted_promptPermission_denyAsPermissionCantBeGrantedAutomatically(
+            @SensorPermissionTestParameter String permission) {
+        try (TestAppInstance testApp = sNotInstalledTestApp.install()) {
+            // We install fresh so the permissions are not granted
+            sDeviceState.dpc().devicePolicyManager()
+                    .setPermissionGrantState(sDeviceState.dpc().componentName(),
+                            sNotInstalledTestApp.packageName(),
+                            permission, PERMISSION_GRANT_STATE_GRANTED);
+            sDeviceState.dpc().devicePolicyManager().setPermissionPolicy(
+                    sDeviceState.dpc().componentName(), PERMISSION_POLICY_PROMPT);
+
+            TestAppActivity activity = testApp.activities().any().start().activity();
+            activity.requestPermissions(new String[]{ permission },  /* requestCode= */ 0);
+
+            Poll.forValue("Permission granted",
+                            () -> sNotInstalledTestApp.pkg().hasPermission(permission))
+                    .toBeEqualTo(false)
+                    .errorOnFail()
+                    .await();
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setPermissionGrantState(
+                    sDeviceState.dpc().componentName(), sNotInstalledTestApp.packageName(),
+                    permission, PERMISSION_GRANT_STATE_DEFAULT);
+        }
     }
 
     @CanSetPolicyTest(policy = SetPermissionGrantState.class)

@@ -46,6 +46,8 @@ import static android.security.keystore.KeyProperties.PURPOSE_VERIFY;
 import static android.security.keystore.KeyProperties.SIGNATURE_PADDING_RSA_PKCS1;
 import static android.security.keystore.KeyProperties.SIGNATURE_PADDING_RSA_PSS;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.either;
@@ -217,9 +219,20 @@ public class KeyAttestationTest {
                                         && KeyStoreException.ERROR_ID_ATTESTATION_FAILURE
                                         == ((KeyStoreException) e.getCause()).getNumericErrorCode();
                                 if (devicePropertiesAttestation && isIdAttestationFailure) {
-                                    Log.i(TAG, "key attestation with device IDs not supported; "
-                                            + "test skipped");
-                                    continue;
+                                    if (getContext().getPackageManager().hasSystemFeature(
+                                            PackageManager.FEATURE_DEVICE_ID_ATTESTATION)) {
+                                        throw new Exception("Unexpected failure while generating"
+                                                + " key.\nIn case of AOSP/GSI builds, system "
+                                                + "provided properties could be different from "
+                                                + "provisioned properties in KeyMaster/KeyMint. "
+                                                + "In such cases, make sure attestation specific "
+                                                + "properties (Build.*_FOR_ATTESTATION) are "
+                                                + "configured correctly.", e);
+                                    } else {
+                                        Log.i(TAG, "key attestation with device IDs not supported;"
+                                                + " test skipped");
+                                        continue;
+                                    }
                                 }
                                 throw new Exception("Failed on curve " + curveIndex +
                                         " challenge " + challengeIndex + " purpose " +
@@ -799,8 +812,17 @@ public class KeyAttestationTest {
                                 && KeyStoreException.ERROR_ID_ATTESTATION_FAILURE
                                 == ((KeyStoreException) e.getCause()).getNumericErrorCode();
                 if (devicePropertiesAttestation && isIdAttestationFailure) {
-                    Log.i(TAG, "key attestation with device IDs not supported; test skipped");
-                    continue;
+                    if (getContext().getPackageManager().hasSystemFeature(
+                            PackageManager.FEATURE_DEVICE_ID_ATTESTATION)) {
+                        throw new Exception("Unexpected failure while generating key."
+                            + "\nIn case of AOSP/GSI builds, system provided properties could be"
+                            + " different from provisioned properties in KeyMaster/KeyMint. In"
+                            + " such cases, make sure attestation specific properties"
+                            + " (Build.*_FOR_ATTESTATION) are configured correctly.", e);
+                    } else {
+                        Log.i(TAG, "key attestation with device IDs not supported; test skipped");
+                        continue;
+                    }
                 }
                 throw new Exception("Failed on key size " + keySize + " challenge [" +
                         new String(challenge) + "], purposes " +
@@ -968,11 +990,20 @@ public class KeyAttestationTest {
         }
 
         if (devicePropertiesAttestation) {
-            assertEquals(Build.BRAND, keyDetailsList.getBrand());
+            final String platformReportedBrand =
+                    TestUtils.isPropertyEmptyOrUnknown(Build.BRAND_FOR_ATTESTATION)
+                    ? Build.BRAND : Build.BRAND_FOR_ATTESTATION;
+            assertThat(keyDetailsList.getBrand()).isEqualTo(platformReportedBrand);
             assertEquals(Build.DEVICE, keyDetailsList.getDevice());
-            assertEquals(Build.PRODUCT, keyDetailsList.getProduct());
+            final String platformReportedProduct =
+                    TestUtils.isPropertyEmptyOrUnknown(Build.PRODUCT_FOR_ATTESTATION)
+                    ? Build.PRODUCT : Build.PRODUCT_FOR_ATTESTATION;
+            assertThat(keyDetailsList.getProduct()).isEqualTo(platformReportedProduct);
             assertEquals(Build.MANUFACTURER, keyDetailsList.getManufacturer());
-            assertEquals(Build.MODEL, keyDetailsList.getModel());
+            final String platformReportedModel =
+                    TestUtils.isPropertyEmptyOrUnknown(Build.MODEL_FOR_ATTESTATION)
+                    ? Build.MODEL : Build.MODEL_FOR_ATTESTATION;
+            assertThat(keyDetailsList.getModel()).isEqualTo(platformReportedModel);
         } else {
             assertNull(keyDetailsList.getBrand());
             assertNull(keyDetailsList.getDevice());
@@ -1256,9 +1287,9 @@ public class KeyAttestationTest {
 
     @SuppressWarnings("unchecked")
     private void checkAttestationSecurityLevelDependentParams(Attestation attestation) {
-        assertThat("Attestation version must be one of: {1, 2, 3, 4, 100, 200}",
+        assertThat("Attestation version must be one of: {1, 2, 3, 4, 100, 200, 300}",
                 attestation.getAttestationVersion(),
-                either(is(1)).or(is(2)).or(is(3)).or(is(4)).or(is(100)).or(is(200)));
+                either(is(1)).or(is(2)).or(is(3)).or(is(4)).or(is(100)).or(is(200)).or(is(300)));
 
         AuthorizationList teeEnforced = attestation.getTeeEnforced();
         AuthorizationList softwareEnforced = attestation.getSoftwareEnforced();
@@ -1272,7 +1303,8 @@ public class KeyAttestationTest {
                         attestation.getKeymasterSecurityLevel(),
                         is(KM_SECURITY_LEVEL_TRUSTED_ENVIRONMENT));
                 assertThat("KeyMaster version is not valid.", attestation.getKeymasterVersion(),
-                        either(is(2)).or(is(3)).or(is(4)).or(is(41)).or(is(100)).or(is(200)));
+                           either(is(2)).or(is(3)).or(is(4)).or(is(41))
+                           .or(is(100)).or(is(200)).or(is(300)));
 
                 checkRootOfTrust(attestation, false /* requireLocked */);
                 assertThat("TEE enforced OS version and system OS version must be same.",

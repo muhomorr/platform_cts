@@ -23,6 +23,12 @@ import static org.junit.Assume.assumeTrue;
 import android.hardware.camera2.CameraMetadata;
 import android.media.MediaFormat;
 import android.os.Build;
+import android.util.Log;
+
+import androidx.test.platform.app.InstrumentationRegistry;
+
+import com.android.compatibility.common.util.DeviceReportLog;
+import com.android.cts.verifier.CtsVerifierReportLog;
 
 import com.google.common.base.Preconditions;
 
@@ -44,8 +50,13 @@ public class PerformanceClassEvaluator {
 
     public PerformanceClassEvaluator(TestName testName) {
         Preconditions.checkNotNull(testName);
-        this.mTestName = testName.getMethodName().replace("{", "(").replace("}", ")");
+        String baseTestName = testName.getMethodName() != null ? testName.getMethodName() : "";
+        this.mTestName = baseTestName.replace("{", "(").replace("}", ")");
         this.mRequirements = new HashSet<Requirement>();
+    }
+
+    String getTestName() {
+        return mTestName;
     }
 
     // used for requirements [7.1.1.1/H-1-1], [7.1.1.1/H-2-1]
@@ -1489,6 +1500,46 @@ public class PerformanceClassEvaluator {
         }
     }
 
+    public static class AudioTap2ToneLatencyRequirement extends Requirement {
+        private static final String TAG = AudioTap2ToneLatencyRequirement.class.getSimpleName();
+
+        private AudioTap2ToneLatencyRequirement(String id, RequiredMeasurement<?> ... reqs) {
+            super(id, reqs);
+        }
+
+        public void setNativeLatency(double latency) {
+            this.setMeasuredValue(RequirementConstants.API_NATIVE_LATENCY, latency);
+        }
+
+        public void setJavaLatency(double latency) {
+            this.setMeasuredValue(RequirementConstants.API_JAVA_LATENCY, latency);
+        }
+
+        public static AudioTap2ToneLatencyRequirement createR5_6__H_1_1() {
+            RequiredMeasurement<Double> apiNativeLatency = RequiredMeasurement
+                .<Double>builder()
+                .setId(RequirementConstants.API_NATIVE_LATENCY)
+                .setPredicate(RequirementConstants.DOUBLE_LTE)
+                .addRequiredValue(Build.VERSION_CODES.TIRAMISU, 80.0)
+                .addRequiredValue(Build.VERSION_CODES.S, 100.0)
+                .addRequiredValue(Build.VERSION_CODES.R, 100.0)
+                .build();
+            RequiredMeasurement<Double> apiJavaLatency = RequiredMeasurement
+                .<Double>builder()
+                .setId(RequirementConstants.API_JAVA_LATENCY)
+                .setPredicate(RequirementConstants.DOUBLE_LTE)
+                .addRequiredValue(Build.VERSION_CODES.TIRAMISU, 80.0)
+                .addRequiredValue(Build.VERSION_CODES.S, 100.0)
+                .addRequiredValue(Build.VERSION_CODES.R, 100.0)
+                .build();
+
+            return new AudioTap2ToneLatencyRequirement(
+                    RequirementConstants.R5_6__H_1_1,
+                    apiNativeLatency,
+                    apiJavaLatency);
+        }
+    }
+
     public <R extends Requirement> R addRequirement(R req) {
         if (!this.mRequirements.add(req)) {
             throw new IllegalStateException("Requirement " + req.id() + " already added");
@@ -1720,21 +1771,51 @@ public class PerformanceClassEvaluator {
         return this.addRequirement(StreamUseCaseRequirement.createStreamUseCaseReq());
     }
 
+    public AudioTap2ToneLatencyRequirement addR5_6__H_1_1() {
+        return this.addRequirement(AudioTap2ToneLatencyRequirement.createR5_6__H_1_1());
+    }
+
+    private enum SubmitType {
+        TRADEFED, VERIFIER
+    }
+
     public void submitAndCheck() {
-        boolean perfClassMet = submit();
+        boolean perfClassMet = submit(SubmitType.TRADEFED);
 
         // check performance class
         assumeTrue("Build.VERSION.MEDIA_PERFORMANCE_CLASS is not declared", Utils.isPerfClass());
         assertThat(perfClassMet).isTrue();
     }
 
-    public boolean submit() {
+    public void submitAndVerify() {
+        boolean perfClassMet = submit(SubmitType.VERIFIER);
+
+        if (!perfClassMet && Utils.isPerfClass()) {
+            Log.w(TAG, "Device did not meet specified performance class: " + Utils.getPerfClass());
+        }
+    }
+
+    private boolean submit(SubmitType type) {
         boolean perfClassMet = true;
         for (Requirement req: this.mRequirements) {
-            perfClassMet &= req.writeLogAndCheck(this.mTestName);
+            switch (type) {
+                case VERIFIER:
+                    CtsVerifierReportLog verifierLog = new CtsVerifierReportLog(
+                            RequirementConstants.REPORT_LOG_NAME, req.id());
+                    perfClassMet &= req.writeLogAndCheck(verifierLog, this.mTestName);
+                    verifierLog.submit();
+                    break;
+
+                case TRADEFED:
+                default:
+                    DeviceReportLog tradefedLog = new DeviceReportLog(
+                            RequirementConstants.REPORT_LOG_NAME, req.id());
+                    perfClassMet &= req.writeLogAndCheck(tradefedLog, this.mTestName);
+                    tradefedLog.submit(InstrumentationRegistry.getInstrumentation());
+                    break;
+            }
         }
         this.mRequirements.clear(); // makes sure report isn't submitted twice
         return perfClassMet;
     }
-
 }

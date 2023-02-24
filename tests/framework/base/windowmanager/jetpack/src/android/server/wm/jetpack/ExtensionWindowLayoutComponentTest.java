@@ -19,9 +19,7 @@ package android.server.wm.jetpack;
 import static android.content.res.Configuration.ORIENTATION_LANDSCAPE;
 import static android.content.res.Configuration.ORIENTATION_PORTRAIT;
 import static android.server.wm.jetpack.utils.ExtensionUtil.assertEqualWindowLayoutInfo;
-import static android.server.wm.jetpack.utils.ExtensionUtil.assumeExtensionSupportedDevice;
 import static android.server.wm.jetpack.utils.ExtensionUtil.assumeHasDisplayFeatures;
-import static android.server.wm.jetpack.utils.ExtensionUtil.getExtensionWindowLayoutComponent;
 import static android.server.wm.jetpack.utils.ExtensionUtil.getExtensionWindowLayoutInfo;
 import static android.server.wm.jetpack.utils.SidecarUtil.assumeSidecarSupportedDevice;
 import static android.server.wm.jetpack.utils.SidecarUtil.getSidecarInterface;
@@ -36,13 +34,13 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeNotNull;
 
 import android.graphics.Rect;
 import android.platform.test.annotations.Presubmit;
 import android.server.wm.jetpack.utils.TestActivity;
 import android.server.wm.jetpack.utils.TestConfigChangeHandlingActivity;
-import android.server.wm.jetpack.utils.TestValueCountConsumer;
+import android.server.wm.jetpack.utils.TestValueCountJavaConsumer;
+import android.server.wm.jetpack.utils.WindowExtensionTestRule;
 import android.server.wm.jetpack.utils.WindowManagerJetpackTestBase;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -58,6 +56,7 @@ import com.google.common.collect.BoundType;
 import com.google.common.collect.Range;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -74,6 +73,7 @@ import java.util.stream.Collectors;
  * Build/Install/Run:
  *     atest CtsWindowManagerJetpackTestCases:ExtensionWindowLayoutComponentTest
  */
+@Presubmit
 @LargeTest
 @RunWith(AndroidJUnit4.class)
 public class ExtensionWindowLayoutComponentTest extends WindowManagerJetpackTestBase {
@@ -82,14 +82,17 @@ public class ExtensionWindowLayoutComponentTest extends WindowManagerJetpackTest
     private WindowLayoutComponent mWindowLayoutComponent;
     private WindowLayoutInfo mWindowLayoutInfo;
 
+    @Rule
+    public final WindowExtensionTestRule mWindowExtensionTestRule =
+            new WindowExtensionTestRule(WindowLayoutComponent.class);
+
     @Before
     @Override
     public void setUp() {
         super.setUp();
-        assumeExtensionSupportedDevice();
+        mWindowLayoutComponent =
+                (WindowLayoutComponent) mWindowExtensionTestRule.getExtensionComponent();
         mActivity = (TestActivity) startActivityNewTask(TestActivity.class);
-        mWindowLayoutComponent = getExtensionWindowLayoutComponent();
-        assumeNotNull(mWindowLayoutComponent);
     }
 
     /**
@@ -104,8 +107,8 @@ public class ExtensionWindowLayoutComponentTest extends WindowManagerJetpackTest
         // Create the callback, onWindowLayoutChanged should only be called twice in this
         // test, not the third time when the orientation will change because the listener will be
         // removed.
-        TestValueCountConsumer<WindowLayoutInfo> windowLayoutInfoConsumer =
-                new TestValueCountConsumer<>();
+        TestValueCountJavaConsumer<WindowLayoutInfo> windowLayoutInfoConsumer =
+                new TestValueCountJavaConsumer<>();
         windowLayoutInfoConsumer.setCount(2);
 
         // Add window layout listener for mWindowToken - onWindowLayoutChanged should be called
@@ -129,8 +132,8 @@ public class ExtensionWindowLayoutComponentTest extends WindowManagerJetpackTest
 
     @Test
     public void testWindowLayoutComponent_WindowLayoutInfoListener() {
-        TestValueCountConsumer<WindowLayoutInfo> windowLayoutInfoConsumer =
-                new TestValueCountConsumer<>();
+        TestValueCountJavaConsumer<WindowLayoutInfo> windowLayoutInfoConsumer =
+                new TestValueCountJavaConsumer<>();
         // Test that adding and removing callback succeeds
         mWindowLayoutComponent.addWindowLayoutInfoListener(mActivity, windowLayoutInfoConsumer);
         mWindowLayoutComponent.removeWindowLayoutInfoListener(windowLayoutInfoConsumer);

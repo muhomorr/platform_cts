@@ -16,6 +16,7 @@
 
 package android.cts.statsdatom.appops;
 
+import com.android.tradefed.util.RunUtil;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -61,18 +62,19 @@ public class AppOpsTests extends DeviceTestCase implements IBuildReceiver {
     protected void setUp() throws Exception {
         super.setUp();
 
-        mTransformedFromOp.clear();
-        // The hotword op is allowed to all UIDs on TV and Auto devices.
-        if (!(DeviceUtils.hasFeature(getDevice(), FEATURE_AUTOMOTIVE)
-                || DeviceUtils.hasFeature(getDevice(), FEATURE_LEANBACK_ONLY))) {
-            mTransformedFromOp.put(APP_OP_RECORD_AUDIO, APP_OP_RECORD_AUDIO_HOTWORD);
-        }
+        // Temporarily commented out until the Trusted Hotword requirement is enforced again.
+        // mTransformedFromOp.clear();
+        // // The hotword op is allowed to all UIDs on TV and Auto devices.
+        // if (!(DeviceUtils.hasFeature(getDevice(), FEATURE_AUTOMOTIVE)
+        //         || DeviceUtils.hasFeature(getDevice(), FEATURE_LEANBACK_ONLY))) {
+        //     mTransformedFromOp.put(APP_OP_RECORD_AUDIO, APP_OP_RECORD_AUDIO_HOTWORD);
+        // }
 
         assertThat(mCtsBuild).isNotNull();
         ConfigUtils.removeConfig(getDevice());
         ReportUtils.clearReports(getDevice());
         DeviceUtils.installStatsdTestApp(getDevice(), mCtsBuild);
-        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
     }
 
     @Override
@@ -94,11 +96,11 @@ public class AppOpsTests extends DeviceTestCase implements IBuildReceiver {
                 AtomsProto.Atom.APP_OPS_FIELD_NUMBER);
 
         DeviceUtils.runDeviceTestsOnStatsdApp(getDevice(), ".AtomTests", "testAppOps");
-        Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
+        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_SHORT);
 
         // Pull a report
         AtomTestUtils.sendAppBreadcrumbReportedAtom(getDevice());
-        Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
+        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_SHORT);
 
         ArrayList<Integer> expectedOps = new ArrayList<>();
         Set<Integer> transformedOps = new HashSet<>(mTransformedFromOp.values());
