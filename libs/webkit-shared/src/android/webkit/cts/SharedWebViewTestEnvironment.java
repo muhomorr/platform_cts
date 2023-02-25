@@ -133,6 +133,25 @@ public final class SharedWebViewTestEnvironment {
         }
     }
 
+    /** Returns a web server that has been started and can be used
+     *  for web based testing. */
+    public SharedSdkWebServer getSetupWebServer(@SslMode int sslMode) {
+        return getSetupWebServer(sslMode, null, 0, 0);
+    }
+
+    /** Returns a web server that has been started and can be used
+     *  for web based testing. */
+    public SharedSdkWebServer getSetupWebServer(@SslMode int sslMode,
+            @Nullable byte[] acceptedIssuerDer, int keyResId, int certResId) {
+        try {
+            SharedSdkWebServer webServer = getWebServer();
+            webServer.start(sslMode, acceptedIssuerDer, keyResId, certResId);
+            return webServer;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     /**
      * Use this builder to create a {@link SharedWebViewTestEnvironment}. The {@link
      * SharedWebViewTestEnvironment} can not be built directly.
@@ -231,7 +250,8 @@ public final class SharedWebViewTestEnvironment {
                 return new IWebServer.Stub() {
                     private CtsTestServer mWebServer;
 
-                    public void start(@SslMode int sslMode, @Nullable byte[] acceptedIssuerDer) {
+                    public void start(@SslMode int sslMode, @Nullable byte[] acceptedIssuerDer,
+                            int keyResId, int certResId) {
                         assertNull(mWebServer);
                         final X509Certificate[] acceptedIssuerCerts;
                         if (acceptedIssuerDer != null) {
@@ -255,17 +275,16 @@ public final class SharedWebViewTestEnvironment {
                             acceptedIssuerCerts = null;
                         }
                         try {
-                            X509TrustManager trustManager =
-                                    new CtsTestServer.CtsTrustManager() {
-                                        @Override
-                                        public X509Certificate[] getAcceptedIssuers() {
-                                            return acceptedIssuerCerts;
-                                        }
-                                    };
-                            mWebServer =
-                                    new CtsTestServer(applicationContext, sslMode, trustManager);
+                            X509TrustManager trustManager = new CtsTestServer.CtsTrustManager() {
+                                @Override
+                                public X509Certificate[] getAcceptedIssuers() {
+                                    return acceptedIssuerCerts;
+                                }
+                            };
+                            mWebServer = new CtsTestServer(applicationContext, sslMode,
+                                    trustManager, keyResId, certResId);
                         } catch (Exception e) {
-                            fail("Failed to launch CtsTestServer");
+                            fail(" Failed to launch CtsTestServer: " + e);
                         }
                     }
 
@@ -357,6 +376,22 @@ public final class SharedWebViewTestEnvironment {
                     public HttpRequest getLastAssetRequest(String url) {
                         assertNotNull("The WebServer needs to be started", mWebServer);
                         return toHttpRequest(url, mWebServer.getLastAssetRequest(url));
+                    }
+
+                    public  String getCookieUrl(String path) {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getCookieUrl(path);
+                    }
+
+                    public String getSetCookieUrl(String path, String key, String value,
+                            String attributes) {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getSetCookieUrl(path, key, value, attributes);
+                    }
+
+                    public String getLinkedScriptUrl(String path, String url) {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getLinkedScriptUrl(path, url);
                     }
 
                     private HttpRequest toHttpRequest(
