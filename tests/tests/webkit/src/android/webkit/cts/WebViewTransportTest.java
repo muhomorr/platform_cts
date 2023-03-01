@@ -22,43 +22,48 @@ import static org.junit.Assert.assertSame;
 import android.webkit.WebView;
 import android.webkit.WebView.WebViewTransport;
 
-import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
-import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.NullWebViewUtils;
 
 import org.junit.Assume;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @MediumTest
 @RunWith(AndroidJUnit4.class)
-public class WebViewTransportTest {
+public class WebViewTransportTest extends SharedWebViewTest {
     @Rule
     public ActivityScenarioRule mActivityScenarioRule =
             new ActivityScenarioRule(WebViewCtsActivity.class);
 
-    private ActivityScenario mScenario;
-    private WebViewCtsActivity mActivity;
-
-    @Before
-    public void setUp() throws Throwable {
+    @Override
+    protected SharedWebViewTestEnvironment createTestEnvironment() {
         Assume.assumeTrue("WebView is not available", NullWebViewUtils.isWebViewAvailable());
 
-        mScenario = mActivityScenarioRule.getScenario();
-        mScenario.onActivity(activity -> {
-            mActivity = (WebViewCtsActivity) activity;
-        });
+        SharedWebViewTestEnvironment.Builder builder = new SharedWebViewTestEnvironment.Builder();
+
+        mActivityScenarioRule
+                .getScenario()
+                .onActivity(
+                        activity -> {
+                            WebView webView = ((WebViewCtsActivity) activity).getWebView();
+                            builder.setHostAppInvoker(
+                                            SharedWebViewTestEnvironment.createHostAppInvoker(
+                                                    activity))
+                                    .setWebView(webView);
+                        });
+
+        return builder.build();
     }
 
     @Test
     public void testAccessWebView() {
         WebkitUtils.onMainThreadSync(() -> {
-            WebView webView = mActivity.getWebView();
+            WebView webView = getTestEnvironment().getWebView();
             WebViewTransport transport = webView.new WebViewTransport();
 
             assertNull(transport.getWebView());
