@@ -22,49 +22,35 @@ import android.platform.test.annotations.AppModeFull;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
 
-import com.android.compatibility.common.util.NullWebViewUtils;
-
-import org.junit.Assume;
-import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-@MediumTest
 @AppModeFull
+@MediumTest
 @RunWith(AndroidJUnit4.class)
-public class DateSorterTest {
+public class SdkSandboxWebViewRenderProcessClientTest {
     @ClassRule
     public static final KeepSdkSandboxAliveRule sSdkTestSuiteSetup =
             new KeepSdkSandboxAliveRule("com.android.emptysdkprovider");
 
     @Rule
     public final WebViewSandboxTestRule sdkTester =
-            new WebViewSandboxTestRule("android.webkit.cts.DateSorterTest");
+            new WebViewSandboxTestRule("android.webkit.cts.WebViewRenderProcessClientTest");
 
-    @Before
-    public void setUp() {
-        Assume.assumeTrue("WebView is not available", NullWebViewUtils.isWebViewAvailable());
+    @Test
+    public void testWebViewRenderProcessClientWithoutExecutor() throws Exception {
+        sdkTester.assertSdkTestRunPasses("testWebViewRenderProcessClientWithoutExecutor");
     }
 
     @Test
-    public void testConstructor() throws Exception {
-        sdkTester.assertSdkTestRunPasses("testConstructor");
+    public void testWebViewRenderProcessClientWithExecutor() throws Exception {
+        sdkTester.assertSdkTestRunPasses("testWebViewRenderProcessClientWithExecutor");
     }
 
     @Test
-    public void testGetLabel() throws Exception {
-        sdkTester.assertSdkTestRunPasses("testGetLabel");
-    }
-
-    @Test
-    public void testGetIndex() throws Exception {
-        sdkTester.assertSdkTestRunPasses("testGetIndex");
-    }
-
-    @Test
-    public void testGetBoundary() throws Exception {
-        sdkTester.assertSdkTestRunPasses("testGetBoundary");
+    public void testSetWebViewRenderProcessClient() throws Exception {
+        sdkTester.assertSdkTestRunPasses("testSetWebViewRenderProcessClient");
     }
 }

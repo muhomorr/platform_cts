@@ -17,7 +17,6 @@
 package android.sdksandbox.webkit.cts;
 
 import android.app.sdksandbox.testutils.testscenario.KeepSdkSandboxAliveRule;
-import android.platform.test.annotations.AppModeFull;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
@@ -27,30 +26,19 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-@AppModeFull
 @MediumTest
 @RunWith(AndroidJUnit4.class)
-public class WebViewRenderProcessClientTest {
+public class SdkSandboxWebViewTransportTest {
     @ClassRule
     public static final KeepSdkSandboxAliveRule sSdkTestSuiteSetup =
             new KeepSdkSandboxAliveRule("com.android.emptysdkprovider");
 
     @Rule
     public final WebViewSandboxTestRule sdkTester =
-            new WebViewSandboxTestRule("android.webkit.cts.WebViewRenderProcessClientTest");
+            new WebViewSandboxTestRule("android.webkit.cts.WebViewTransportTest");
 
     @Test
-    public void testWebViewRenderProcessClientWithoutExecutor() throws Exception {
-        sdkTester.assertSdkTestRunPasses("testWebViewRenderProcessClientWithoutExecutor");
-    }
-
-    @Test
-    public void testWebViewRenderProcessClientWithExecutor() throws Exception {
-        sdkTester.assertSdkTestRunPasses("testWebViewRenderProcessClientWithExecutor");
-    }
-
-    @Test
-    public void testSetWebViewRenderProcessClient() throws Exception {
-        sdkTester.assertSdkTestRunPasses("testSetWebViewRenderProcessClient");
+    public void testAccessWebView() throws Exception {
+        sdkTester.assertSdkTestRunPasses("testAccessWebView");
     }
 }
