@@ -16,6 +16,7 @@
 
 package android.car.cts;
 
+import static android.Manifest.permission.ACCESS_FINE_LOCATION;
 import static android.car.cts.utils.ShellPermissionUtils.runWithShellPermissionIdentity;
 import static android.car.hardware.property.CarPropertyManager.GetPropertyResult;
 import static android.car.hardware.property.CarPropertyManager.SetPropertyResult;
@@ -64,6 +65,7 @@ import android.car.hardware.property.LaneCenteringAssistCommand;
 import android.car.hardware.property.LaneCenteringAssistState;
 import android.car.hardware.property.LaneDepartureWarningState;
 import android.car.hardware.property.LaneKeepAssistState;
+import android.car.hardware.property.LocationCharacterization;
 import android.car.hardware.property.TrailerState;
 import android.car.hardware.property.VehicleElectronicTollCollectionCardStatus;
 import android.car.hardware.property.VehicleElectronicTollCollectionCardType;
@@ -225,6 +227,20 @@ public final class CarPropertyManagerTest extends AbstractCarTestCase {
             ImmutableSet.<Integer>builder().add(EvStoppingMode.STATE_OTHER,
                     EvStoppingMode.STATE_CREEP, EvStoppingMode.STATE_ROLL,
                     EvStoppingMode.STATE_HOLD).build();
+
+    private static final ImmutableSet<Integer> LOCATION_CHARACTERIZATIONS =
+            ImmutableSet.<Integer>builder()
+                    .add(
+                            LocationCharacterization.PRIOR_LOCATIONS,
+                            LocationCharacterization.GYROSCOPE_FUSION,
+                            LocationCharacterization.ACCELEROMETER_FUSION,
+                            LocationCharacterization.COMPASS_FUSION,
+                            LocationCharacterization.WHEEL_SPEED_FUSION,
+                            LocationCharacterization.STEERING_ANGLE_FUSION,
+                            LocationCharacterization.CAR_SPEED_FUSION,
+                            LocationCharacterization.DEAD_RECKONED,
+                            LocationCharacterization.RAW_GNSS_ONLY)
+                    .build();
     private static final ImmutableSet<Integer> HVAC_TEMPERATURE_DISPLAY_UNITS =
             ImmutableSet.<Integer>builder().add(VehicleUnit.CELSIUS,
                     VehicleUnit.FAHRENHEIT).build();
@@ -740,14 +756,17 @@ public final class CarPropertyManagerTest extends AbstractCarTestCase {
                             VehiclePropertyIds.EMERGENCY_LANE_KEEP_ASSIST_STATE,
                             VehiclePropertyIds.CRUISE_CONTROL_TYPE,
                             VehiclePropertyIds.CRUISE_CONTROL_STATE,
-                            VehiclePropertyIds.CRUISE_CONTROL_TARGET_SPEED)
+                            VehiclePropertyIds.CRUISE_CONTROL_TARGET_SPEED,
+                            VehiclePropertyIds.ADAPTIVE_CRUISE_CONTROL_TARGET_TIME_GAP)
                     .build();
     private static final ImmutableList<Integer> PERMISSION_CONTROL_ADAS_STATES_PROPERTIES =
             ImmutableList.<Integer>builder()
                     .add(
                             VehiclePropertyIds.LANE_CENTERING_ASSIST_COMMAND,
                             VehiclePropertyIds.CRUISE_CONTROL_TYPE,
-                            VehiclePropertyIds.CRUISE_CONTROL_COMMAND)
+                            VehiclePropertyIds.CRUISE_CONTROL_COMMAND,
+                            VehiclePropertyIds.CRUISE_CONTROL_TARGET_SPEED,
+                            VehiclePropertyIds.ADAPTIVE_CRUISE_CONTROL_TARGET_TIME_GAP)
                     .build();
     private static final ImmutableList<Integer> PERMISSION_CONTROL_GLOVE_BOX_PROPERTIES =
             ImmutableList.<Integer>builder()
@@ -755,9 +774,25 @@ public final class CarPropertyManagerTest extends AbstractCarTestCase {
                             VehiclePropertyIds.GLOVE_BOX_DOOR_POS,
                             VehiclePropertyIds.GLOVE_BOX_LOCKED)
                   .build();
+    private static final ImmutableList<Integer>
+            PERMISSION_ACCESS_FINE_LOCATION_PROPERTIES =
+            ImmutableList.<Integer>builder()
+                    .add(
+                            VehiclePropertyIds.LOCATION_CHARACTERIZATION)
+                    .build();
 
     private static final int VEHICLE_PROPERTY_GROUP_MASK = 0xf0000000;
     private static final int VEHICLE_PROPERTY_GROUP_VENDOR = 0x20000000;
+    private static final int LOCATION_CHARACTERIZATION_VALID_VALUES_MASK =
+            LocationCharacterization.PRIOR_LOCATIONS
+            | LocationCharacterization.GYROSCOPE_FUSION
+            | LocationCharacterization.ACCELEROMETER_FUSION
+            | LocationCharacterization.COMPASS_FUSION
+            | LocationCharacterization.WHEEL_SPEED_FUSION
+            | LocationCharacterization.STEERING_ANGLE_FUSION
+            | LocationCharacterization.CAR_SPEED_FUSION
+            | LocationCharacterization.DEAD_RECKONED
+            | LocationCharacterization.RAW_GNSS_ONLY;
 
     /** contains property Ids for the properties required by CDD */
     private final ArraySet<Integer> mPropertyIds = new ArraySet<>();
@@ -1186,6 +1221,43 @@ public final class CarPropertyManagerTest extends AbstractCarTestCase {
                             }
                         })
                 .addReadPermission(Car.PERMISSION_READ_ADAS_STATES)
+                .build()
+                .verify(mCarPropertyManager);
+    }
+
+    @Test
+    public void testAdaptiveCruiseControlTargetTimeGapIfSupported() {
+        VehiclePropertyVerifier.newBuilder(
+                        VehiclePropertyIds.ADAPTIVE_CRUISE_CONTROL_TARGET_TIME_GAP,
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE,
+                        VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
+                        CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE,
+                        Integer.class)
+                .setCarPropertyConfigVerifier(
+                        carPropertyConfig -> {
+                            List<Integer> configArray = carPropertyConfig.getConfigArray();
+
+                            for (Integer configArrayValue : configArray) {
+                                assertWithMessage("configArray values of "
+                                        + "ADAPTIVE_CRUISE_CONTROL_TARGET_TIME_GAP must be "
+                                        + "positive. Detected value " + configArrayValue + " in "
+                                        + "configArray " + configArray)
+                                        .that(configArrayValue)
+                                        .isGreaterThan(0);
+                            }
+
+                            for (int i = 0; i < configArray.size() - 1; i++) {
+                                assertWithMessage("configArray values of "
+                                        + "ADAPTIVE_CRUISE_CONTROL_TARGET_TIME_GAP must be in "
+                                        + "ascending order. Detected value " + configArray.get(i)
+                                        + " is greater than or equal to " + configArray.get(i + 1)
+                                        + " in configArray " + configArray)
+                                        .that(configArray.get(i))
+                                        .isLessThan(configArray.get(i + 1));
+                            }
+                        })
+                .addReadPermission(Car.PERMISSION_READ_ADAS_STATES)
+                .addWritePermission(Car.PERMISSION_CONTROL_ADAS_STATES)
                 .build()
                 .verify(mCarPropertyManager);
     }
@@ -1738,6 +1810,43 @@ public final class CarPropertyManagerTest extends AbstractCarTestCase {
                         CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE,
                         Long.class)
                 .addWritePermission(Car.PERMISSION_CAR_EPOCH_TIME)
+                .build()
+                .verify(mCarPropertyManager);
+    }
+
+    @Test
+    public void testLocationCharacterizationIfSupported() {
+        VehiclePropertyVerifier.newBuilder(
+                        VehiclePropertyIds.LOCATION_CHARACTERIZATION,
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ,
+                        VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
+                        CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_STATIC,
+                        Integer.class)
+                .setCarPropertyValueVerifier(
+                        (carPropertyConfig, carPropertyValue) -> {
+                            Integer value = (Integer) carPropertyValue.getValue();
+                            boolean deadReckonedIsSet = (value
+                                    & LocationCharacterization.DEAD_RECKONED)
+                                    == LocationCharacterization.DEAD_RECKONED;
+                            boolean rawGnssOnlyIsSet = (value
+                                    & LocationCharacterization.RAW_GNSS_ONLY)
+                                    == LocationCharacterization.RAW_GNSS_ONLY;
+                            assertWithMessage("LOCATION_CHARACTERIZATION must not be 0 "
+                                    + "Found value: " + value)
+                                    .that(value)
+                                    .isNotEqualTo(0);
+                            assertWithMessage("LOCATION_CHARACTERIZATION must not have any bits "
+                                    + "set outside of the bit flags defined in "
+                                    + "LocationCharacterization. Found value: " + value)
+                                    .that(value & LOCATION_CHARACTERIZATION_VALID_VALUES_MASK)
+                                    .isEqualTo(value);
+                            assertWithMessage("LOCATION_CHARACTERIZATION must have one of "
+                                    + "DEAD_RECKONED or RAW_GNSS_ONLY set. They both cannot be set "
+                                    + "either. Found value: " + value)
+                                    .that(deadReckonedIsSet ^ rawGnssOnlyIsSet)
+                                    .isTrue();
+                        })
+                .addReadPermission(ACCESS_FINE_LOCATION)
                 .build()
                 .verify(mCarPropertyManager);
     }
@@ -6855,6 +6964,23 @@ public final class CarPropertyManagerTest extends AbstractCarTestCase {
                     }
                 },
                 Car.PERMISSION_CONTROL_ADAS_STATES);
+    }
+
+    @Test
+    public void testPermissionAccessFineLocationGranted() {
+        runWithShellPermissionIdentity(
+                () -> {
+                    for (CarPropertyConfig<?> carPropertyConfig :
+                            mCarPropertyManager.getPropertyList()) {
+                        assertWithMessage(
+                                "%s",
+                                VehiclePropertyIds.toString(
+                                        carPropertyConfig.getPropertyId()))
+                                .that(carPropertyConfig.getPropertyId())
+                                .isIn(PERMISSION_ACCESS_FINE_LOCATION_PROPERTIES);
+                    }
+                },
+                ACCESS_FINE_LOCATION);
     }
 
     /**
