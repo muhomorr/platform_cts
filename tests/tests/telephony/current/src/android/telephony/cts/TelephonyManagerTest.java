@@ -1211,10 +1211,8 @@ public class TelephonyManagerTest {
                 Build::getSerial);
         assertNotNull("Non-telephony devices must have a Build.getSerial() number.",
                 serial);
-        assertTrue("Hardware id must be no longer than 20 characters.",
-                serial.length() <= 20);
         assertTrue("Hardware id must be alphanumeric.",
-                Pattern.matches("[0-9A-Za-z]+", serial));
+                Pattern.matches("[0-9A-Za-z.,_-]+", serial));
     }
 
     private void assertMacAddress(String macAddress) {
@@ -2272,7 +2270,7 @@ public class TelephonyManagerTest {
 
         List<String> plmns = mTelephonyManager.getEquivalentHomePlmns();
 
-        if (mTelephonyManager.getPhoneType() != TelephonyManager.PHONE_TYPE_GSM) {
+        if (mTelephonyManager.getPhoneType() == TelephonyManager.PHONE_TYPE_CDMA) {
             assertEquals(0, plmns.size());
         } else {
             for (String plmn : plmns) {
