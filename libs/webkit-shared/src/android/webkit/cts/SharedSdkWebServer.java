@@ -20,6 +20,9 @@ import android.os.RemoteException;
 
 import androidx.annotation.Nullable;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
  * This class serves as the public fronting API for tests to interact with the CtsTestServer.
  *
@@ -34,15 +37,11 @@ public final class SharedSdkWebServer {
         mWebServer = webServer;
     }
 
-    /** Starts the web server. */
-    public void start(@SslMode int sslMode) {
-        start(new Config().setSslMode(sslMode));
-    }
-
-    /** Starts the web server using the provided {@link Config}. */
-    public void start(Config config) {
+    /** Starts the web server using the provided parameters}. */
+    public void start(@SslMode int sslMode, @Nullable byte[] acceptedIssuerDer,
+            int keyResId, int certResId) {
         try {
-            mWebServer.start(config.mSslMode, config.mAcceptedIssuerDer);
+            mWebServer.start(sslMode, acceptedIssuerDer, keyResId, certResId);
         } catch (RemoteException e) {
             throw new RuntimeException(e);
         }
@@ -66,6 +65,42 @@ public final class SharedSdkWebServer {
         }
     }
 
+    /**
+     * Sets a response to be returned when a particular request path is passed in (with the option
+     * to specify additional headers).
+     */
+    public String setResponse(
+            String path, String responseString, List<HttpHeader> responseHeaders) {
+        // We can't send a null value as a list
+        // so default to an empty list if null was provided.
+        if (responseHeaders == null) {
+            responseHeaders = Collections.emptyList();
+        }
+        try {
+            return mWebServer.setResponse(path, responseString, responseHeaders);
+        } catch (RemoteException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** Return the absolute URL that refers to a path. */
+    public String getAbsoluteUrl(String path) {
+        try {
+            return mWebServer.getAbsoluteUrl(path);
+        } catch (RemoteException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** Returns a url that will contain the user agent in the header and in the body. */
+    public String getUserAgentUrl() {
+        try {
+            return mWebServer.getUserAgentUrl();
+        } catch (RemoteException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     /** Get a delayed assert url for an asset path. */
     public String getDelayedAssetUrl(String path) {
         try {
@@ -78,7 +113,7 @@ public final class SharedSdkWebServer {
     /** Get a url that will redirect for a path. */
     public String getRedirectingAssetUrl(String path) {
         try {
-            return mWebServer.getAssetUrl(path);
+            return mWebServer.getRedirectingAssetUrl(path);
         } catch (RemoteException e) {
             throw new RuntimeException(e);
         }
@@ -111,6 +146,33 @@ public final class SharedSdkWebServer {
         }
     }
 
+    /** Returns the url to the app cache. */
+    public String getAppCacheUrl() {
+        try {
+            return mWebServer.getAppCacheUrl();
+        } catch (RemoteException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** Returns how many requests have been made. */
+    public int getRequestCount() {
+        try {
+            return mWebServer.getRequestCount();
+        } catch (RemoteException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** Returns the request count for a particular path */
+    public int getRequestCount(String path) {
+        try {
+            return mWebServer.getRequestCountWithPath(path);
+        } catch (RemoteException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     /** Verify if a resource was requested. */
     public boolean wasResourceRequested(String url) {
         try {
@@ -121,6 +183,15 @@ public final class SharedSdkWebServer {
     }
 
     /** Retrieve the last request to be made on a url. */
+    public HttpRequest getLastRequest(String path) {
+        try {
+            return mWebServer.getLastRequest(path);
+        } catch (RemoteException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** Retrieve the last request for an asset path to be made on a url. */
     public HttpRequest getLastAssetRequest(String url) {
         try {
             return mWebServer.getLastAssetRequest(url);
@@ -129,34 +200,33 @@ public final class SharedSdkWebServer {
         }
     }
 
-    /** Configuration options for starting a SharedSdkWebServer */
-    public static class Config {
-        private @SslMode int mSslMode;
-        private @Nullable byte[] mAcceptedIssuerDer;
-
-        public Config() {
-            mSslMode = SslMode.INSECURE;
-            mAcceptedIssuerDer = null;
+    /** Returns a url that will contain the path as a cookie. */
+    public String getCookieUrl(String path) {
+        try {
+            return mWebServer.getCookieUrl(path);
+        } catch (RemoteException e) {
+            throw new RuntimeException(e);
         }
+    }
 
-        /** Set the server's SslMode */
-        public Config setSslMode(@SslMode int sslMode) {
-            mSslMode = sslMode;
-            return this;
+    /**
+     * Returns a URL that attempts to set the cookie
+     * "key=value" with the given list of attributes when fetched.
+    */
+    public String getSetCookieUrl(String path, String key, String value, String attributes) {
+        try {
+            return mWebServer.getSetCookieUrl(path, key, value, attributes);
+        } catch (RemoteException e) {
+            throw new RuntimeException(e);
         }
+    }
 
-        /**
-         * Configures the server's TrustManager to contain a given accepted issuer certificate
-         * (specified as DER bytes).
-         *
-         * Note that this does not enforce that certificates are issued from this issuer - as with
-         * the default CTS trust manager, all certificates are always considered valid. Supplying an
-         * acceptedIssuer merely affects the issuer DNs contained in the certificate request sent to
-         * the client in the TLS handshake.
-         */
-        public Config setAcceptedIssuer(@Nullable byte[] acceptedIssuerDer) {
-            mAcceptedIssuerDer = acceptedIssuerDer;
-            return this;
+    /** Returns a URL for a page with a script tag where src equals the URL passed in. */
+    public String getLinkedScriptUrl(String path, String url) {
+        try {
+            return mWebServer.getLinkedScriptUrl(path, url);
+        } catch (RemoteException e) {
+            throw new RuntimeException(e);
         }
     }
 }
