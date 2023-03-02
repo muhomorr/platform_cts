@@ -105,7 +105,7 @@ public class PhotoPickerUiUtils {
     public static UiObject findSettingsOverflowMenuItem(UiDevice uiDevice) throws Exception {
         final UiObject overflowMenu = getOverflowMenuObject(uiDevice);
         clickAndWait(uiDevice, overflowMenu);
-        return new UiObject(new UiSelector().textContains("Settings"));
+        return new UiObject(new UiSelector().textContains("Cloud media app"));
     }
 
     public static UiObject getOverflowMenuObject(UiDevice uiDevice)  {
@@ -114,10 +114,39 @@ public class PhotoPickerUiUtils {
         return new UiObject(new UiSelector().description("More options"));
     }
 
-    public static void verifyActionBarExists(UiDevice uiDevice) {
+    public static boolean isPhotoPickerVisible() {
+        return new UiObject(new UiSelector().resourceIdMatches(
+                PhotoPickerUiUtils.REGEX_PACKAGE_NAME + ":id/bottom_sheet")).waitForExists(TIMEOUT);
+    }
+
+    public static void verifySettingsActionBarIsVisible() {
         assertWithMessage("Timed out waiting for action bar to appear")
                 .that(new UiObject(new UiSelector()
-                        .resourceIdMatches(REGEX_PACKAGE_NAME + ":id/action_bar"))
+                        .resourceIdMatches(REGEX_PACKAGE_NAME + ":id/picker_settings_toolbar"))
+                        .waitForExists(TIMEOUT))
+                .isTrue();
+    }
+
+    public static void verifySettingsTitleIsVisible() {
+        assertWithMessage("Timed out waiting for settings page title to appear")
+                .that(new UiObject(new UiSelector()
+                        .resourceIdMatches(REGEX_PACKAGE_NAME + ":id/picker_settings_title"))
+                        .waitForExists(TIMEOUT))
+                .isTrue();
+    }
+
+    public static void verifySettingsDescriptionIsVisible() {
+        assertWithMessage("Timed out waiting for settings page description to appear")
+                .that(new UiObject(new UiSelector()
+                        .resourceIdMatches(REGEX_PACKAGE_NAME + ":id/picker_settings_description"))
+                        .waitForExists(TIMEOUT))
+                .isTrue();
+    }
+
+    public static void verifySettingsFragmentContainerExists() {
+        assertWithMessage("Timed out waiting for settings fragment container to appear")
+                .that(new UiObject(new UiSelector()
+                        .resourceIdMatches(REGEX_PACKAGE_NAME + ":id/settings_fragment_container"))
                         .waitForExists(TIMEOUT))
                 .isTrue();
     }

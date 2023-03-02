@@ -19,10 +19,13 @@ package android.photopicker.cts;
 import android.app.Instrumentation;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.uiautomator.UiDevice;
 
+
+import org.junit.Assume;
 import org.junit.Before;
 
 /**
@@ -40,6 +43,8 @@ public class PhotoPickerBaseTest {
 
     @Before
     public void setUp() throws Exception {
+        Assume.assumeTrue(isHardwareSupported());
+
         final String setSyncDelayCommand =
                 "device_config put storage pickerdb.default_sync_delay_ms 0";
         sDevice.executeShellCommand(setSyncDelayCommand);
@@ -57,5 +62,15 @@ public class PhotoPickerBaseTest {
         sInstrumentation.waitForIdleSync();
         mActivity.clearResult();
         sDevice.waitForIdle();
+    }
+
+    private static boolean isHardwareSupported() {
+        // These UI tests are not optimised for Watches, TVs, Auto;
+        // IoT devices do not have a UI to run these UI tests
+        PackageManager pm = sInstrumentation.getContext().getPackageManager();
+        return !pm.hasSystemFeature(pm.FEATURE_EMBEDDED)
+                && !pm.hasSystemFeature(pm.FEATURE_WATCH)
+                && !pm.hasSystemFeature(pm.FEATURE_LEANBACK)
+                && !pm.hasSystemFeature(pm.FEATURE_AUTOMOTIVE);
     }
 }

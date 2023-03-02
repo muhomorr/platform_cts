@@ -29,15 +29,13 @@ import android.os.StatFs;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
-import androidx.test.InstrumentationRegistry;
+import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.modules.utils.build.SdkLevel;
 
-import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
@@ -399,5 +397,19 @@ public class SystemUtil {
                 }
             }
         }
+    }
+
+    /**
+     * Use `wait-for-broadcast-barrier` on U+
+     * and `wait-for-broadcast-idle` on previous version
+     */
+    public static void waitForBroadcasts() {
+        String cmd;
+        if (SdkLevel.isAtLeastU()) {
+            cmd = "am wait-for-broadcast-barrier";
+        } else {
+            cmd = "am wait-for-broadcast-idle";
+        }
+        runShellCommand(cmd);
     }
 }
