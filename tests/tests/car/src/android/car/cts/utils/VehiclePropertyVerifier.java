@@ -128,7 +128,7 @@ public class VehiclePropertyVerifier<T> {
     private final Class<T> mPropertyType;
     private final boolean mRequiredProperty;
     private final Optional<ConfigArrayVerifier> mConfigArrayVerifier;
-    private final Optional<CarPropertyValueVerifier> mCarPropertyValueVerifier;
+    private final Optional<CarPropertyValueVerifier<T>> mCarPropertyValueVerifier;
     private final Optional<AreaIdsVerifier> mAreaIdsVerifier;
     private final Optional<CarPropertyConfigVerifier> mCarPropertyConfigVerifier;
     private final ImmutableSet<Integer> mPossibleConfigArrayValues;
@@ -150,7 +150,7 @@ public class VehiclePropertyVerifier<T> {
             Class<T> propertyType,
             boolean requiredProperty,
             Optional<ConfigArrayVerifier> configArrayVerifier,
-            Optional<CarPropertyValueVerifier> carPropertyValueVerifier,
+            Optional<CarPropertyValueVerifier<T>> carPropertyValueVerifier,
             Optional<AreaIdsVerifier> areaIdsVerifier,
             Optional<CarPropertyConfigVerifier> carPropertyConfigVerifier,
             ImmutableSet<Integer> possibleConfigArrayValues,
@@ -461,7 +461,7 @@ public class VehiclePropertyVerifier<T> {
 
     private void verifyCarPropertyValueSetter(CarPropertyConfig<T> carPropertyConfig,
             CarPropertyManager carPropertyManager) {
-        if (carPropertyConfig.getAccess() != CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE) {
+        if (carPropertyConfig.getAccess() == CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ) {
             return;
         }
         if (Boolean.class.equals(carPropertyConfig.getPropertyType())) {
@@ -476,14 +476,15 @@ public class VehiclePropertyVerifier<T> {
     private void verifyBooleanPropertySetter(CarPropertyConfig<T> carPropertyConfig,
             CarPropertyManager carPropertyManager) {
         for (int areaId : carPropertyConfig.getAreaIds()) {
-            CarPropertyValue<Boolean> currentCarPropertyValue = carPropertyManager.getProperty(
-                    mPropertyId, areaId);
-            verifyCarPropertyValue(carPropertyConfig, currentCarPropertyValue, areaId,
-                    CAR_PROPERTY_VALUE_SOURCE_GETTER);
-            Boolean valueToSet = !currentCarPropertyValue.getValue();
-            verifySetProperty(carPropertyConfig, carPropertyManager, areaId, (T) valueToSet);
-            valueToSet = !valueToSet;
-            verifySetProperty(carPropertyConfig, carPropertyManager, areaId, (T) valueToSet);
+            for (Boolean valueToSet: List.of(Boolean.TRUE, Boolean.FALSE)) {
+                if (carPropertyConfig.getAccess()
+                        == CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE) {
+                    CarPropertyValue<Boolean> currentCarPropertyValue =
+                            carPropertyManager.getProperty(mPropertyId, areaId);
+                    valueToSet = !currentCarPropertyValue.getValue();
+                }
+                verifySetProperty(carPropertyConfig, carPropertyManager, areaId, (T) valueToSet);
+            }
         }
     }
 
@@ -567,6 +568,12 @@ public class VehiclePropertyVerifier<T> {
 
     private void verifySetProperty(CarPropertyConfig<T> carPropertyConfig,
             CarPropertyManager carPropertyManager, int areaId, T valueToSet) {
+        if (carPropertyConfig.getAccess() == CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE) {
+            Log.w(TAG, "Property: " + mPropertyName + " will be altered during the test and it is"
+                    + " not possible to restore.");
+            verifySetPropertyOkayOrThrowExpectedExceptions(carPropertyManager, areaId, valueToSet);
+            return;
+        }
         CarPropertyValue<T> currentCarPropertyValue = carPropertyManager.getProperty(mPropertyId,
                 areaId);
         verifyCarPropertyValue(carPropertyConfig, currentCarPropertyValue, areaId,
@@ -579,6 +586,21 @@ public class VehiclePropertyVerifier<T> {
                 valueToSet);
         verifyCarPropertyValue(carPropertyConfig, updatedCarPropertyValue, areaId,
                 CAR_PROPERTY_VALUE_SOURCE_CALLBACK);
+    }
+
+    private void verifySetPropertyOkayOrThrowExpectedExceptions(
+            CarPropertyManager carPropertyManager, int areaId, T valueToSet) {
+        try {
+            carPropertyManager.setProperty(mPropertyType, mPropertyId, areaId, valueToSet);
+        } catch (PropertyNotAvailableAndRetryException e) {
+        } catch (PropertyNotAvailableException e) {
+            verifyPropertyNotAvailableException(e);
+        } catch (CarInternalErrorException e) {
+            verifyInternalErrorException(e);
+        } catch (Exception e) {
+            assertWithMessage("Unexpected exception thrown when trying to setProperty on "
+                    + mPropertyName + ": " + e).fail();
+        }
     }
 
     private void verifySetNotAvailable(CarPropertyConfig<T> carPropertyConfig,
@@ -938,10 +960,6 @@ public class VehiclePropertyVerifier<T> {
 
     private void verifyCarPropertyValue(CarPropertyConfig<T> carPropertyConfig,
             CarPropertyValue<?> carPropertyValue, int expectedAreaId, String source) {
-        // TODO(b/258512284): update CarPropertyValueVerifier to test GetPropertyResult as well.
-        mCarPropertyValueVerifier.ifPresent(
-                propertyValueVerifier -> propertyValueVerifier.verify(carPropertyConfig,
-                        carPropertyValue));
         verifyCarPropertyValue(carPropertyConfig, carPropertyValue.getPropertyId(),
                 carPropertyValue.getAreaId(), carPropertyValue.getStatus(),
                 carPropertyValue.getTimestamp(), (T) carPropertyValue.getValue(), expectedAreaId,
@@ -951,6 +969,9 @@ public class VehiclePropertyVerifier<T> {
     private void verifyCarPropertyValue(CarPropertyConfig<T> carPropertyConfig,
             int propertyId, int areaId, int status, long timestampNanos, T value,
             int expectedAreaId, String source) {
+        mCarPropertyValueVerifier.ifPresent(
+                propertyValueVerifier -> propertyValueVerifier.verify(carPropertyConfig, propertyId,
+                        areaId, timestampNanos, value));
         assertWithMessage(
                         mPropertyName
                                 + " - areaId: "
@@ -1176,8 +1197,9 @@ public class VehiclePropertyVerifier<T> {
         void verify(List<Integer> configArray);
     }
 
-    public interface CarPropertyValueVerifier {
-        void verify(CarPropertyConfig<?> carPropertyConfig, CarPropertyValue<?> carPropertyValue);
+    public interface CarPropertyValueVerifier<T> {
+        void verify(CarPropertyConfig<T> carPropertyConfig, int propertyId, int areaId,
+                long timestampNanos, T value);
     }
 
     public interface AreaIdsVerifier {
@@ -1196,7 +1218,7 @@ public class VehiclePropertyVerifier<T> {
         private final Class<T> mPropertyType;
         private boolean mRequiredProperty = false;
         private Optional<ConfigArrayVerifier> mConfigArrayVerifier = Optional.empty();
-        private Optional<CarPropertyValueVerifier> mCarPropertyValueVerifier = Optional.empty();
+        private Optional<CarPropertyValueVerifier<T>> mCarPropertyValueVerifier = Optional.empty();
         private Optional<AreaIdsVerifier> mAreaIdsVerifier = Optional.empty();
         private Optional<CarPropertyConfigVerifier> mCarPropertyConfigVerifier = Optional.empty();
         private ImmutableSet<Integer> mPossibleConfigArrayValues = ImmutableSet.of();
@@ -1231,7 +1253,7 @@ public class VehiclePropertyVerifier<T> {
         }
 
         public Builder<T> setCarPropertyValueVerifier(
-                CarPropertyValueVerifier carPropertyValueVerifier) {
+                CarPropertyValueVerifier<T> carPropertyValueVerifier) {
             mCarPropertyValueVerifier = Optional.of(carPropertyValueVerifier);
             return this;
         }
