@@ -54,6 +54,7 @@ import com.android.compatibility.common.util.depthFirstSearch
 import com.android.compatibility.common.util.uiDump
 import com.android.modules.utils.build.SdkLevel
 import java.lang.reflect.Modifier
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import java.util.regex.Pattern
@@ -97,6 +98,8 @@ class AutoRevokeTest {
 
     companion object {
         const val LOG_TAG = "AutoRevokeTest"
+        const val REQUEST_ALLOWLIST_BTN_TEXT = "Request allowlist"
+        const val ALLOWLIST_TEXTVIEW_STATUS = "Auto-revoke allowlisted: "
 
         @JvmStatic
         @BeforeClass
@@ -313,7 +316,14 @@ class AutoRevokeTest {
                 assertAllowlistState(false)
 
                 // Verify
-                waitFindObject(byTextIgnoreCase("Request allowlist")).click()
+                if (hasFeatureWatch()) {
+                    waitFindNode(hasTextThat(
+                            containsStringIgnoringCase(
+                                REQUEST_ALLOWLIST_BTN_TEXT))).click()
+                } else {
+                    waitFindObject(byTextIgnoreCase(
+                            REQUEST_ALLOWLIST_BTN_TEXT)).click()
+                }
                 waitFindObject(byTextIgnoreCase("Permissions")).click()
                 val autoRevokeEnabledToggle = getAllowlistToggle()
                 assertTrue(autoRevokeEnabledToggle.isChecked())
@@ -342,6 +352,10 @@ class AutoRevokeTest {
     @AppModeFull(reason = "Uses separate apps for testing")
     @Test
     fun testInstallGrants_notRevokedImmediately() {
+        // This assumption is not needed for U or above.
+        assumeFalse(
+            "The device can be treated as U for its Build.VERSION.CODENAME",
+            isCodeNameAtLeastU())
         withUnusedThresholdMs(TimeUnit.DAYS.toMillis(30)) {
             withDummyApp {
                 // Setup
@@ -522,9 +536,14 @@ class AutoRevokeTest {
     }
 
     private fun assertAllowlistState(state: Boolean) {
-        assertThat(
-            waitFindObject(By.textStartsWith("Auto-revoke allowlisted: ")).text,
-            containsString(state.toString()))
+        if (hasFeatureWatch()) {
+            waitFindNode(hasTextThat(containsStringIgnoringCase(
+                    ALLOWLIST_TEXTVIEW_STATUS + state.toString())))
+        } else {
+            assertThat(
+                    waitFindObject(By.textStartsWith(ALLOWLIST_TEXTVIEW_STATUS)).text,
+                    containsString(state.toString()))
+        }
     }
 
     private fun getAllowlistToggle(): UiObject2 {
@@ -560,6 +579,11 @@ class AutoRevokeTest {
 
     private fun waitFindObject(selector: BySelector): UiObject2 {
         return waitFindObject(instrumentation.uiAutomation, selector)
+    }
+
+    private fun isCodeNameAtLeastU(): Boolean {
+        val buildCodeName = Build.VERSION.CODENAME.toUpperCase(Locale.ROOT)
+        return buildCodeName.compareTo("UPSIDEDOWNCAKE") >= 0
     }
 }
 
