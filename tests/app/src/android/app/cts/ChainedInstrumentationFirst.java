@@ -14,13 +14,17 @@
  * limitations under the License.
  */
 
-package android.server.wm.jetpack.second;
+package android.app.cts;
 
-import android.app.Activity;
+import android.content.ComponentName;
 
 /**
- * A test activity that requests trusted host certificates for embedding that does not match the
- * certificate of the host in CTS tests from 'android.server.wm.jetpack'.
+ * Chained instrumentation test class.
  */
-public class SecondActivityKnownEmbeddingCerts extends Activity {
+public final class ChainedInstrumentationFirst extends BaseChainedInstrumentation {
+    static final String PACKAGE_NAME = "android.app.cts";
+    /** Constructor */
+    public ChainedInstrumentationFirst() {
+        super(new ComponentName(PACKAGE_NAME, PACKAGE_NAME + ".ChainedInstrumentationSecond"));
+    }
 }
