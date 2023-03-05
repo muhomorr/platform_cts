@@ -14,13 +14,28 @@
  * limitations under the License.
  */
 
-package android.server.wm.jetpack.second;
+package android.text.cts;
 
-import android.app.Activity;
+import static org.junit.Assert.assertNotNull;
 
-/**
- * A test activity that requests trusted host certificates for embedding that does not match the
- * certificate of the host in CTS tests from 'android.server.wm.jetpack'.
- */
-public class SecondActivityKnownEmbeddingCerts extends Activity {
+
+import android.text.EmojiConsistency;
+
+import androidx.test.filters.SmallTest;
+import androidx.test.runner.AndroidJUnit4;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import java.util.Set;
+
+@SmallTest
+@RunWith(AndroidJUnit4.class)
+public class EmojiConsistencyTest {
+
+    @Test
+    public void whenCallingCodepointExclusions_returnsNonNull() {
+        Set<int[]> result = EmojiConsistency.getEmojiConsistencySet();
+        assertNotNull("CodepointExclusions.getExcludedCodepoints() != null", result);
+    }
 }
