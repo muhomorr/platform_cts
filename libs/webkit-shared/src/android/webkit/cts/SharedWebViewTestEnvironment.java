@@ -19,6 +19,7 @@ package android.webkit.cts;
 import static org.junit.Assert.*;
 
 import android.app.Instrumentation;
+import android.app.UiAutomation;
 import android.content.Context;
 import android.os.RemoteException;
 import android.os.StrictMode;
@@ -39,6 +40,7 @@ import java.io.ByteArrayInputStream;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.List;
 
 import javax.net.ssl.X509TrustManager;
 
@@ -131,6 +133,25 @@ public final class SharedWebViewTestEnvironment {
         }
     }
 
+    /** Returns a web server that has been started and can be used
+     *  for web based testing. */
+    public SharedSdkWebServer getSetupWebServer(@SslMode int sslMode) {
+        return getSetupWebServer(sslMode, null, 0, 0);
+    }
+
+    /** Returns a web server that has been started and can be used
+     *  for web based testing. */
+    public SharedSdkWebServer getSetupWebServer(@SslMode int sslMode,
+            @Nullable byte[] acceptedIssuerDer, int keyResId, int certResId) {
+        try {
+            SharedSdkWebServer webServer = getWebServer();
+            webServer.start(sslMode, acceptedIssuerDer, keyResId, certResId);
+            return webServer;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     /**
      * Use this builder to create a {@link SharedWebViewTestEnvironment}. The {@link
      * SharedWebViewTestEnvironment} can not be built directly.
@@ -183,12 +204,27 @@ public final class SharedWebViewTestEnvironment {
     }
 
     /**
+     * UiAutomation sends events at device level which lets us get around issues with sending
+     * instrumented events to the SDK Runtime but we don't want this for the regular tests. If
+     * something like a dialog pops up while an input event is being sent, the instrumentation would
+     * treat that as an issue while the UiAutomation input event would just send it through.
+     *
+     * <p>So by default, we disable this use and only use it in the SDK Sandbox.
+     *
+     * <p>This API is used for regular activity based tests.
+     */
+    public static IHostAppInvoker.Stub createHostAppInvoker(Context applicationContext) {
+        return createHostAppInvoker(applicationContext, false);
+    }
+    /**
      * This will generate a new {@link IHostAppInvoker} binder node. This should be called from
      * wherever the activity exists for test cases.
      */
-    public static IHostAppInvoker.Stub createHostAppInvoker(Context applicationContext) {
+    public static IHostAppInvoker.Stub createHostAppInvoker(
+            Context applicationContext, boolean allowUiAutomation) {
         return new IHostAppInvoker.Stub() {
             private Instrumentation mInstrumentation = InstrumentationRegistry.getInstrumentation();
+            private UiAutomation mUiAutomation;
 
             public void waitForIdleSync() {
                 mInstrumentation.waitForIdleSync();
@@ -199,7 +235,11 @@ public final class SharedWebViewTestEnvironment {
             }
 
             public void sendPointerSync(MotionEvent event) {
-                mInstrumentation.sendPointerSync(event);
+                if (allowUiAutomation) {
+                    sendPointerSyncWithUiAutomation(event);
+                } else {
+                    sendPointerSyncWithInstrumentation(event);
+                }
             }
 
             public byte[] getEncodingBytes(String data, String charset) {
@@ -210,16 +250,21 @@ public final class SharedWebViewTestEnvironment {
                 return new IWebServer.Stub() {
                     private CtsTestServer mWebServer;
 
-                    public void start(@SslMode int sslMode, @Nullable byte[] acceptedIssuerDer) {
+                    public void start(@SslMode int sslMode, @Nullable byte[] acceptedIssuerDer,
+                            int keyResId, int certResId) {
                         assertNull(mWebServer);
                         final X509Certificate[] acceptedIssuerCerts;
                         if (acceptedIssuerDer != null) {
                             try {
-                                CertificateFactory certFactory = CertificateFactory.getInstance(
-                                        "X.509");
-                                acceptedIssuerCerts = new X509Certificate[]{
-                                        (X509Certificate) certFactory.generateCertificate(
-                                                new ByteArrayInputStream(acceptedIssuerDer))};
+                                CertificateFactory certFactory =
+                                        CertificateFactory.getInstance("X.509");
+                                acceptedIssuerCerts =
+                                        new X509Certificate[] {
+                                            (X509Certificate)
+                                                    certFactory.generateCertificate(
+                                                            new ByteArrayInputStream(
+                                                                    acceptedIssuerDer))
+                                        };
                             } catch (CertificateException e) {
                                 // Throw manually, because compiler does not understand that fail()
                                 // does not return.
@@ -237,9 +282,9 @@ public final class SharedWebViewTestEnvironment {
                                 }
                             };
                             mWebServer = new CtsTestServer(applicationContext, sslMode,
-                                    trustManager);
+                                    trustManager, keyResId, certResId);
                         } catch (Exception e) {
-                            fail("Failed to launch CtsTestServer");
+                            fail(" Failed to launch CtsTestServer: " + e);
                         }
                     }
 
@@ -259,6 +304,23 @@ public final class SharedWebViewTestEnvironment {
                     public void resetRequestState() {
                         assertNotNull("The WebServer needs to be started", mWebServer);
                         mWebServer.resetRequestState();
+                    }
+
+                    public String setResponse(
+                            String path, String responseString, List<HttpHeader> responseHeaders) {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.setResponse(
+                                path, responseString, HttpHeader.asPairList(responseHeaders));
+                    }
+
+                    public String getAbsoluteUrl(String path) {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getAbsoluteUrl(path);
+                    }
+
+                    public String getUserAgentUrl() {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getUserAgentUrl();
                     }
 
                     public String getDelayedAssetUrl(String path) {
@@ -286,21 +348,79 @@ public final class SharedWebViewTestEnvironment {
                         return mWebServer.getBinaryUrl(mimeType, contentLength);
                     }
 
+                    public String getAppCacheUrl() {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getAppCacheUrl();
+                    }
+
+                    public int getRequestCount() {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getRequestCount();
+                    }
+
+                    public int getRequestCountWithPath(String path) {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getRequestCount(path);
+                    }
+
                     public boolean wasResourceRequested(String url) {
                         assertNotNull("The WebServer needs to be started", mWebServer);
                         return mWebServer.wasResourceRequested(url);
                     }
 
+                    public HttpRequest getLastRequest(String path) {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return toHttpRequest(path, mWebServer.getLastRequest(path));
+                    }
+
                     public HttpRequest getLastAssetRequest(String url) {
                         assertNotNull("The WebServer needs to be started", mWebServer);
-                        org.apache.http.HttpRequest request = mWebServer.getLastAssetRequest(url);
-                        if (request == null) {
+                        return toHttpRequest(url, mWebServer.getLastAssetRequest(url));
+                    }
+
+                    public  String getCookieUrl(String path) {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getCookieUrl(path);
+                    }
+
+                    public String getSetCookieUrl(String path, String key, String value,
+                            String attributes) {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getSetCookieUrl(path, key, value, attributes);
+                    }
+
+                    public String getLinkedScriptUrl(String path, String url) {
+                        assertNotNull("The WebServer needs to be started", mWebServer);
+                        return mWebServer.getLinkedScriptUrl(path, url);
+                    }
+
+                    private HttpRequest toHttpRequest(
+                            String url, org.apache.http.HttpRequest apacheRequest) {
+                        if (apacheRequest == null) {
                             return null;
                         }
 
-                        return new HttpRequest(url, request);
+                        return new HttpRequest(url, apacheRequest);
                     }
                 };
+            }
+
+            private void sendPointerSyncWithInstrumentation(MotionEvent event) {
+                mInstrumentation.sendPointerSync(event);
+            }
+
+            private void sendPointerSyncWithUiAutomation(MotionEvent event) {
+                if (mUiAutomation == null) {
+                    mUiAutomation = mInstrumentation.getUiAutomation();
+
+                    if (mUiAutomation == null) {
+                        fail("Could not retrieve UI automation");
+                    }
+                }
+
+                if (!mUiAutomation.injectInputEvent(event, true)) {
+                    fail("Could not inject motion event");
+                }
             }
         };
     }

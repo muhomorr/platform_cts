@@ -80,6 +80,7 @@ import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.FlakyTest;
+import androidx.test.filters.MediumTest;
 
 import com.android.compatibility.common.util.NullWebViewUtils;
 import com.android.compatibility.common.util.PollingCheck;
@@ -113,6 +114,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 @AppModeFull
+@MediumTest
 @RunWith(AndroidJUnit4.class)
 public class WebViewTest extends SharedWebViewTest {
     private static final int INITIAL_PROGRESS = 100;
@@ -212,12 +214,6 @@ public class WebViewTest extends SharedWebViewTest {
         }
 
         return environment;
-    }
-
-    private void startWebServer(boolean secure) throws Exception {
-        assertNull(mWebServer);
-        mWebServer = getTestEnvironment().getWebServer();
-        mWebServer.start(secure ? SslMode.NO_CLIENT_AUTH : SslMode.INSECURE);
     }
 
     @Test
@@ -323,7 +319,7 @@ public class WebViewTest extends SharedWebViewTest {
     @Test
     @Presubmit
     public void testLoadUrl() throws Exception {
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
 
         WebkitUtils.onMainThreadSync(
                 () -> {
@@ -366,7 +362,7 @@ public class WebViewTest extends SharedWebViewTest {
 
     @Test
     public void testPostUrlWithNetworkUrl() throws Exception {
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
 
         final String networkUrl = mWebServer.getAssetUrl(TestHtmlConstants.HELLO_WORLD_URL);
         final String postDataString = "username=my_username&password=my_password";
@@ -398,7 +394,7 @@ public class WebViewTest extends SharedWebViewTest {
 
     @Test
     public void testAppInjectedXRequestedWithHeaderIsNotOverwritten() throws Exception {
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
 
         WebkitUtils.onMainThreadSync(
                 () -> {
@@ -422,7 +418,7 @@ public class WebViewTest extends SharedWebViewTest {
 
     @Test
     public void testAppCanInjectHeadersViaImmutableMap() throws Exception {
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
 
         WebkitUtils.onMainThreadSync(
                 () -> {
@@ -451,7 +447,7 @@ public class WebViewTest extends SharedWebViewTest {
 
         final String X_REFERER = "Referer";
         final String X_REFERER_VALUE = "http://www.example.com/";
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
         String url = mWebServer.getAssetUrl(TestHtmlConstants.HELLO_WORLD_URL);
         HashMap<String, String> map = new HashMap<String, String>();
         map.put(X_FOO, X_FOO_VALUE);
@@ -470,7 +466,7 @@ public class WebViewTest extends SharedWebViewTest {
     @Test
     @SuppressWarnings("deprecation")
     public void testGetVisibleTitleHeight() throws Exception {
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
 
         WebkitUtils.onMainThreadSync(
                 () -> {
@@ -482,7 +478,7 @@ public class WebViewTest extends SharedWebViewTest {
 
     @Test
     public void testGetOriginalUrl() throws Throwable {
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
 
         WebkitUtils.onMainThreadSync(
                 () -> {
@@ -510,7 +506,7 @@ public class WebViewTest extends SharedWebViewTest {
     public void testStopLoading() throws Exception {
         assertEquals(INITIAL_PROGRESS, mOnUiThread.getProgress());
 
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
         String url = mWebServer.getDelayedAssetUrl(TestHtmlConstants.STOP_LOADING_URL);
 
         class JsInterface {
@@ -544,7 +540,7 @@ public class WebViewTest extends SharedWebViewTest {
 
     @Test
     public void testGoBackAndForward() throws Exception {
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
 
         WebkitUtils.onMainThreadSync(
                 () -> {
@@ -631,7 +627,7 @@ public class WebViewTest extends SharedWebViewTest {
         mOnUiThread.addJavascriptInterface(obj, "interface");
         assertFalse(obj.wasProvideResultCalled());
 
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
         String url = mWebServer.getAssetUrl(TestHtmlConstants.ADD_JAVA_SCRIPT_INTERFACE_URL);
         mOnUiThread.loadUrlAndWaitForCompletion(url);
         assertEquals("Original title", obj.waitForResult());
@@ -837,7 +833,7 @@ public class WebViewTest extends SharedWebViewTest {
                     }
                 });
 
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
         mOnUiThread.loadUrlAndWaitForCompletion(
                 mWebServer.getAssetUrl(TestHtmlConstants.POPUP_URL));
         WebkitUtils.waitForFuture(onCreateWindowFuture);
@@ -889,7 +885,7 @@ public class WebViewTest extends SharedWebViewTest {
     public void testCapturePicture() throws Exception, Throwable {
         final TestPictureListener listener = new TestPictureListener();
 
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
         final String url = mWebServer.getAssetUrl(TestHtmlConstants.BLANK_PAGE_URL);
         mOnUiThread.setPictureListener(listener);
         // Showing the blank page will fill the picture with the background color.
@@ -928,7 +924,7 @@ public class WebViewTest extends SharedWebViewTest {
         }
 
         final MyPictureListener listener = new MyPictureListener();
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
         final String url = mWebServer.getAssetUrl(TestHtmlConstants.HELLO_WORLD_URL);
         mOnUiThread.setPictureListener(listener);
         mOnUiThread.loadUrlAndWaitForCompletion(url);
@@ -1093,7 +1089,7 @@ public class WebViewTest extends SharedWebViewTest {
         mOnUiThread.loadDataAndWaitForCompletion(HTML_CONTENT, "text/html", null);
         assertEquals(firstTitle, mOnUiThread.getTitle());
 
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
         final String crossOriginUrl = mWebServer.getAssetUrl(TestHtmlConstants.HELLO_WORLD_URL);
         mOnUiThread.getSettings().setJavaScriptEnabled(true);
         final String secondTitle = "Foo bar";
@@ -1124,7 +1120,7 @@ public class WebViewTest extends SharedWebViewTest {
         // will fail and we won't make a request to the test web server.
         // By using the test web server as the base URL we expect to see a request
         // for the relative URL in the test server.
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
         final String baseUrl = mWebServer.getAssetUrl("foo.html");
         mWebServer.resetRequestState();
         mOnUiThread.loadDataWithBaseURLAndWaitForCompletion(
@@ -1161,7 +1157,7 @@ public class WebViewTest extends SharedWebViewTest {
     public void testLoadDataWithBaseUrl_javascriptCanAccessOrigin() throws Throwable {
         // Test that JavaScript can access content from the same origin as the base URL.
         mOnUiThread.getSettings().setJavaScriptEnabled(true);
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
         final String baseUrl = mWebServer.getAssetUrl("foo.html");
         final String crossOriginUrl = mWebServer.getAssetUrl(TestHtmlConstants.HELLO_WORLD_URL);
         mOnUiThread.loadDataWithBaseURLAndWaitForCompletion(
@@ -1465,7 +1461,7 @@ public class WebViewTest extends SharedWebViewTest {
             }
         }
 
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
         final String imgUrl = mWebServer.getAssetUrl(TestHtmlConstants.SMALL_IMG_URL);
 
         // Create a handler on the UI thread.
@@ -1713,7 +1709,7 @@ public class WebViewTest extends SharedWebViewTest {
 
     @Test
     public void testRequestFocusNodeHref() throws Throwable {
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
 
         final String url1 = mWebServer.getAssetUrl(TestHtmlConstants.HTML_URL1);
         final String url2 = mWebServer.getAssetUrl(TestHtmlConstants.HTML_URL2);
@@ -1800,7 +1796,7 @@ public class WebViewTest extends SharedWebViewTest {
         mOnUiThread.getSettings().setJavaScriptEnabled(true);
         mOnUiThread.addJavascriptInterface(imageLoaded, "imageLoaded");
 
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
         final String imgUrl = mWebServer.getAssetUrl(TestHtmlConstants.LARGE_IMG_URL);
         mOnUiThread.loadDataAndWaitForCompletion(
                 "<html><head><title>Title</title><style type='text/css'>"
@@ -1991,7 +1987,7 @@ public class WebViewTest extends SharedWebViewTest {
 
     @Test
     public void testClearHistory() throws Exception {
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
 
         WebkitUtils.onMainThreadSync(
                 () -> {
@@ -2017,7 +2013,7 @@ public class WebViewTest extends SharedWebViewTest {
 
     @Test
     public void testSaveAndRestoreState() throws Throwable {
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
 
         WebkitUtils.onMainThreadSync(
                 () -> {
@@ -2140,7 +2136,7 @@ public class WebViewTest extends SharedWebViewTest {
         final int length = 100;
         final MyDownloadListener listener = new MyDownloadListener();
 
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
         final String url = mWebServer.getBinaryUrl(mimeType, length);
 
         // By default, WebView sends an intent to ask the system to
@@ -2185,7 +2181,7 @@ public class WebViewTest extends SharedWebViewTest {
     public void testSetNetworkAvailable() throws Exception {
         WebSettings settings = mOnUiThread.getSettings();
         settings.setJavaScriptEnabled(true);
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
 
         String url = mWebServer.getAssetUrl(TestHtmlConstants.NETWORK_STATE_URL);
         mOnUiThread.loadUrlAndWaitForCompletion(url);
@@ -2226,7 +2222,7 @@ public class WebViewTest extends SharedWebViewTest {
         getTestEnvironment().waitForIdleSync();
         assertFalse(future.isDone());
 
-        startWebServer(false);
+        mWebServer = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
         final String url = mWebServer.getAssetUrl(TestHtmlConstants.HELLO_WORLD_URL);
         mOnUiThread.loadUrlAndWaitForCompletion(url);
         getTestEnvironment().waitForIdleSync();

@@ -24,10 +24,9 @@ import android.webkit.WebBackForwardList;
 import android.webkit.WebHistoryItem;
 import android.webkit.WebView;
 
-import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
-import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.NullWebViewUtils;
 import com.android.compatibility.common.util.PollingCheck;
@@ -48,7 +47,6 @@ public class WebBackForwardListTest extends SharedWebViewTest {
             new ActivityScenarioRule(WebViewCtsActivity.class);
 
     private WebViewOnUiThread mOnUiThread;
-    private ActivityScenario mScenario;
 
     @Before
     public void setUp() throws Exception {
@@ -97,8 +95,7 @@ public class WebBackForwardListTest extends SharedWebViewTest {
         assertNull(list.getItemAtIndex(-1));
         assertNull(list.getItemAtIndex(2));
 
-        SharedSdkWebServer server = getTestEnvironment().getWebServer();
-        server.start(SslMode.INSECURE);
+        SharedSdkWebServer server = getTestEnvironment().getSetupWebServer(SslMode.INSECURE);
         try {
             String url1 = server.getAssetUrl(TestHtmlConstants.HTML_URL1);
             String url2 = server.getAssetUrl(TestHtmlConstants.HTML_URL2);
