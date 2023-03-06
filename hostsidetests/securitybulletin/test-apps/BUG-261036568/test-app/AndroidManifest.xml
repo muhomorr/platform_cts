@@ -1,5 +1,6 @@
-/*
- * Copyright (C) 2022 The Android Open Source Project
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+ * Copyright (C) 2011 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,15 +13,15 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
+ -->
 
-package android.server.wm.jetpack.second;
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="android.security.cts.BUG_261036568_test"
+          android:versionCode="1"
+          android:versionName="1.0">
 
-import android.app.Activity;
+    <instrumentation
+        android:name="androidx.test.runner.AndroidJUnitRunner"
+        android:targetPackage="android.security.cts.BUG_261036568_test"/>
 
-/**
- * A test activity that requests trusted host certificates for embedding that does not match the
- * certificate of the host in CTS tests from 'android.server.wm.jetpack'.
- */
-public class SecondActivityKnownEmbeddingCerts extends Activity {
-}
+</manifest>
