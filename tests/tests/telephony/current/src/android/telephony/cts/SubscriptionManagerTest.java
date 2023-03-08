@@ -23,15 +23,19 @@ import static android.net.NetworkCapabilities.NET_CAPABILITY_TEMPORARILY_NOT_MET
 import static android.net.NetworkCapabilities.TRANSPORT_CELLULAR;
 import static android.telephony.TelephonyManager.SET_OPPORTUNISTIC_SUB_SUCCESS;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
+import android.Manifest;
 import android.annotation.Nullable;
 import android.app.AppOpsManager;
 import android.app.UiAutomation;
@@ -51,6 +55,7 @@ import android.os.Looper;
 import android.os.ParcelUuid;
 import android.os.PersistableBundle;
 import android.os.Process;
+import android.os.UserHandle;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
@@ -1320,6 +1325,44 @@ public class SubscriptionManagerTest {
             }
         } finally {
             overrideCarrierConfig(null, mSubId);
+        }
+    }
+
+    @Test
+    public void testSetAndGetSubscriptionUserHandle() throws Exception {
+        // Throws IllegalArgumentException as SubscriptionId is invalid.
+        assertThrows(IllegalArgumentException.class,
+                () -> mSm.setSubscriptionUserHandle(-1, UserHandle.SYSTEM));
+
+        // Throws IllegalArgumentException as SubscriptionId is invalid.
+        assertThrows(IllegalArgumentException.class, () -> mSm.getSubscriptionUserHandle(-1));
+
+        // Throws SecurityException as we do not have MANAGE_SUBSCRIPTION_USER_ASSOCIATION
+        // permission.
+        assertThrows(SecurityException.class,
+                () -> mSm.setSubscriptionUserHandle(mSubId, UserHandle.SYSTEM));
+
+        // Throws SecurityException as we do not have MANAGE_SUBSCRIPTION_USER_ASSOCIATION
+        // permission.
+        assertThrows(SecurityException.class, () -> mSm.getSubscriptionUserHandle(mSubId));
+
+        // Set and get user handle with MANAGE_SUBSCRIPTION_USER_ASSOCIATION permission.
+        try {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .adoptShellPermissionIdentity(
+                            Manifest.permission.MANAGE_SUBSCRIPTION_USER_ASSOCIATION);
+            UserHandle originalUserHandle = mSm.getSubscriptionUserHandle(mSubId);
+
+            mSm.setSubscriptionUserHandle(mSubId, null);
+            assertThat(mSm.getSubscriptionUserHandle(mSubId)).isEqualTo(null);
+
+            mSm.setSubscriptionUserHandle(mSubId, UserHandle.SYSTEM);
+            assertThat(mSm.getSubscriptionUserHandle(mSubId)).isEqualTo(UserHandle.SYSTEM);
+
+            mSm.setSubscriptionUserHandle(mSubId, originalUserHandle);
+        } finally {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
         }
     }
 
