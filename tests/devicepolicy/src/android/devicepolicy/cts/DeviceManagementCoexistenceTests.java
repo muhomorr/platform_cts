@@ -29,11 +29,6 @@ import static android.app.admin.DevicePolicyIdentifiers.getIdentifierForUserRest
 import static android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT;
 import static android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED;
 import static android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED;
-import static android.app.admin.PolicyUpdateReceiver.ACTION_DEVICE_POLICY_SET_RESULT;
-import static android.app.admin.PolicyUpdateReceiver.EXTRA_POLICY_BUNDLE_KEY;
-import static android.app.admin.PolicyUpdateReceiver.EXTRA_POLICY_KEY;
-import static android.app.admin.PolicyUpdateReceiver.EXTRA_POLICY_TARGET_USER_ID;
-import static android.app.admin.PolicyUpdateReceiver.EXTRA_POLICY_UPDATE_RESULT_KEY;
 import static android.app.admin.TargetUser.GLOBAL_USER_ID;
 import static android.app.admin.TargetUser.LOCAL_USER_ID;
 import static android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS;
@@ -64,6 +59,7 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.devicepolicy.cts.utils.BundleUtils;
+import android.devicepolicy.cts.utils.PolicySetResultUtils;
 import android.os.Bundle;
 import android.os.UserHandle;
 
@@ -74,7 +70,6 @@ import com.android.bedstead.harrier.annotations.Postsubmit;
 import com.android.bedstead.harrier.annotations.enterprise.CoexistenceFlagsOn;
 import com.android.bedstead.harrier.annotations.enterprise.EnsureHasDeviceOwner;
 import com.android.bedstead.harrier.annotations.enterprise.EnsureHasDevicePolicyManagerRoleHolder;
-import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppInstance;
 
@@ -84,7 +79,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -596,7 +590,8 @@ public final class DeviceManagementCoexistenceTests {
             sDeviceState.dpc().devicePolicyManager().setAutoTimeZoneEnabled(
                     sDeviceState.dpc().componentName(), true);
 
-            assertPolicySetResultReceived(AUTO_TIMEZONE_POLICY, PolicyUpdateResult.RESULT_SUCCESS,
+            PolicySetResultUtils.assertPolicySetResultReceived(sDeviceState, AUTO_TIMEZONE_POLICY,
+                    PolicyUpdateResult.RESULT_POLICY_SET,
                     GLOBAL_USER_ID, new Bundle());
         } finally {
             sDeviceState.dpc().devicePolicyManager().setAutoTimeZoneEnabled(
@@ -621,8 +616,8 @@ public final class DeviceManagementCoexistenceTests {
                             sDeviceState.dpc().componentName(), sTestApp.packageName(),
                             GRANTABLE_PERMISSION, PERMISSION_GRANT_STATE_GRANTED);
 
-            assertPolicySetResultReceived(
-                    PERMISSION_GRANT_POLICY, PolicyUpdateResult.RESULT_SUCCESS, LOCAL_USER_ID,
+            PolicySetResultUtils.assertPolicySetResultReceived(sDeviceState,
+                    PERMISSION_GRANT_POLICY, PolicyUpdateResult.RESULT_POLICY_SET, LOCAL_USER_ID,
                     bundle);
         } finally {
             sDeviceState.dpc().devicePolicyManager().setPermissionGrantState(
@@ -641,8 +636,8 @@ public final class DeviceManagementCoexistenceTests {
             sDeviceState.dpc().devicePolicyManager()
                     .setLockTaskPackages(sDeviceState.dpc().componentName(), new String[]{PACKAGE_NAME});
 
-            assertPolicySetResultReceived(
-                    LOCK_TASK_POLICY, PolicyUpdateResult.RESULT_SUCCESS, LOCAL_USER_ID,
+            PolicySetResultUtils.assertPolicySetResultReceived(sDeviceState,
+                    LOCK_TASK_POLICY, PolicyUpdateResult.RESULT_POLICY_SET, LOCAL_USER_ID,
                     new Bundle());
         } finally {
             sDeviceState.dpc().devicePolicyManager()
@@ -662,9 +657,9 @@ public final class DeviceManagementCoexistenceTests {
                     sDeviceState.dpc().componentName(),
                     Arrays.asList(sTestApp.packageName()));
 
-            assertPolicySetResultReceived(
+            PolicySetResultUtils.assertPolicySetResultReceived(sDeviceState,
                     USER_CONTROL_DISABLED_PACKAGES_POLICY,
-                    PolicyUpdateResult.RESULT_SUCCESS, GLOBAL_USER_ID, new Bundle());
+                    PolicyUpdateResult.RESULT_POLICY_SET, GLOBAL_USER_ID, new Bundle());
 
         } finally {
             sDeviceState.dpc().devicePolicyManager().setUserControlDisabledPackages(
@@ -684,9 +679,9 @@ public final class DeviceManagementCoexistenceTests {
                     sDeviceState.dpc().componentName(),
                     sTestApp.packageName(), /* uninstallBlocked= */ true);
 
-            assertPolicySetResultReceived(
+            PolicySetResultUtils.assertPolicySetResultReceived(sDeviceState,
                     PACKAGE_UNINSTALL_BLOCKED_POLICY,
-                    PolicyUpdateResult.RESULT_SUCCESS, LOCAL_USER_ID, bundle);
+                    PolicyUpdateResult.RESULT_POLICY_SET, LOCAL_USER_ID, bundle);
 
         } finally {
             sDeviceState.dpc().devicePolicyManager().setUninstallBlocked(
@@ -710,9 +705,9 @@ public final class DeviceManagementCoexistenceTests {
                     intentFilter,
                     sDeviceState.dpc().componentName());
 
-            assertPolicySetResultReceived(
+            PolicySetResultUtils.assertPolicySetResultReceived(sDeviceState,
                     PERSISTENT_PREFERRED_ACTIVITY_POLICY,
-                    PolicyUpdateResult.RESULT_SUCCESS, LOCAL_USER_ID, bundle);
+                    PolicyUpdateResult.RESULT_POLICY_SET, LOCAL_USER_ID, bundle);
         } finally {
             sDeviceState.dpc().devicePolicyManager().clearPackagePersistentPreferredActivities(
                     sDeviceState.dpc().componentName(),
@@ -731,9 +726,9 @@ public final class DeviceManagementCoexistenceTests {
             sDeviceState.dpc().devicePolicyManager().addUserRestriction(
                     sDeviceState.dpc().componentName(), LOCAL_USER_RESTRICTION);
 
-            assertPolicySetResultReceived(
+            PolicySetResultUtils.assertPolicySetResultReceived(sDeviceState,
                     getIdentifierForUserRestriction(LOCAL_USER_RESTRICTION),
-                    PolicyUpdateResult.RESULT_SUCCESS, LOCAL_USER_ID, new Bundle());
+                    PolicyUpdateResult.RESULT_POLICY_SET, LOCAL_USER_ID, new Bundle());
         } finally {
             if (!hasRestrictionOriginally) {
                 sDeviceState.dpc().devicePolicyManager().clearUserRestriction(
@@ -753,36 +748,14 @@ public final class DeviceManagementCoexistenceTests {
             sDeviceState.dpc().devicePolicyManager().addUserRestrictionGlobally(
                     GLOBAL_USER_RESTRICTION);
 
-            assertPolicySetResultReceived(
+            PolicySetResultUtils.assertPolicySetResultReceived(sDeviceState,
                     getIdentifierForUserRestriction(GLOBAL_USER_RESTRICTION),
-                    PolicyUpdateResult.RESULT_SUCCESS, GLOBAL_USER_ID, new Bundle());
+                    PolicyUpdateResult.RESULT_POLICY_SET, GLOBAL_USER_ID, new Bundle());
         } finally {
             if (!hasRestrictionOriginally) {
                 sDeviceState.dpc().devicePolicyManager().clearUserRestriction(
                         sDeviceState.dpc().componentName(), GLOBAL_USER_RESTRICTION);
             }
-        }
-    }
-
-    private void assertPolicySetResultReceived(
-            String policyIdentifier, int resultKey, int targetUser, Bundle policyExtraBundle) {
-
-        final Intent receivedIntent = sDeviceState.dpc().events().broadcastReceived()
-                .whereIntent().action()
-                .isEqualTo(ACTION_DEVICE_POLICY_SET_RESULT)
-                .poll(Duration.ofMinutes(1)).intent();
-        assertThat(receivedIntent).isNotNull();
-
-        assertThat(receivedIntent.getStringExtra(EXTRA_POLICY_KEY)).isEqualTo(policyIdentifier);
-        assertThat(receivedIntent.getIntExtra(EXTRA_POLICY_UPDATE_RESULT_KEY, /* default= */ -100))
-                .isEqualTo(resultKey);
-        assertThat(receivedIntent.getIntExtra(EXTRA_POLICY_TARGET_USER_ID, /* default= */ -100))
-                .isEqualTo(targetUser);
-
-        // TODO: add checks on bundle values.
-        for (String key : policyExtraBundle.keySet()) {
-            assertThat(receivedIntent.getBundleExtra(EXTRA_POLICY_BUNDLE_KEY).containsKey(key))
-                    .isTrue();
         }
     }
 
