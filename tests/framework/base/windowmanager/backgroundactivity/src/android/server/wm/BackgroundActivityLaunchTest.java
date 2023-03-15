@@ -323,7 +323,7 @@ public class BackgroundActivityLaunchTest extends BackgroundActivityTestBase {
 
     @Test
     public void testActivityBlockedWhenLaunchedAfterHomePress() throws Exception {
-        int backgroundStartDelayMs = 4000;
+        int backgroundStartDelayMs = 4500;
 
         Intent intent = new Intent();
         intent.setComponent(APP_A.FOREGROUND_ACTIVITY);
@@ -588,7 +588,7 @@ public class BackgroundActivityLaunchTest extends BackgroundActivityTestBase {
 
         // Send pendingIntent from AppA to AppB, and the AppB launch the pending intent to start
         // activity in App A
-        sendPendingIntentActivity(APP_A, APP_B, APP_B.START_PENDING_INTENT_ACTIVITY_EXTRA.ALLOW_BAL);
+        sendPendingIntentActivity(APP_A, APP_B);
         result = waitForActivityFocused(APP_A.BACKGROUND_ACTIVITY);
         assertTrue("Not able to launch background activity", result);
         assertTaskStack(new ComponentName[] {APP_A.BACKGROUND_ACTIVITY}, APP_A.BACKGROUND_ACTIVITY);
@@ -613,7 +613,7 @@ public class BackgroundActivityLaunchTest extends BackgroundActivityTestBase {
 
         // Send pendingIntent from AppA to AppB, and the AppB launch the pending intent to start
         // activity in App A
-        sendPendingIntentActivity(APP_A, APP_B_33, APP_B_33.START_PENDING_INTENT_ACTIVITY_EXTRA.ALLOW_BAL);
+        sendPendingIntentActivity(APP_A, APP_B_33);
         result = waitForActivityFocused(APP_A.BACKGROUND_ACTIVITY);
         assertTrue("Not able to launch background activity", result);
         assertTaskStack(new ComponentName[]{APP_A.BACKGROUND_ACTIVITY}, APP_A.BACKGROUND_ACTIVITY);
