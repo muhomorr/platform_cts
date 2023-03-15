@@ -17,6 +17,8 @@
 package android.bluetooth.cts;
 
 import static android.Manifest.permission.BLUETOOTH_CONNECT;
+import static android.Manifest.permission.BLUETOOTH_PRIVILEGED;
+import static android.Manifest.permission.BLUETOOTH_SCAN;
 
 import static org.junit.Assert.assertThrows;
 
@@ -72,8 +74,8 @@ public class HearingAidProfileTest extends AndroidTestCase {
     private BroadcastReceiver mIntentReceiver;
     private UiAutomation mUiAutomation;;
 
-    private Condition mConditionProfileIsConnected;
-    private ReentrantLock mProfileConnectedlock;
+    private Condition mConditionProfileConnection;
+    private ReentrantLock mProfileConnectionlock;
     private boolean mIsProfileReady;
     private AdvertisementServiceData mAdvertisementData;
 
@@ -98,8 +100,8 @@ public class HearingAidProfileTest extends AndroidTestCase {
         mBluetoothAdapter = manager.getAdapter();
 
         assertTrue(BTAdapterUtils.enableAdapter(mBluetoothAdapter, mContext));
-        mProfileConnectedlock = new ReentrantLock();
-        mConditionProfileIsConnected  = mProfileConnectedlock.newCondition();
+        mProfileConnectionlock = new ReentrantLock();
+        mConditionProfileConnection = mProfileConnectionlock.newCondition();
         mIsProfileReady = false;
         mService = null;
         mBluetoothAdapter.getProfileProxy(getContext(), new HearingAidsServiceListener(),
@@ -119,6 +121,18 @@ public class HearingAidProfileTest extends AndroidTestCase {
             return;
         }
         mUiAutomation.dropShellPermissionIdentity();
+    }
+
+    public void test_closeProfileProxy() {
+        if (!(mIsBleSupported && mIsHearingAidSupported)) return;
+
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mService);
+        assertTrue(mIsProfileReady);
+
+        mBluetoothAdapter.closeProfileProxy(BluetoothProfile.HEARING_AID, mService);
+        assertTrue(waitForProfileDisconnect());
+        assertFalse(mIsProfileReady);
     }
 
     /**
@@ -219,7 +233,7 @@ public class HearingAidProfileTest extends AndroidTestCase {
 
     /**
      * Basic test case to make sure that a fictional device's ASHA Advertisement Service Data
-     * is an error.
+     * is null.
      */
     @MediumTest
     public void test_getAdvertisementServiceData() {
@@ -234,6 +248,8 @@ public class HearingAidProfileTest extends AndroidTestCase {
         // Create a fake device
         final BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(FAKE_REMOTE_ADDRESS);
         assertNotNull(device);
+
+        TestUtils.adoptPermissionAsShellUid(BLUETOOTH_SCAN, BLUETOOTH_PRIVILEGED);
 
         // Fake device should have no service data
         assertNull(mService.getAdvertisementServiceData(device));
@@ -450,11 +466,11 @@ public class HearingAidProfileTest extends AndroidTestCase {
     }
 
     private boolean waitForProfileConnect() {
-        mProfileConnectedlock.lock();
+        mProfileConnectionlock.lock();
         try {
             // Wait for the Adapter to be disabled
             while (!mIsProfileReady) {
-                if (!mConditionProfileIsConnected.await(
+                if (!mConditionProfileConnection.await(
                     PROXY_CONNECTION_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
                     // Timeout
                     Log.e(TAG, "Timeout while waiting for Profile Connect");
@@ -464,30 +480,54 @@ public class HearingAidProfileTest extends AndroidTestCase {
         } catch(InterruptedException e) {
             Log.e(TAG, "waitForProfileConnect: interrrupted");
         } finally {
-            mProfileConnectedlock.unlock();
+            mProfileConnectionlock.unlock();
         }
         return mIsProfileReady;
+    }
+
+    private boolean waitForProfileDisconnect() {
+        mConditionProfileConnection = mProfileConnectionlock.newCondition();
+        mProfileConnectionlock.lock();
+        try {
+            while (mIsProfileReady) {
+                if (!mConditionProfileConnection.await(
+                        PROXY_CONNECTION_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                    // Timeout
+                    Log.e(TAG, "Timeout while waiting for Profile Disconnect");
+                    break;
+                } // else spurious wakeups
+            }
+        } catch (InterruptedException e) {
+            Log.e(TAG, "waitForProfileDisconnect: interrrupted");
+        } finally {
+            mProfileConnectionlock.unlock();
+        }
+        return !mIsProfileReady;
     }
 
     private final class HearingAidsServiceListener
             implements BluetoothProfile.ServiceListener {
 
         public void onServiceConnected(int profile, BluetoothProfile proxy) {
-            mProfileConnectedlock.lock();
+            mProfileConnectionlock.lock();
             mService = (BluetoothHearingAid) proxy;
             mIsProfileReady = true;
             try {
-                mConditionProfileIsConnected.signal();
+                mConditionProfileConnection.signal();
             } finally {
-                mProfileConnectedlock.unlock();
+                mProfileConnectionlock.unlock();
             }
         }
 
         public void onServiceDisconnected(int profile) {
-            mProfileConnectedlock.lock();
+            mProfileConnectionlock.lock();
             mIsProfileReady = false;
             mService = null;
-            mProfileConnectedlock.unlock();
+            try {
+                mConditionProfileConnection.signal();
+            } finally {
+                mProfileConnectionlock.unlock();
+            }
         }
     }
 
