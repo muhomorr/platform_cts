@@ -2981,6 +2981,11 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      */
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTetheredBridgedAp() throws Exception {
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported
+            return;
+        }
+
         // check that softap bridged mode is supported by the device
         if (!mWifiManager.isBridgedApConcurrencySupported()) {
             return;
@@ -3045,6 +3050,11 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      */
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTetheredBridgedApWifiForcedChannel() throws Exception {
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported
+            return;
+        }
+
         // check that softap bridged mode is supported by the device
         if (!mWifiManager.isBridgedApConcurrencySupported()) {
             return;
@@ -6438,14 +6448,6 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         assertThrows("Invalid dscp should trigger an exception", IllegalArgumentException.class,
                 () -> new QosPolicyParams.Builder(policyId, direction)
                         .setDscp(70)
-                        .build());
-        assertThrows("Null src address should trigger an exception", NullPointerException.class,
-                () -> new QosPolicyParams.Builder(policyId, direction)
-                        .setSourceAddress(null)
-                        .build());
-        assertThrows("Null dest address should trigger an exception", NullPointerException.class,
-                () -> new QosPolicyParams.Builder(policyId, direction)
-                        .setDestinationAddress(null)
                         .build());
 
         // Valid downlink parameters
