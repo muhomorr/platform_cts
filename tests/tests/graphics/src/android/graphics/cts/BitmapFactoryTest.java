@@ -100,7 +100,8 @@ public class BitmapFactoryTest {
                 new TestImage(R.drawable.png_test, 640, 480),
                 new TestImage(R.drawable.gif_test, 320, 240),
                 new TestImage(R.drawable.bmp_test, 320, 240),
-                new TestImage(R.drawable.webp_test, 640, 480)
+                new TestImage(R.drawable.webp_test, 640, 480),
+                new TestImage(R.raw.avif_yuv_420_8bit, 120, 160)
         }));
         if (MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
             // HEIF support is optional when HEVC decoder is not supported.
@@ -1015,7 +1016,8 @@ public class BitmapFactoryTest {
             "Test needs Android T.", ApiLevelUtil.isFirstApiAtLeast(Build.VERSION_CODES.TIRAMISU));
         assumeTrue(
             "Test needs VNDK at least T.",
-            SystemProperties.getInt("ro.vndk.version", 0) >= Build.VERSION_CODES.TIRAMISU);
+            SystemProperties.getInt("ro.vndk.version", Build.VERSION_CODES.CUR_DEVELOPMENT)
+                >= Build.VERSION_CODES.TIRAMISU);
         assumeTrue("No 10-bit HEVC decoder, skip the test.", has10BitHEVCDecoder());
 
         Config preferredConfig = Config.RGBA_1010102;
@@ -1039,12 +1041,26 @@ public class BitmapFactoryTest {
 
     @Test
     @RequiresDevice
+    public void testDecode10BitAVIFTo10BitBitmap() {
+        BitmapFactory.Options opt = new BitmapFactory.Options();
+        opt.inPreferredConfig = Config.RGBA_1010102;
+        Bitmap bm = BitmapFactory.decodeStream(
+                obtainInputStream(R.raw.avif_yuv_420_10bit), null, opt);
+        assertNotNull(bm);
+        assertEquals(120, bm.getWidth());
+        assertEquals(160, bm.getHeight());
+        assertEquals(Config.RGBA_1010102, bm.getConfig());
+    }
+
+    @Test
+    @RequiresDevice
     public void testDecode10BitHEIFTo8BitBitmap() {
         assumeTrue(
             "Test needs Android T.", ApiLevelUtil.isFirstApiAtLeast(Build.VERSION_CODES.TIRAMISU));
         assumeTrue(
             "Test needs VNDK at least T.",
-            SystemProperties.getInt("ro.vndk.version", 0) >= Build.VERSION_CODES.TIRAMISU);
+            SystemProperties.getInt("ro.vndk.version", Build.VERSION_CODES.CUR_DEVELOPMENT)
+                >= Build.VERSION_CODES.TIRAMISU);
         assumeTrue("No 10-bit HEVC decoder, skip the test.", has10BitHEVCDecoder());
 
         // For TVs, even if the device advertises that 10 bits profile is supported, the output
@@ -1074,6 +1090,24 @@ public class BitmapFactoryTest {
 
     @Test
     @RequiresDevice
+    public void testDecode10BitAVIFTo8BitBitmap() {
+        BitmapFactory.Options opt = new BitmapFactory.Options();
+        opt.inPreferredConfig = Config.ARGB_8888;
+        Bitmap bm1 =
+            BitmapFactory.decodeStream(obtainInputStream(R.raw.avif_yuv_420_10bit), null, opt);
+        Bitmap bm2 = BitmapFactory.decodeStream(obtainInputStream(R.raw.avif_yuv_420_10bit));
+        assertNotNull(bm1);
+        assertEquals(120, bm1.getWidth());
+        assertEquals(160, bm1.getHeight());
+        assertEquals(Config.RGBA_1010102, bm1.getConfig());
+        assertNotNull(bm2);
+        assertEquals(120, bm2.getWidth());
+        assertEquals(160, bm2.getHeight());
+        assertEquals(Config.RGBA_1010102, bm2.getConfig());
+    }
+
+    @Test
+    @RequiresDevice
     public void testDecode8BitHEIFTo10BitBitmap() {
         if (!MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
             return;
@@ -1090,6 +1124,24 @@ public class BitmapFactoryTest {
         assertNotNull(bm2);
         assertEquals(1920, bm2.getWidth());
         assertEquals(1080, bm2.getHeight());
+        assertEquals(Config.ARGB_8888, bm2.getConfig());
+    }
+
+    @Test
+    @RequiresDevice
+    public void testDecode8BitAVIFTo10BitBitmap() {
+        BitmapFactory.Options opt = new BitmapFactory.Options();
+        opt.inPreferredConfig = Config.RGBA_1010102;
+        Bitmap bm1 =
+            BitmapFactory.decodeStream(obtainInputStream(R.raw.avif_yuv_420_8bit), null, opt);
+        Bitmap bm2 = BitmapFactory.decodeStream(obtainInputStream(R.raw.avif_yuv_420_8bit));
+        assertNotNull(bm1);
+        assertEquals(120, bm1.getWidth());
+        assertEquals(160, bm1.getHeight());
+        assertEquals(Config.ARGB_8888, bm1.getConfig());
+        assertNotNull(bm2);
+        assertEquals(120, bm2.getWidth());
+        assertEquals(160, bm2.getHeight());
         assertEquals(Config.ARGB_8888, bm2.getConfig());
     }
 
