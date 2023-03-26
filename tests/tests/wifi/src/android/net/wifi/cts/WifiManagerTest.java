@@ -1885,6 +1885,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         TestSoftApCallback lohsSoftApCallback = new TestSoftApCallback(mLock);
         UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         setWifiEnabled(false);
+        Thread.sleep(TEST_WAIT_DURATION_MS);
         boolean wifiEnabled = mWifiManager.isWifiEnabled();
         try {
             uiAutomation.adoptShellPermissionIdentity();
@@ -2726,6 +2727,11 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      */
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTetheredBridgedAp() throws Exception {
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported
+            return;
+        }
+
         // check that softap bridged mode is supported by the device
         if (!mWifiManager.isBridgedApConcurrencySupported()) {
             return;
@@ -2790,6 +2796,11 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      */
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     public void testTetheredBridgedApWifiForcedChannel() throws Exception {
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported
+            return;
+        }
+
         // check that softap bridged mode is supported by the device
         if (!mWifiManager.isBridgedApConcurrencySupported()) {
             return;
