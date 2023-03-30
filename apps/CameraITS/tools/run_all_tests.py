@@ -475,6 +475,13 @@ def main():
   config_file_test_key = config_file_contents['TestBeds'][0]['Name'].lower()
   if TEST_KEY_TABLET in config_file_test_key:
     tablet_id = get_device_serial_number('tablet', config_file_contents)
+    tablet_name_cmd = f'adb -s {tablet_id} shell getprop ro.build.product'
+    raw_output = subprocess.check_output(
+        tablet_name_cmd, stderr=subprocess.STDOUT, shell=True)
+    tablet_name = str(raw_output.decode('utf-8')).strip()
+    logging.debug('Tablet name: %s', tablet_name)
+    brightness = test_params_content['brightness']
+    its_session_utils.validate_tablet_brightness(tablet_name, brightness)
   else:
     tablet_id = None
 
@@ -617,7 +624,6 @@ def main():
     os.mkdir(mobly_output_logs_path)
     tot_pass = 0
     for s in per_camera_scenes:
-      test_params_content['scene'] = s
       results[s]['TEST_STATUS'] = []
       results[s][METRICS_KEY] = []
 
@@ -632,7 +638,7 @@ def main():
       testing_scene = s
       if 'folded' in s:
         testing_scene = s.split('_folded')[0]
-
+      test_params_content['scene'] = testing_scene
       if auto_scene_switch:
         # Copy scene images onto the tablet
         if 'scene0' not in testing_scene:
