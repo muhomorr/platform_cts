@@ -103,6 +103,13 @@ class ItsBaseTest(base_test.BaseTestClass):
       try:
         self.tablet = devices[1]
         self.tablet_screen_brightness = self.user_params['brightness']
+        tablet_name_unencoded = self.tablet.adb.shell(
+            ['getprop', 'ro.build.product']
+        )
+        tablet_name = str(tablet_name_unencoded.decode('utf-8')).strip()
+        logging.debug('tablet name: %s', tablet_name)
+        its_session_utils.validate_tablet_brightness(
+            tablet_name, self.tablet_screen_brightness)
       except KeyError:
         logging.debug('Not all tablet arguments set.')
     else:  # sensor_fusion or manual run
