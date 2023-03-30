@@ -380,8 +380,8 @@ public class PackageManagerTest {
         }
     }
 
-    // Disable the test due to feature revert
-    private void testEnforceIntentToMatchIntentFilter() {
+    @Test
+    public void testEnforceIntentToMatchIntentFilter() {
         Intent intent = new Intent();
         List<ResolveInfo> results;
 

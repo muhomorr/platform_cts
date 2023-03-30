@@ -16,13 +16,13 @@
 
 package android.content.cts;
 
-import static org.mockito.Mockito.RETURNS_DEFAULTS;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.RETURNS_DEFAULTS;
 
 import android.content.AttributionSource;
 import android.content.ContentProvider;
@@ -39,6 +39,7 @@ import android.os.Bundle;
 import android.os.CancellationSignal;
 import android.os.ICancellationSignal;
 import android.os.OperationCanceledException;
+import android.os.Process;
 import android.os.RemoteException;
 import android.test.AndroidTestCase;
 import android.test.mock.MockContentResolver;
@@ -141,29 +142,28 @@ public class ContentProviderClientTest extends AndroidTestCase {
 
     public void testGetType() throws RemoteException {
         mContentProviderClient.getType(URI);
-        verify(mIContentProvider).getType(mAttributionSource, URI);
+        verify(mIContentProvider).getType(URI);
     }
 
     public void testGetTypeTimeout() throws RemoteException, InterruptedException {
-        doAnswer(ANSWER_SLEEP).when(mIContentProvider).getType(mAttributionSource, URI);
+        doAnswer(ANSWER_SLEEP).when(mIContentProvider).getType(URI);
 
         testTimeout(() -> mContentProviderClient.getType(URI));
 
-        verify(mIContentProvider).getType(mAttributionSource, URI);
+        verify(mIContentProvider).getType(URI);
     }
 
     public void testGetStreamTypes() throws RemoteException {
         mContentProviderClient.getStreamTypes(URI, "");
-        verify(mIContentProvider).getStreamTypes(mAttributionSource, URI, "");
+        verify(mIContentProvider).getStreamTypes(URI, "");
     }
 
     public void testGetStreamTypesTimeout() throws RemoteException, InterruptedException {
-        doAnswer(ANSWER_SLEEP).when(mIContentProvider).getStreamTypes(mAttributionSource,
-                URI, "");
+        doAnswer(ANSWER_SLEEP).when(mIContentProvider).getStreamTypes(URI, "");
 
         testTimeout(() -> mContentProviderClient.getStreamTypes(URI, ""));
 
-        verify(mIContentProvider).getStreamTypes(mAttributionSource, URI, "");
+        verify(mIContentProvider).getStreamTypes(URI, "");
     }
 
     public void testCanonicalize() throws RemoteException {

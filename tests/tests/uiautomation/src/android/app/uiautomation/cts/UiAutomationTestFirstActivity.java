@@ -16,23 +16,21 @@
 
 package android.app.uiautomation.cts;
 
+import android.app.uiautomation.cts.R;
+
 import android.app.Activity;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.WindowManager;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
 /**
-* Activity for testing the UiAutomation APIs.
+* Activity for testing the UiAutomatoin APIs.
 */
 public class UiAutomationTestFirstActivity extends Activity {
-    private static final String TAG = UiAutomationTestFirstActivity.class.getSimpleName();
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d(TAG, "onCreate(): userId=" + getUserId() + ", displayId=" + getDisplayId());
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
         setContentView(R.layout.ui_automation_test);
 

@@ -17,8 +17,6 @@ package org.hyphonate.megaaudio.recorder;
 
 import android.util.Log;
 
-import org.hyphonate.megaaudio.common.BuilderBase;
-
 public class OboeRecorder extends Recorder {
     @SuppressWarnings("unused")
     private static final String TAG = OboeRecorder.class.getSimpleName();
@@ -32,8 +30,7 @@ public class OboeRecorder extends Recorder {
         super(sinkProvider);
 
         mRecorderSubtype = subType;
-        mNativeRecorder = allocNativeRecorder(
-                sinkProvider.allocNativeSink().getNativeObject(), mRecorderSubtype);
+        mNativeRecorder = allocNativeRecorder(sinkProvider.allocNativeSink().getNativeObject(), mRecorderSubtype);
     }
 
     //
@@ -60,8 +57,7 @@ public class OboeRecorder extends Recorder {
     }
 
     @Override
-    public int setupStream(int channelCount, int sampleRate,
-                           int performanceMode, int sharingMode, int numBufferFrames) {
+    public int setupStream(int channelCount, int sampleRate, int numBufferFrames) {
         if (LOG) {
             Log.i(TAG, "setupStream(chans:" + channelCount + ", rate:" + sampleRate
                     + ", frames:" + numBufferFrames + ")");
@@ -69,16 +65,7 @@ public class OboeRecorder extends Recorder {
         mChannelCount = channelCount;
         mSampleRate = sampleRate;
         return setupStreamN(mNativeRecorder, channelCount, sampleRate,
-                performanceMode, sharingMode,
                 mRouteDevice == null ? -1 : mRouteDevice.getId());
-    }
-
-    @Override
-    public int setupStream(int channelCount, int sampleRate, int numBufferFrames) {
-        return setupStream(channelCount, sampleRate,
-                BuilderBase.PERFORMANCE_MODE_LOWLATENCY,
-                BuilderBase.SHARING_MODE_EXCLUSIVE,
-                numBufferFrames);
     }
 
     @Override
@@ -100,20 +87,6 @@ public class OboeRecorder extends Recorder {
         return stopN(mNativeRecorder);
     }
 
-    /**
-     * @return See StreamState constants
-     */
-    public int getStreamState() {
-        return getStreamStateN(mNativeRecorder);
-    }
-
-    /**
-     * @return The last error callback result (these must match Oboe). See Oboe constants
-     */
-    public int getLastErrorCallbackResult() {
-        return getLastErrorCallbackResultN(mNativeRecorder);
-    }
-
     private native long allocNativeRecorder(long nativeSink, int recorderSubtype);
 
     private native boolean isRecordingN(long nativeRecorder);
@@ -123,16 +96,12 @@ public class OboeRecorder extends Recorder {
 
     private native int getRoutedDeviceIdN(long nativeRecorder);
 
-    private native int setupStreamN(long nativeRecorder, int channelCount,
-                       int sampleRate, int performanceMode, int sharingMode, int routeDeviceId);
+    private native int setupStreamN(long nativeRecorder, int channelCount, int sampleRate, int routeDeviceId);
     private native int teardownStreamN(long nativeRecorder);
 
     private native int startStreamN(long nativeRecorder, int recorderSubtype);
 
     private native int stopN(long nativeRecorder);
-
-    private native int getStreamStateN(long nativeRecorder);
-    private native int getLastErrorCallbackResultN(long nativeRecorder);
 
     private native int getNumBufferFramesN(long nativeRecorder);
     private native int calcMinBufferFramesN(long nativeRecorder);

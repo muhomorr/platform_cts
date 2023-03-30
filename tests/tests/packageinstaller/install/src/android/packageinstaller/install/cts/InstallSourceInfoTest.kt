@@ -31,10 +31,6 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 @AppModeFull(reason = "Instant apps cannot install packages")
 class InstallSourceInfoTest : PackageInstallerTestBase() {
-    companion object {
-        const val SHELL_PACKAGE_NAME = "com.android.shell"
-    }
-
     private val ourPackageName = context.packageName
 
     @Test
@@ -60,7 +56,7 @@ class InstallSourceInfoTest : PackageInstallerTestBase() {
 
         val info = pm.getInstallSourceInfo(TEST_APK_PACKAGE_NAME)
         assertThat(info.installingPackageName).isNull()
-        assertThat(info.initiatingPackageName).isEqualTo(SHELL_PACKAGE_NAME)
+        assertThat(info.initiatingPackageName).isNull()
         assertThat(info.originatingPackageName).isNull()
         assertThat(info.updateOwnerPackageName).isNull()
         assertThat(info.packageSource).isEqualTo(PackageInstaller.PACKAGE_SOURCE_OTHER)
@@ -74,7 +70,7 @@ class InstallSourceInfoTest : PackageInstallerTestBase() {
 
         val info = pm.getInstallSourceInfo(TEST_APK_PACKAGE_NAME)
         assertThat(info.installingPackageName).isEqualTo(packageInstallerPackageName)
-        assertThat(info.initiatingPackageName).isEqualTo(SHELL_PACKAGE_NAME)
+        assertThat(info.initiatingPackageName).isNull()
         assertThat(info.originatingPackageName).isNull()
         assertThat(info.updateOwnerPackageName).isNull()
     }
@@ -88,7 +84,7 @@ class InstallSourceInfoTest : PackageInstallerTestBase() {
         val info = pm.getInstallSourceInfo(TEST_APK_PACKAGE_NAME)
         // Invalid installerPackageName should have been cleared
         assertThat(info.installingPackageName).isNull()
-        assertThat(info.initiatingPackageName).isEqualTo(SHELL_PACKAGE_NAME)
+        assertThat(info.initiatingPackageName).isNull()
         assertThat(info.originatingPackageName).isNull()
         assertThat(info.updateOwnerPackageName).isNull()
     }

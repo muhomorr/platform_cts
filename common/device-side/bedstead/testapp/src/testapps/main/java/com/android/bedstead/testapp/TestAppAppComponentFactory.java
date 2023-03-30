@@ -147,15 +147,6 @@ public final class TestAppAppComponentFactory extends AppComponentFactory {
                         intent);
             }
 
-            if (className.endsWith("CredentialProviderService")) {
-                Log.d(LOG_TAG, "Service class (" + className
-                        + ") not found, routing to BaseTestAppCredentialProviderService");
-                return super.instantiateService(
-                        classLoader,
-                        BaseTestAppCredentialProviderService.class.getName(),
-                        intent);
-            }
-
             Log.d(LOG_TAG,
                     "Service class (" + className + ") not found, routing to EventLibService");
             EventLibService service =

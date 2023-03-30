@@ -21,7 +21,6 @@ import androidx.test.runner.AndroidJUnit4
 import com.android.cts.permissiondeclareapp.UtilsProvider
 import com.android.cts.usespermissiondiffcertapp.ModifyInstallerPackageTest.MY_PACKAGE
 import com.android.cts.usespermissiondiffcertapp.ModifyInstallerPackageTest.OTHER_PACKAGE
-import com.android.cts.usespermissiondiffcertapp.ModifyInstallerPackageTest.SHELL_PACKAGE_NAME
 import com.android.cts.usespermissiondiffcertapp.ModifyInstallerPackageTest.assertPackageInstallerAndInitiator
 import org.junit.AfterClass
 import org.junit.Assume.assumeTrue
@@ -77,22 +76,18 @@ class ModifyInstallerCrossPackageTest {
 
     @Test
     fun assertBefore() {
-        assertPackageInstallerAndInitiator(OTHER_PACKAGE, null,
-            SHELL_PACKAGE_NAME, packageManager)
+        assertPackageInstallerAndInitiator(OTHER_PACKAGE, null, null, packageManager)
     }
 
     @Test
     fun attemptTakeOver() {
-        assertPackageInstallerAndInitiator(OTHER_PACKAGE, OTHER_PACKAGE,
-            SHELL_PACKAGE_NAME, packageManager)
+        assertPackageInstallerAndInitiator(OTHER_PACKAGE, OTHER_PACKAGE, null, packageManager)
         assertThrows { packageManager.setInstallerPackageName(OTHER_PACKAGE, MY_PACKAGE) }
-        assertPackageInstallerAndInitiator(OTHER_PACKAGE, OTHER_PACKAGE,
-            SHELL_PACKAGE_NAME, packageManager)
+        assertPackageInstallerAndInitiator(OTHER_PACKAGE, OTHER_PACKAGE, null, packageManager)
     }
 
     @Test
     fun assertAfter() {
-        assertPackageInstallerAndInitiator(OTHER_PACKAGE, null,
-            SHELL_PACKAGE_NAME, packageManager)
+        assertPackageInstallerAndInitiator(OTHER_PACKAGE, null, null, packageManager)
     }
 }

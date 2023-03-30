@@ -24,7 +24,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Point
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
@@ -259,12 +258,7 @@ fun openUnusedAppsNotification() {
             // Eventually clause because clicking is sometimes inconsistent if the screen is
             // scrolling
             runShellCommandOrThrow(CMD_EXPAND_NOTIFICATIONS)
-            val notification = waitFindNotification(notifSelector, NOTIF_FIND_TIMEOUT)
-            if (hasFeatureAutomotive()) {
-                notification.click(Point(0, 0))
-            } else {
-                notification.click()
-            }
+            waitFindNotification(notifSelector, NOTIF_FIND_TIMEOUT).click()
             wrappingExceptions({ cause: Throwable? -> UiDumpUtils.wrapWithUiDump(cause) }) {
                 assertTrue(
                     "Unused apps page did not open after tapping notification.",

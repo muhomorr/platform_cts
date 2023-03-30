@@ -20,7 +20,6 @@ import static android.voiceinteraction.cts.testcore.Helper.WAIT_TIMEOUT_IN_MS;
 
 import android.os.Bundle;
 import android.os.Looper;
-import android.os.PersistableBundle;
 import android.service.voice.AlwaysOnHotwordDetector;
 import android.service.voice.HotwordDetector;
 import android.service.voice.HotwordRejectedResult;
@@ -31,7 +30,6 @@ import android.util.Log;
 import android.voiceinteraction.cts.testcore.Helper;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -512,29 +510,21 @@ public abstract class BaseVoiceInteractionService extends VoiceInteractionServic
 
     AlwaysOnHotwordDetector callCreateAlwaysOnHotwordDetector(
             AlwaysOnHotwordDetector.Callback callback, boolean useExecutor) {
-        return callCreateAlwaysOnHotwordDetector(callback, useExecutor, /* options= */ null);
-    }
-
-    AlwaysOnHotwordDetector callCreateAlwaysOnHotwordDetector(
-            AlwaysOnHotwordDetector.Callback callback, boolean useExecutor,
-            @Nullable PersistableBundle options) {
-        Log.i(mTag,
-                "callCreateAlwaysOnHotwordDetector() useExecutor = " + useExecutor + ", options = "
-                        + options);
+        Log.i(mTag, "callCreateAlwaysOnHotwordDetector() useExecutor = " + useExecutor);
         try {
             resetValues();
             final Locale locale = Locale.forLanguageTag("en-US");
             if (useExecutor) {
                 return createAlwaysOnHotwordDetector(/* keyphrase */ "Hello Android",
                         locale,
-                        options != null ? options : Helper.createFakePersistableBundleData(),
+                        Helper.createFakePersistableBundleData(),
                         Helper.createFakeSharedMemoryData(),
                         getDetectorCallbackExecutor(),
                         callback);
             }
             return createAlwaysOnHotwordDetector(/* keyphrase */ "Hello Android",
                     locale,
-                    options != null ? options : Helper.createFakePersistableBundleData(),
+                    Helper.createFakePersistableBundleData(),
                     Helper.createFakeSharedMemoryData(),
                     callback);
         } catch (IllegalStateException | SecurityException e) {
@@ -553,24 +543,15 @@ public abstract class BaseVoiceInteractionService extends VoiceInteractionServic
 
     HotwordDetector callCreateSoftwareHotwordDetector(HotwordDetector.Callback callback,
             boolean useExecutor) {
-        return callCreateSoftwareHotwordDetector(callback, useExecutor, /* options= */ null);
-    }
-
-    HotwordDetector callCreateSoftwareHotwordDetector(HotwordDetector.Callback callback,
-            boolean useExecutor, @Nullable PersistableBundle options) {
-        Log.i(mTag,
-                "callCreateSoftwareHotwordDetector() useExecutor = " + useExecutor + ", options = "
-                        + options);
+        Log.i(mTag, "callCreateSoftwareHotwordDetector() useExecutor = " + useExecutor);
         try {
             resetValues();
             if (useExecutor) {
-                return createHotwordDetector(
-                        options != null ? options : Helper.createFakePersistableBundleData(),
+                return createHotwordDetector(Helper.createFakePersistableBundleData(),
                         Helper.createFakeSharedMemoryData(), getDetectorCallbackExecutor(),
                         callback);
             }
-            return createHotwordDetector(
-                    options != null ? options : Helper.createFakePersistableBundleData(),
+            return createHotwordDetector(Helper.createFakePersistableBundleData(),
                     Helper.createFakeSharedMemoryData(), callback);
         } catch (IllegalStateException | SecurityException e) {
             if (e instanceof IllegalStateException) {

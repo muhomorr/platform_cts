@@ -24,6 +24,8 @@ import static org.testng.Assert.assertThrows;
 
 import android.app.UiAutomation;
 import android.app.admin.DevicePolicyManager;
+import android.app.admin.RemoteDevicePolicyManager;
+import android.content.ComponentName;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.stats.devicepolicy.EventId;
@@ -47,6 +49,8 @@ import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppInstance;
 import com.android.compatibility.common.util.ApiTest;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -61,25 +65,36 @@ public final class ScreenCaptureDisabledTest {
     @Rule
     public static final DeviceState sDeviceState = new DeviceState();
 
-
-    private static final UiAutomation sUiAutomation =
-            InstrumentationRegistry.getInstrumentation().getUiAutomation();
-
-    private static final DevicePolicyManager sLocalDevicePolicyManager = TestApis.context().instrumentedContext()
-        .getSystemService(DevicePolicyManager.class);
-
     private static final TestApp sTestApp =
             sDeviceState.testApps().query().whereActivities().isNotEmpty().get();
+    private RemoteDevicePolicyManager mDevicePolicyManager;
+    private DevicePolicyManager mLocalDevicePolicyManager;
+    private ComponentName mAdmin;
+    private UiAutomation mUiAutomation;
+
+    @Before
+    public void setUp() {
+        mAdmin = sDeviceState.dpc().componentName();
+        mDevicePolicyManager = sDeviceState.dpc().devicePolicyManager();
+        //TODO(b/198593716) : Use TestApi to take screenshot instead of UiAutomation.
+        mUiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        mLocalDevicePolicyManager = TestApis.context().instrumentedContext().getSystemService(
+                DevicePolicyManager.class);
+    }
+
+    @After
+    public void tearDown() {
+        mDevicePolicyManager.setScreenCaptureDisabled(mAdmin, false);
+    }
 
     @PolicyAppliesTest(policy = ScreenCaptureDisabled.class)
     @Postsubmit(reason = "new test")
     @ApiTest(apis = {"android.app.admin.DevicePolicyManager#setScreenCaptureDisabled",
             "android.app.admin.DevicePolicyManager#getScreenCaptureDisabled"})
     public void setScreenCaptureDisabled_false_works() {
-        sDeviceState.dpc().devicePolicyManager()
-                .setScreenCaptureDisabled(sDeviceState.dpc().componentName(), false);
+        mDevicePolicyManager.setScreenCaptureDisabled(mAdmin, false);
 
-        assertThat(sLocalDevicePolicyManager.getScreenCaptureDisabled(/* admin= */ null)).isFalse();
+        assertThat(mLocalDevicePolicyManager.getScreenCaptureDisabled(/* admin= */ null)).isFalse();
     }
 
     @CanSetPolicyTest(policy = ScreenCaptureDisabled.class)
@@ -87,32 +102,15 @@ public final class ScreenCaptureDisabledTest {
     @ApiTest(apis = {"android.app.admin.DevicePolicyManager#setScreenCaptureDisabled",
             "android.app.admin.DevicePolicyManager#getScreenCaptureDisabled"})
     public void setScreenCaptureDisabled_false_checkWithDPC_works() {
-        boolean originalScreenCaptureDisabled = sDeviceState.dpc().devicePolicyManager()
-                .getScreenCaptureDisabled(sDeviceState.dpc().componentName());
-        try {
-            sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName(), false);
+        mDevicePolicyManager.setScreenCaptureDisabled(mAdmin, false);
 
-            assertThat(sDeviceState.dpc().devicePolicyManager().getScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName())).isFalse();
-        } finally {
-            sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName(), originalScreenCaptureDisabled);
-        }
+        assertThat(mDevicePolicyManager.getScreenCaptureDisabled(mAdmin)).isFalse();
     }
 
     @CanSetPolicyTest(policy = ScreenCaptureDisabled.class)
     @Postsubmit(reason = "new test") // TODO: Remove
     public void setScreenCaptureDisabled_doesNotThrowSecurityException() {
-        boolean originalScreenCaptureDisabled = sDeviceState.dpc().devicePolicyManager()
-                .getScreenCaptureDisabled(sDeviceState.dpc().componentName());
-        try {
-            sDeviceState.dpc().devicePolicyManager()
-                    .setScreenCaptureDisabled(sDeviceState.dpc().componentName(), false);
-        } finally {
-            sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName(), originalScreenCaptureDisabled);
-        }
+        mDevicePolicyManager.setScreenCaptureDisabled(mAdmin, false);
     }
 
     @CannotSetPolicyTest(policy = ScreenCaptureDisabled.class)
@@ -120,8 +118,7 @@ public final class ScreenCaptureDisabledTest {
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#setScreenCaptureDisabled")
     public void setScreenCaptureDisabled_true_throwsSecurityException() {
         assertThrows(SecurityException.class,
-                () -> sDeviceState.dpc().devicePolicyManager()
-                        .setScreenCaptureDisabled(sDeviceState.dpc().componentName(), false));
+                () -> mDevicePolicyManager.setScreenCaptureDisabled(mAdmin, false));
     }
 
     @PolicyAppliesTest(policy = ScreenCaptureDisabled.class)
@@ -129,15 +126,7 @@ public final class ScreenCaptureDisabledTest {
     @ApiTest(apis = {"android.app.admin.DevicePolicyManager#setScreenCaptureDisabled",
             "android.app.admin.DevicePolicyManager#getScreenCaptureDisabled"})
     public void setScreenCaptureDisabled_true_works() {
-        boolean originalScreenCaptureDisabled = sDeviceState.dpc().devicePolicyManager()
-                .getScreenCaptureDisabled(sDeviceState.dpc().componentName());
-        try {
-            sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName(), true);
-        } finally {
-            sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName(), originalScreenCaptureDisabled);
-        }
+        mDevicePolicyManager.setScreenCaptureDisabled(mAdmin, true);
     }
 
     @CanSetPolicyTest(policy = ScreenCaptureDisabled.class)
@@ -145,18 +134,9 @@ public final class ScreenCaptureDisabledTest {
     @ApiTest(apis = {"android.app.admin.DevicePolicyManager#setScreenCaptureDisabled",
             "android.app.admin.DevicePolicyManager#getScreenCaptureDisabled"})
     public void setScreenCaptureDisabled_true_checkWithDPC_works() {
-        boolean originalScreenCaptureDisabled = sDeviceState.dpc().devicePolicyManager()
-                .getScreenCaptureDisabled(sDeviceState.dpc().componentName());
-        try {
-            sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName(), true);
+        mDevicePolicyManager.setScreenCaptureDisabled(mAdmin, true);
 
-            assertThat(sDeviceState.dpc().devicePolicyManager().getScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName())).isTrue();
-        } finally {
-            sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName(), originalScreenCaptureDisabled);
-        }
+        assertThat(mDevicePolicyManager.getScreenCaptureDisabled(mAdmin)).isTrue();
     }
 
     @PolicyDoesNotApplyTest(policy = ScreenCaptureDisabled.class)
@@ -164,10 +144,9 @@ public final class ScreenCaptureDisabledTest {
     @ApiTest(apis = {"android.app.admin.DevicePolicyManager#setScreenCaptureDisabled",
             "android.app.admin.DevicePolicyManager#getScreenCaptureDisabled"})
     public void setScreenCaptureDisabled_true_doesNotApply() {
-        sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                sDeviceState.dpc().componentName(), true);
+        mDevicePolicyManager.setScreenCaptureDisabled(mAdmin, true);
 
-        assertThat(sLocalDevicePolicyManager.getScreenCaptureDisabled(/* admin= */ null)).isFalse();
+        assertThat(mLocalDevicePolicyManager.getScreenCaptureDisabled(/* admin= */ null)).isFalse();
     }
 
     @PolicyDoesNotApplyTest(policy = ScreenCaptureDisabled.class)
@@ -177,8 +156,7 @@ public final class ScreenCaptureDisabledTest {
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#setScreenCaptureDisabled")
     @Ignore // TODO: Restore
     public void setScreenCaptureDisabled_true_screenCaptureNoRedactionOrNull() {
-        sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                sDeviceState.dpc().componentName(), true);
+        mDevicePolicyManager.setScreenCaptureDisabled(mAdmin, true);
 
         assertThat(takeScreenshotExpectingNoRedactionOrNull()).isFalse();
     }
@@ -190,17 +168,9 @@ public final class ScreenCaptureDisabledTest {
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#setScreenCaptureDisabled")
     @Ignore // TODO: Restore
     public void setScreenCaptureDisabled_true_screenCaptureRedactedOrNull() {
-        boolean originalScreenCaptureDisabled = sDeviceState.dpc().devicePolicyManager()
-                .getScreenCaptureDisabled(sDeviceState.dpc().componentName());
-        try {
-            sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName(), true);
+        mDevicePolicyManager.setScreenCaptureDisabled(mAdmin, true);
 
-            assertThat(takeScreenshotExpectingRedactionOrNull()).isTrue();
-        } finally {
-            sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName(), originalScreenCaptureDisabled);
-        }
+        assertThat(takeScreenshotExpectingRedactionOrNull()).isTrue();
     }
 
     @PolicyAppliesTest(policy = ScreenCaptureDisabled.class)
@@ -210,37 +180,22 @@ public final class ScreenCaptureDisabledTest {
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#setScreenCaptureDisabled")
     @Ignore // TODO: Restore
     public void setScreenCaptureDisabled_false_screenCaptureNoRedactionOrNull() {
-        boolean originalScreenCaptureDisabled = sDeviceState.dpc().devicePolicyManager()
-                .getScreenCaptureDisabled(sDeviceState.dpc().componentName());
-        try {
-            sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName(), false);
+        mDevicePolicyManager.setScreenCaptureDisabled(mAdmin, false);
 
-            assertThat(takeScreenshotExpectingNoRedactionOrNull()).isFalse();
-        } finally {
-            sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName(), originalScreenCaptureDisabled);
-        }
+        assertThat(takeScreenshotExpectingNoRedactionOrNull()).isFalse();
     }
 
     @CanSetPolicyTest(policy = ScreenCaptureDisabled.class)
     @Postsubmit(reason = "new test")
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#setScreenCaptureDisabled")
     public void setScreenCaptureDisabled_true_metricsLogged() {
-        boolean originalScreenCaptureDisabled = sDeviceState.dpc().devicePolicyManager()
-                .getScreenCaptureDisabled(sDeviceState.dpc().componentName());
         try (EnterpriseMetricsRecorder metrics = EnterpriseMetricsRecorder.create()) {
-            sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName(), true);
+            mDevicePolicyManager.setScreenCaptureDisabled(mAdmin, true);
 
             assertThat(metrics.query()
                     .whereType().isEqualTo(EventId.SET_SCREEN_CAPTURE_DISABLED_VALUE)
-                    .whereAdminPackageName().isEqualTo(
-                            sDeviceState.dpc().packageName())
+                    .whereAdminPackageName().isEqualTo(mAdmin.getPackageName())
                     .whereBoolean().isTrue()).wasLogged();
-        } finally {
-            sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName(), originalScreenCaptureDisabled);
         }
     }
 
@@ -248,20 +203,13 @@ public final class ScreenCaptureDisabledTest {
     @Postsubmit(reason = "new test")
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#setScreenCaptureDisabled")
     public void setScreenCaptureDisabled_false_metricsLogged() {
-        boolean originalScreenCaptureDisabled = sDeviceState.dpc().devicePolicyManager()
-                .getScreenCaptureDisabled(sDeviceState.dpc().componentName());
         try (EnterpriseMetricsRecorder metrics = EnterpriseMetricsRecorder.create()) {
-            sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName(), false);
+            mDevicePolicyManager.setScreenCaptureDisabled(mAdmin, false);
 
             assertThat(metrics.query()
                     .whereType().isEqualTo(EventId.SET_SCREEN_CAPTURE_DISABLED_VALUE)
-                    .whereAdminPackageName().isEqualTo(
-                            sDeviceState.dpc().packageName())
+                    .whereAdminPackageName().isEqualTo(mAdmin.getPackageName())
                     .whereBoolean().isFalse()).wasLogged();
-        } finally {
-            sDeviceState.dpc().devicePolicyManager().setScreenCaptureDisabled(
-                    sDeviceState.dpc().componentName(), originalScreenCaptureDisabled);
         }
     }
 
@@ -271,7 +219,7 @@ public final class ScreenCaptureDisabledTest {
             // capture disabled policy is applying to this user.
             testApp.activities().any().start();
             return Poll.forValue(
-                    () -> checkScreenshotIsRedactedOrNull(sUiAutomation.takeScreenshot())).timeout(
+                    () -> checkScreenshotIsRedactedOrNull(mUiAutomation.takeScreenshot())).timeout(
                     Duration.ofMinutes(5)).toBeEqualTo(true).await();
         }
     }
@@ -282,7 +230,7 @@ public final class ScreenCaptureDisabledTest {
             // capture disabled policy is applying to this user.
             testApp.activities().any().start();
             return Poll.forValue(
-                    () -> checkScreenshotIsRedactedOrNull(sUiAutomation.takeScreenshot())).timeout(
+                    () -> checkScreenshotIsRedactedOrNull(mUiAutomation.takeScreenshot())).timeout(
                     Duration.ofMinutes(5)).toBeEqualTo(false).await();
         }
     }

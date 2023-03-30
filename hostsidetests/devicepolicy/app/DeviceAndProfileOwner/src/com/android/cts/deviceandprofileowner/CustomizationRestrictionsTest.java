@@ -16,8 +16,6 @@
 
 package com.android.cts.deviceandprofileowner;
 
-import static android.Manifest.permission.READ_WALLPAPER_INTERNAL;
-
 import android.app.WallpaperManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -27,7 +25,6 @@ import android.graphics.Bitmap;
 import android.os.UserManager;
 
 import com.android.compatibility.common.util.BitmapUtils;
-import com.android.compatibility.common.util.SystemUtil;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -104,7 +101,7 @@ public class CustomizationRestrictionsTest extends BaseDeviceAdminTest {
     // wallpaper is different from the old one after we ran a setter method.
     public void testDisallowSetWallpaper_allowed() throws Exception {
         final WallpaperManager wallpaperManager = WallpaperManager.getInstance(mContext);
-        final Bitmap originalWallpaper = getWallpaperBitmapWithPermission();
+        final Bitmap originalWallpaper = BitmapUtils.getWallpaperBitmap(mContext);
         final Bitmap originalWallpaperCopy =
                 originalWallpaper.copy(originalWallpaper.getConfig(), false);
 
@@ -121,7 +118,7 @@ public class CustomizationRestrictionsTest extends BaseDeviceAdminTest {
             Bitmap oldWallpaper = originalWallpaperCopy;
             wallpaperManager.setBitmap(BitmapUtils.generateRandomBitmap(97, 73));
             bcast.waitForBroadcast();
-            Bitmap newWallpaper = getWallpaperBitmapWithPermission();
+            Bitmap newWallpaper = BitmapUtils.getWallpaperBitmap(mContext);
             assertFalse(BitmapUtils.compareBitmaps(newWallpaper, oldWallpaper));
 
             // Checking setStream() method.
@@ -129,23 +126,18 @@ public class CustomizationRestrictionsTest extends BaseDeviceAdminTest {
             final Bitmap wallpaperForStream = BitmapUtils.generateRandomBitmap(83, 69);
             wallpaperManager.setStream(BitmapUtils.bitmapToInputStream(wallpaperForStream));
             bcast.waitForBroadcast();
-            newWallpaper = getWallpaperBitmapWithPermission();
+            newWallpaper = BitmapUtils.getWallpaperBitmap(mContext);
             assertFalse(BitmapUtils.compareBitmaps(newWallpaper, oldWallpaper));
 
             // Checking setResource() method.
             oldWallpaper = newWallpaper;
             wallpaperManager.setResource(R.raw.wallpaper);
             bcast.waitForBroadcast();
-            newWallpaper = getWallpaperBitmapWithPermission();
+            newWallpaper = BitmapUtils.getWallpaperBitmap(mContext);
             assertFalse(BitmapUtils.compareBitmaps(newWallpaper, oldWallpaper));
         } finally {
             wallpaperManager.setBitmap(originalWallpaperCopy);
         }
         assertFalse(mUserManager.hasUserRestriction(UserManager.DISALLOW_SET_WALLPAPER));
-    }
-
-    private Bitmap getWallpaperBitmapWithPermission() {
-        return SystemUtil.runWithShellPermissionIdentity(
-                () -> BitmapUtils.getWallpaperBitmap(mContext), READ_WALLPAPER_INTERNAL);
     }
 }

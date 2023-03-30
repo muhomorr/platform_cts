@@ -153,7 +153,8 @@ public class WifiLocationInfoTest extends WifiJUnit4TestBase {
     }
 
     private void setWifiEnabled(boolean enable) throws Exception {
-        ShellIdentityUtils.invokeWithShellPermissions(() -> mWifiManager.setWifiEnabled(enable));
+        // now trigger the change using shell commands.
+        SystemUtil.runShellCommand("svc wifi " + (enable ? "enable" : "disable"));
     }
 
     private void turnScreenOn() throws Exception {

@@ -16,7 +16,6 @@
 package android.media.bettertogether.cts;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
 
@@ -179,33 +178,8 @@ public class MediaSessionManagerTest {
         assertThat(keyEventSessionListener.mCountDownLatch
                 .await(TIMEOUT_MS, TimeUnit.MILLISECONDS)).isTrue();
         assertThat(keyEventSessionListener.mSessionToken).isNull();
-        assertThat(keyEventSessionListener.mPackageName).isEmpty();
-
         assertThat(mSessionManager.getMediaKeyEventSession()).isNull();
         assertThat(mSessionManager.getMediaKeyEventSessionPackageName()).isEqualTo("");
-    }
-
-    @Test
-    public void testOnMediaKeyEventSessionChangedListener_noSession_passesEmptyPackageAndNullToken()
-            throws InterruptedException {
-        // The permission can be held only on S+
-        if (!MediaUtils.check(sIsAtLeastS, "test invalid before Android 12")) return;
-
-        getInstrumentation().getUiAutomation().adoptShellPermissionIdentity(
-                Manifest.permission.MEDIA_CONTENT_CONTROL);
-
-        MediaKeyEventSessionListener keyEventSessionListener = new MediaKeyEventSessionListener();
-        mSessionManager.addOnMediaKeyEventSessionChangedListener(
-                Executors.newSingleThreadExecutor(), keyEventSessionListener);
-
-        assertThat(keyEventSessionListener.mCountDownLatch
-                .await(TIMEOUT_MS, TimeUnit.MILLISECONDS)).isTrue();
-        assertThat(keyEventSessionListener.mSessionToken).isNull();
-        assertThat(keyEventSessionListener.mPackageName).isEmpty();
-
-
-        // Clean up listener.
-        mSessionManager.removeOnMediaKeyEventSessionChangedListener(keyEventSessionListener);
     }
 
     private MediaSession createMediaKeySession() {
@@ -804,7 +778,6 @@ public class MediaSessionManagerTest {
             implements MediaSessionManager.OnMediaKeyEventSessionChangedListener {
         CountDownLatch mCountDownLatch;
         MediaSession.Token mSessionToken;
-        String mPackageName;
 
         MediaKeyEventSessionListener() {
             mCountDownLatch = new CountDownLatch(1);
@@ -813,15 +786,12 @@ public class MediaSessionManagerTest {
         void resetCountDownLatch() {
             mCountDownLatch = new CountDownLatch(1);
             mSessionToken = null;
-            mPackageName = null;
         }
 
         @Override
         public void onMediaKeyEventSessionChanged(String packageName,
                 MediaSession.Token sessionToken) {
-            assertWithMessage("The package name cannot be null.").that(packageName).isNotNull();
             mSessionToken = sessionToken;
-            mPackageName = packageName;
             mCountDownLatch.countDown();
         }
     }

@@ -32,8 +32,11 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
 import android.annotation.NonNull;
 import android.app.UiAutomation;
@@ -109,6 +112,7 @@ import com.android.compatibility.common.util.FeatureUtil;
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.PropertyUtil;
 import com.android.compatibility.common.util.ShellIdentityUtils;
+import com.android.compatibility.common.util.SystemUtil;
 import com.android.compatibility.common.util.ThrowingRunnable;
 import com.android.modules.utils.build.SdkLevel;
 import com.android.net.module.util.MacAddressUtils;
@@ -452,8 +456,8 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             } else {
                 mMySync.expectedState = (enable ? STATE_WIFI_ENABLED : STATE_WIFI_DISABLED);
             }
-            ShellIdentityUtils.invokeWithShellPermissions(
-                    () -> mWifiManager.setWifiEnabled(enable));
+            // now trigger the change using shell commands.
+            SystemUtil.runShellCommand("svc wifi " + (enable ? "enable" : "disable"));
             waitForExpectedWifiState(enable);
         }
     }
@@ -1679,7 +1683,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
                 () -> mWifiManager.getLastCallerInfoForApi(WifiManager.API_SOFT_AP,
                         mExecutor, listener));
 
-        String expectedPackage = "android.net.wifi.cts";
+        String expectedPackage = "com.android.shell";
         boolean isEnabledBefore = mWifiManager.isWifiEnabled();
         // toggle wifi and verify getting last caller
         setWifiEnabled(!isEnabledBefore);
@@ -2077,10 +2081,10 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
         TestExecutor executor = new TestExecutor();
         TestSoftApCallback lohsSoftApCallback = new TestSoftApCallback(mLock);
+        UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         setWifiEnabled(false);
         Thread.sleep(TEST_WAIT_DURATION_MS);
         boolean wifiEnabled = mWifiManager.isWifiEnabled();
-        UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         try {
             uiAutomation.adoptShellPermissionIdentity();
             verifyLohsRegisterSoftApCallback(executor, lohsSoftApCallback);
@@ -4244,7 +4248,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
                                             == null;
                         });
                 // Enable wifi to make sure country code has been updated.
-                mWifiManager.setWifiEnabled(true);
+                setWifiEnabled(true);
                 PollingCheck.check(
                         "DriverCountryCode is null when wifi on",
                         5000,
@@ -4256,7 +4260,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
                                             != null;
                         });
                 // Disable wifi to trigger country code change
-                mWifiManager.setWifiEnabled(false);
+                setWifiEnabled(false);
                 PollingCheck.check(
                         "DriverCountryCode should be null when wifi off",
                         5000,
@@ -4269,7 +4273,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
                 mWifiManager.unregisterActiveCountryCodeChangedCallback(
                             testCountryCodeChangedCallback);
                 testCountryCodeChangedCallback.resetCallbackCallededHistory();
-                mWifiManager.setWifiEnabled(true);
+                setWifiEnabled(true);
                 // Check there is no callback has been called.
                 PollingCheck.check(
                         "Callback is called after unregister",
@@ -6115,8 +6119,8 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             }
 
             // Disable and re-enable Wifi to avoid reconnect to the secondary candidate
-            mWifiManager.setWifiEnabled(false);
-            mWifiManager.setWifiEnabled(true);
+            setWifiEnabled(false);
+            setWifiEnabled(true);
 
             // Now trigger scan and ensure that the device does not connect to any networks.
             mWifiManager.startScan();

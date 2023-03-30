@@ -48,7 +48,6 @@ import android.widget.FrameLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.test.InstrumentationRegistry;
-import androidx.test.filters.FlakyTest;
 
 import com.android.compatibility.common.util.ApiTest;
 import com.android.compatibility.common.util.PollingCheck;
@@ -177,7 +176,6 @@ public class CarTaskViewControllerTest {
 
     @Test
     @ApiTest(apis = {"android.car.app.ControlledRemoteCarTaskViewCallback#onTaskViewReleased()"})
-    @FlakyTest(bugId = 274956283)
     public void multipleControlledCarTaskView_released_whenHostDestroyed() throws Exception {
         // Arrange
         CarTaskViewTestHolder taskViewCallback =
@@ -304,7 +302,6 @@ public class CarTaskViewControllerTest {
     }
 
     @Test
-    @FlakyTest(bugId = 274956283)
     public void remoteCarTaskView_receivesTouchInput() throws Exception {
         // Arrange
         CarTaskViewTestHolder carTaskViewHolder =

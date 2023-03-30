@@ -28,7 +28,6 @@ import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
 import android.mediav2.common.cts.CodecTestBase;
 import android.os.Bundle;
-import android.util.Log;
 import android.util.Pair;
 
 import androidx.test.filters.SdkSuppress;
@@ -52,7 +51,6 @@ import java.util.concurrent.TimeUnit;
 
 @RunWith(Enclosed.class)
 public class CodecUnitTest {
-    private static final String TAG = "CodecUnitTest";
     static final int PER_TEST_TIMEOUT_MS = 10000;
     static final long STALL_TIME_MS = 1000;
 
@@ -134,7 +132,6 @@ public class CodecUnitTest {
                     if (!(e instanceof IllegalArgumentException)) {
                         fail("codec configure rec/exp :: " + e + " / IllegalArgumentException");
                     }
-                    Log.v(TAG, "expected exception thrown", e);
                 }
             }
             try {
@@ -163,7 +160,6 @@ public class CodecUnitTest {
                 if (!(e instanceof IllegalArgumentException)) {
                     fail("codec configure rec/exp :: " + e + " / IllegalArgumentException");
                 }
-                Log.v(TAG, "expected exception thrown", e);
             } finally {
                 mCodec.release();
             }
@@ -174,7 +170,7 @@ public class CodecUnitTest {
                 configureCodec(format, isAsync, false, true);
                 fail(msg);
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -183,7 +179,7 @@ public class CodecUnitTest {
                 mCodec.dequeueInputBuffer(Q_DEQ_TIMEOUT_US);
                 fail(msg);
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -193,7 +189,7 @@ public class CodecUnitTest {
                 mCodec.dequeueOutputBuffer(info, Q_DEQ_TIMEOUT_US);
                 fail(msg);
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -202,7 +198,7 @@ public class CodecUnitTest {
                 flushCodec();
                 fail(msg);
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -237,7 +233,7 @@ public class CodecUnitTest {
                 mCodec.getInputBuffer(0);
                 fail(msg);
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -246,7 +242,7 @@ public class CodecUnitTest {
                 mCodec.getInputFormat();
                 fail(msg);
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -255,7 +251,7 @@ public class CodecUnitTest {
                 mCodec.getOutputBuffer(0);
                 fail(msg);
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -264,14 +260,14 @@ public class CodecUnitTest {
                 mCodec.getOutputFormat();
                 fail(msg);
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
 
             try {
                 mCodec.getOutputFormat(0);
                 fail(msg);
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -280,7 +276,7 @@ public class CodecUnitTest {
                 mCodec.start();
                 fail(msg);
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -289,7 +285,7 @@ public class CodecUnitTest {
                 mCodec.getInputImage(0);
                 fail(msg);
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -298,7 +294,7 @@ public class CodecUnitTest {
                 mCodec.getOutputImage(0);
                 fail(msg);
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -307,7 +303,7 @@ public class CodecUnitTest {
                 mCodec.queueInputBuffer(0, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                 fail(msg);
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -316,7 +312,7 @@ public class CodecUnitTest {
                 mCodec.releaseOutputBuffer(0, false);
                 fail(msg);
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -327,7 +323,7 @@ public class CodecUnitTest {
                 mCodec = MediaCodec.createByCodecName(null);
                 fail("createByCodecName succeeds with null argument");
             } catch (NullPointerException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             } finally {
                 if (mCodec != null) mCodec.release();
             }
@@ -340,7 +336,7 @@ public class CodecUnitTest {
                 mCodec = MediaCodec.createByCodecName("invalid name");
                 fail("createByCodecName succeeds with invalid name");
             } catch (IllegalArgumentException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             } finally {
                 if (mCodec != null) mCodec.release();
             }
@@ -353,7 +349,7 @@ public class CodecUnitTest {
                 mCodec = MediaCodec.createDecoderByType(null);
                 fail("createDecoderByType succeeds with null argument");
             } catch (NullPointerException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             } finally {
                 if (mCodec != null) mCodec.release();
             }
@@ -366,7 +362,7 @@ public class CodecUnitTest {
                 mCodec = MediaCodec.createDecoderByType("invalid mediaType");
                 fail("createDecoderByType succeeds with invalid mediaType");
             } catch (IllegalArgumentException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             } finally {
                 if (mCodec != null) mCodec.release();
             }
@@ -379,7 +375,7 @@ public class CodecUnitTest {
                 mCodec = MediaCodec.createEncoderByType(null);
                 fail("createEncoderByType succeeds with null argument");
             } catch (NullPointerException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             } finally {
                 if (mCodec != null) mCodec.release();
             }
@@ -392,7 +388,7 @@ public class CodecUnitTest {
                 mCodec = MediaCodec.createEncoderByType("invalid mediaType");
                 fail("createEncoderByType succeeds with invalid mediaType");
             } catch (IllegalArgumentException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             } finally {
                 if (mCodec != null) mCodec.release();
             }
@@ -901,28 +897,28 @@ public class CodecUnitTest {
                 mCodec.getCanonicalName();
                 fail("get canonical name succeeds after codec release");
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
 
             try {
                 mCodec.getCodecInfo();
                 fail("get codec info succeeds after codec release");
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
 
             try {
                 mCodec.getName();
                 fail("get name succeeds after codec release");
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
 
             try {
                 mCodec.getMetrics();
                 fail("get metrics succeeds after codec release");
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -1003,7 +999,7 @@ public class CodecUnitTest {
                 mIsCodecInAsyncMode = !isAsync;
                 fail("set call back succeeds in running state");
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
             queueEOS();
             waitForAllOutputs();
@@ -1018,7 +1014,7 @@ public class CodecUnitTest {
                 mIsCodecInAsyncMode = isAsync;
                 fail("set call back succeeds in running state");
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
             queueEOS();
             waitForAllOutputs();
@@ -1038,7 +1034,7 @@ public class CodecUnitTest {
                 mAsyncHandle.setCallBack(mCodec, false);
                 fail("set call back succeeds in released state");
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -1312,7 +1308,7 @@ public class CodecUnitTest {
                     mCodec.getOutputFormat(0);
                     fail("getOutputFormat succeeds in released state");
                 } catch (IllegalStateException e) {
-                    Log.v(TAG, "expected exception thrown", e);
+                    // expected
                 }
                 mCodec.start();
                 mCodec.stop();
@@ -1461,7 +1457,7 @@ public class CodecUnitTest {
                 mCodec.setParameters(updateBitrate(bitrate >> 1));
                 fail("Codec set parameter succeeds in release mode");
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -1564,7 +1560,7 @@ public class CodecUnitTest {
                 mCodec.stop();
                 fail("Codec stop succeeds in release mode");
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -1626,7 +1622,7 @@ public class CodecUnitTest {
                 mCodec.reset();
                 fail("Codec reset succeeds in release mode");
             } catch (IllegalStateException e) {
-                Log.v(TAG, "expected exception thrown", e);
+                // expected
             }
         }
 
@@ -1873,7 +1869,7 @@ public class CodecUnitTest {
                     mCodec.queueInputBuffer(-1, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                     fail("queueInputBuffer succeeds with bad buffer index :: " + -1);
                 } catch (Exception e) {
-                    Log.v(TAG, "expected exception thrown", e);
+                    // expected
                 }
                 mCodec.stop();
                 mCodec.reset();
@@ -1901,7 +1897,7 @@ public class CodecUnitTest {
                     fail("queueInputBuffer succeeds with bad size param :: " + buffer.capacity() +
                             100);
                 } catch (Exception e) {
-                    Log.v(TAG, "expected exception thrown", e);
+                    // expected
                 }
                 mCodec.stop();
                 mCodec.reset();
@@ -1928,7 +1924,7 @@ public class CodecUnitTest {
                             MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                     fail("queueInputBuffer succeeds with bad offset and size param");
                 } catch (Exception e) {
-                    Log.v(TAG, "expected exception thrown", e);
+                    // expected
                 }
                 mCodec.stop();
                 mCodec.reset();
@@ -1956,7 +1952,7 @@ public class CodecUnitTest {
                             MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                     fail("queueInputBuffer succeeds with bad offset param :: " + -1);
                 } catch (Exception e) {
-                    Log.v(TAG, "expected exception thrown", e);
+                    // expected
                 }
                 mCodec.stop();
                 mCodec.reset();
@@ -2050,7 +2046,7 @@ public class CodecUnitTest {
                     mCodec.releaseOutputBuffer(-1, false);
                     fail("releaseOutputBuffer succeeds for bad buffer index " + -1);
                 } catch (MediaCodec.CodecException e) {
-                    Log.v(TAG, "expected exception thrown", e);
+                    // expected
                 }
                 queueEOS();
                 int bufferIndex = 0;
@@ -2074,7 +2070,7 @@ public class CodecUnitTest {
                     mCodec.releaseOutputBuffer(bufferIndex, false);
                     fail("releaseOutputBuffer succeeds for buffer index not owned by client");
                 } catch (MediaCodec.CodecException e) {
-                    Log.v(TAG, "expected exception thrown", e);
+                    // expected
                 }
                 mCodec.stop();
                 mCodec.reset();

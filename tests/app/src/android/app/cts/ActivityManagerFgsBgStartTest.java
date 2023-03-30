@@ -88,6 +88,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 @RunWith(AndroidJUnit4.class)
+@Presubmit
 public class ActivityManagerFgsBgStartTest {
     private static final String TAG = ActivityManagerFgsBgStartTest.class.getName();
 
@@ -183,7 +184,6 @@ public class ActivityManagerFgsBgStartTest {
      * APP1 is in TOP state, it gets location capability.
      * @throws Exception
      */
-    @Presubmit
     @Test
     public void testFgsLocationStartFromBG() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -285,7 +285,6 @@ public class ActivityManagerFgsBgStartTest {
      * APP1 is in TOP state, it can start FGSL in APP2, FGSL gets location capability.
      * @throws Exception
      */
-    @Presubmit
     @Test
     public void testFgsLocationStartFromBGTwoProcesses() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -372,7 +371,6 @@ public class ActivityManagerFgsBgStartTest {
      * FGSL gets location capability.
      * @throws Exception
      */
-    @Presubmit
     @Test
     public void testFgsLocationPendingIntent() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -492,7 +490,6 @@ public class ActivityManagerFgsBgStartTest {
      * Test a FGS start by bind from BG does not get get while-in-use capability.
      * @throws Exception
      */
-    @Presubmit
     @Test
     @AsbSecurityTest(cveBugId = 173516292)
     public void testFgsLocationStartFromBGWithBind() throws Exception {
@@ -539,7 +536,6 @@ public class ActivityManagerFgsBgStartTest {
         }
     }
 
-    @Presubmit
     @Test
     public void testUpdateUidProcState() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -623,7 +619,6 @@ public class ActivityManagerFgsBgStartTest {
      * Test FGS background startForeground() restriction, use DeviceConfig to turn on restriction.
      * @throws Exception
      */
-    @Presubmit
     @Test
     public void testFgsStartFromBG1() throws Exception {
         testFgsStartFromBG(true);
@@ -634,7 +629,6 @@ public class ActivityManagerFgsBgStartTest {
      * restriction.
      * @throws Exception
      */
-    @Presubmit
     @Test
     public void testFgsStartFromBG2() throws Exception {
         testFgsStartFromBG(false);
@@ -716,7 +710,6 @@ public class ActivityManagerFgsBgStartTest {
      * Test a FGS can start from a process that is at BOUND_TOP state.
      * @throws Exception
      */
-    @Presubmit
     @Test
     public void testFgsStartFromBoundTopState() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -783,7 +776,6 @@ public class ActivityManagerFgsBgStartTest {
      * Test a FGS can start from a process that is at FOREGROUND_SERVICE state.
      * @throws Exception
      */
-    @Presubmit
     @Test
     public void testFgsStartFromFgsState() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -854,7 +846,6 @@ public class ActivityManagerFgsBgStartTest {
      * restriction is disabled, FGS can start from background.
      * @throws Exception
      */
-    @Presubmit
     @Test
     public void testFgsStartFromBGWithBind() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -895,7 +886,6 @@ public class ActivityManagerFgsBgStartTest {
      * restriction is enabled, FGS can NOT start from background.
      * @throws Exception
      */
-    @Presubmit
     @Test
     public void testFgsStartFromBGWithBindWithRestriction() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -939,7 +929,6 @@ public class ActivityManagerFgsBgStartTest {
      * Shell has START_ACTIVITIES_FROM_BACKGROUND permission, it can use this bind flag to
      * pass BG-Activity-launch ability to APP2, then APP2 can start APP2 FGS from background.
      */
-    @Presubmit
     @Test
     public void testFgsBindingFlagActivity() throws Exception {
         testFgsBindingFlag(Context.BIND_ALLOW_BACKGROUND_ACTIVITY_STARTS);
@@ -950,7 +939,6 @@ public class ActivityManagerFgsBgStartTest {
      * Shell has START_FOREGROUND_SERVICES_FROM_BACKGROUND permission, it can use this bind flag to
      * pass BG-FGS-launch ability to APP2, then APP2 can start APP3 FGS from background.
      */
-    @Presubmit
     @Test
     public void testFgsBindingFlagFGS() throws Exception {
         testFgsBindingFlag(Context.BIND_ALLOW_FOREGROUND_SERVICE_STARTS_FROM_BACKGROUND);
@@ -962,7 +950,6 @@ public class ActivityManagerFgsBgStartTest {
      * the BG-FGS-launch ability can be passed to APP2 by service binding, then APP2 can start
      * APP3 FGS from background.
      */
-    @Presubmit
     @Test
     public void testFgsBindingFlagNone() throws Exception {
         testFgsBindingFlag(0);
@@ -1064,7 +1051,6 @@ public class ActivityManagerFgsBgStartTest {
     /**
      * Test a FGS can start from BG if the app has SYSTEM_ALERT_WINDOW permission.
      */
-    @Presubmit
     @Test
     public void testFgsStartSystemAlertWindow() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -1110,7 +1096,6 @@ public class ActivityManagerFgsBgStartTest {
     /**
      * Test a FGS can start from BG if the device is in retail demo mode.
      */
-    @Presubmit
     @Test
     // Change Settings.Global.DEVICE_DEMO_MODE on device may trigger other listener and put
     // the device in undesired state, for example, the battery charge level is set to 35%
@@ -1192,7 +1177,6 @@ public class ActivityManagerFgsBgStartTest {
     /**
      * Test a FGS can start from BG if the app is in the DeviceIdleController's AllowList.
      */
-    @Presubmit
     @Test
     public void testFgsStartAllowList() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -1242,7 +1226,6 @@ public class ActivityManagerFgsBgStartTest {
     /**
      * Test temp allowlist types in BroadcastOptions.
      */
-    @Presubmit
     @Test
     public void testTempAllowListType() throws Exception {
         testTempAllowListTypeInternal(TEMPORARY_ALLOW_LIST_TYPE_FOREGROUND_SERVICE_NOT_ALLOWED);
@@ -1427,7 +1410,6 @@ public class ActivityManagerFgsBgStartTest {
      * succeed or not depends on the service's app proc state.
      * Test starService() -> startForeground()
      */
-    @Presubmit
     @Test
     public void testStartForegroundTimeout() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -1510,7 +1492,6 @@ public class ActivityManagerFgsBgStartTest {
      * Test startForegroundService() -> startForeground() -> stopForeground() -> startForeground()
      * -> startForeground().
      */
-    @Presubmit
     @Test
     public void testSecondStartForeground() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -1598,7 +1579,6 @@ public class ActivityManagerFgsBgStartTest {
      * restriction.
      * @throws Exception
      */
-    @Presubmit
     @Test
     public void testFgsStartVpn() throws Exception {
         testFgsStartVpnInternal("ACTIVATE_VPN");
@@ -1659,7 +1639,6 @@ public class ActivityManagerFgsBgStartTest {
      * {@link TEMPORARY_ALLOW_LIST_TYPE_FOREGROUND_SERVICE_NOT_ALLOWED} (1):
      * temp allowlisted, not allow FGS.
      */
-    @Presubmit
     @Test
     public void testPushMessagingOverQuota() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -1742,7 +1721,6 @@ public class ActivityManagerFgsBgStartTest {
      * TEMPORARY_ALLOWLIST_TYPE_NONE, the temp allowlist itself is not allowed.
      * All other reason codes, DeviceIdleController does not change temp allowlist type.
      */
-    @Presubmit
     @Test
     public void testTempAllowListReasonCode() throws Exception {
         // FGS start is temp allowed.
@@ -1816,7 +1794,6 @@ public class ActivityManagerFgsBgStartTest {
      * Test default_input_method is exempted from BG-FGS-start restriction.
      * @throws Exception
      */
-    @Presubmit
     @Test
     public void testFgsStartInputMethod() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -1868,7 +1845,6 @@ public class ActivityManagerFgsBgStartTest {
         }
     }
 
-    @Presubmit
     @Test
     public void testFgsStartInBackgroundRestrictions() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -1989,7 +1965,6 @@ public class ActivityManagerFgsBgStartTest {
      * call can extend the duration of the first call if the first call has not expired yet.
      * @throws Exception
      */
-    @Presubmit
     @Test
     public void testOverlappedTempAllowList() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -2055,7 +2030,6 @@ public class ActivityManagerFgsBgStartTest {
      * This is similar to test case testOverlappedTempAllowList which is
      * PowerExemptionManager.addToTemporaryAllowList().
      */
-    @Presubmit
     @Test
     public void testOverlappedTempAllowListByBroadcastOptions() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
@@ -2154,7 +2128,6 @@ public class ActivityManagerFgsBgStartTest {
      * packageName and disallow foreground service start from the background.
      * @throws Exception
      */
-    @Presubmit
     @Test
     public void testSpoofPackageName() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(

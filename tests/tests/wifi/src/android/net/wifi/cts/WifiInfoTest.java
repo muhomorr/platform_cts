@@ -35,6 +35,7 @@ import android.telephony.SubscriptionManager;
 import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.ShellIdentityUtils;
+import com.android.compatibility.common.util.SystemUtil;
 
 import java.nio.charset.StandardCharsets;
 
@@ -119,8 +120,11 @@ public class WifiInfoTest extends WifiJUnit3TestBase {
     private void setWifiEnabled(boolean enable) throws Exception {
         synchronized (mMySync) {
             mMySync.expectedState = STATE_WIFI_CHANGING;
-            ShellIdentityUtils.invokeWithShellPermissions(
-                    () -> mWifiManager.setWifiEnabled(enable));
+            if (enable) {
+                SystemUtil.runShellCommand("svc wifi enable");
+            } else {
+                SystemUtil.runShellCommand("svc wifi disable");
+            }
             long timeout = System.currentTimeMillis() + TIMEOUT_MSEC;
             while (System.currentTimeMillis() < timeout
                     && mMySync.expectedState == STATE_WIFI_CHANGING)

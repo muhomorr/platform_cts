@@ -50,7 +50,6 @@ import org.junit.runner.RunWith;
 public class ModifyInstallerPackageTest {
     static final String OTHER_PACKAGE = "com.android.cts.permissiondeclareapp";
     static final String MY_PACKAGE = "com.android.cts.usespermissiondiffcertapp";
-    static final String SHELL_PACKAGE_NAME = "com.android.shell";
 
     static void assertPackageInstallerAndInitiator(String packageName,
             String expectedInstaller, String expectedInitiator, PackageManager packageManager)
@@ -62,7 +61,7 @@ public class ModifyInstallerPackageTest {
         assertEquals(expectedInitiator, installSourceInfo.getInitiatingPackageName());
 
         // We should get the initiator's signature iff we have an initiator.
-        if (expectedInitiator == null || expectedInitiator.equals(SHELL_PACKAGE_NAME)) {
+        if (expectedInitiator == null) {
             assertNull(installSourceInfo.getInitiatingPackageSigningInfo());
         } else {
             final SigningInfo expectedSigning = packageManager.getPackageInfo(expectedInitiator,
@@ -95,17 +94,14 @@ public class ModifyInstallerPackageTest {
     @Test
     public void setInstallPackage() throws Exception {
         // Pre-condition.
-        assertPackageInstallerAndInitiator(OTHER_PACKAGE, null,
-                SHELL_PACKAGE_NAME, mPM);
+        assertPackageInstallerAndInitiator(OTHER_PACKAGE, null, null, mPM);
 
         mPM.setInstallerPackageName(OTHER_PACKAGE, MY_PACKAGE);
-        assertPackageInstallerAndInitiator(OTHER_PACKAGE, MY_PACKAGE, SHELL_PACKAGE_NAME,
-                mPM);
+        assertPackageInstallerAndInitiator(OTHER_PACKAGE, MY_PACKAGE, null, mPM);
 
         // Clean up.
         mPM.setInstallerPackageName(OTHER_PACKAGE, null);
-        assertPackageInstallerAndInitiator(OTHER_PACKAGE, null,
-                SHELL_PACKAGE_NAME, mPM);
+        assertPackageInstallerAndInitiator(OTHER_PACKAGE, null, null, mPM);
     }
 
     /**
@@ -134,8 +130,7 @@ public class ModifyInstallerPackageTest {
         } catch (IllegalArgumentException e) {
             // That's what we want!
         }
-        assertPackageInstallerAndInitiator(OTHER_PACKAGE, null,
-                SHELL_PACKAGE_NAME, mPM);
+        assertPackageInstallerAndInitiator(OTHER_PACKAGE, null, null, mPM);
     }
 
     /**
@@ -145,8 +140,7 @@ public class ModifyInstallerPackageTest {
     @Test
     public void setInstallPackageWrongCertificate() throws Exception {
         // Pre-condition.
-        assertPackageInstallerAndInitiator(OTHER_PACKAGE, null,
-                SHELL_PACKAGE_NAME, mPM);
+        assertPackageInstallerAndInitiator(OTHER_PACKAGE, null, null, mPM);
 
         try {
             mPM.setInstallerPackageName(OTHER_PACKAGE, OTHER_PACKAGE);
@@ -155,8 +149,7 @@ public class ModifyInstallerPackageTest {
             // That's what we want!
         }
 
-        assertPackageInstallerAndInitiator(OTHER_PACKAGE, null,
-                SHELL_PACKAGE_NAME, mPM);
+        assertPackageInstallerAndInitiator(OTHER_PACKAGE, null, null, mPM);
     }
 
     private void call(Intent intent) {

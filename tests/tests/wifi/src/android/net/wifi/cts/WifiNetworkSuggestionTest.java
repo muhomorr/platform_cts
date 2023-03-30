@@ -166,7 +166,7 @@ public class WifiNetworkSuggestionTest extends WifiJUnit4TestBase {
         // Pick any network in range.
 
         List<WifiConfiguration> networks = TestHelper.findMatchingSavedNetworksWithBssid(
-                sWifiManager, savedNetworks, 2);
+                sWifiManager, savedNetworks);
         if (!networks.isEmpty()) {
             sTestNetwork = networks.get(0);
         }

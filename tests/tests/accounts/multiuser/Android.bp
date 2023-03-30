@@ -34,8 +34,7 @@ android_test {
     min_sdk_version: "30",
     sdk_version: "current",
     test_suites: [
-        // TODO(274891107): Re-enable once failure is addressed
-        // "cts",
+        "cts",
         "general-tests",
     ],
 }

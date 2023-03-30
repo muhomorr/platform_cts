@@ -22,7 +22,6 @@ import android.media.AudioTrack;
 import android.util.Log;
 
 import org.hyphonate.megaaudio.common.StreamBase;
-import org.hyphonate.megaaudio.common.StreamState;
 
 /**
  * Implementation of abstract Player class implemented for the Android Java-based audio playback
@@ -108,12 +107,6 @@ public class JavaPlayer extends Player {
     /*
      * State
      */
-    @Override
-    public int setupStream(int channelCount, int sampleRate,
-                           int performanceMode, int sharingMode, int numBufferFrames) {
-        return setupStream(channelCount, sampleRate, numBufferFrames);
-    }
-
     @Override
     public int setupStream(int channelCount, int sampleRate, int numBufferFrames) {
         if (LOG) {
@@ -204,22 +197,6 @@ public class JavaPlayer extends Player {
     public int stopStream() {
         mPlaying = false;
         return OK;
-    }
-
-    /**
-     * @return See StreamState constants
-     */
-    public int getStreamState() {
-        //TODO - track state so we can return something meaningful here.
-        return StreamState.UNKNOWN;
-    }
-
-    /**
-     * @return The last error callback result (these must match Oboe). See Oboe constants
-     */
-    public int getLastErrorCallbackResult() {
-        //TODO - track errors so we can return something meaningful here.
-        return ERROR_UNKNOWN;
     }
 
     /**

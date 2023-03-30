@@ -130,11 +130,6 @@ public class StubTvInputService2 extends TvInputService {
         }
 
         @Override
-        public void notifyAdBufferConsumed(AdBuffer buffer) {
-            super.notifyAdBufferConsumed(buffer);
-        }
-
-        @Override
         public void notifyAitInfoUpdated(AitInfo info) {
             super.notifyAitInfoUpdated(info);
         }

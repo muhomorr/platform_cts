@@ -72,6 +72,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.ShellIdentityUtils;
+import com.android.compatibility.common.util.SystemUtil;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -623,7 +624,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
         mWifiLock = mWifiManager.createWifiLock(TAG);
         mWifiLock.acquire();
         if (!mWifiManager.isWifiEnabled()) {
-            ShellIdentityUtils.invokeWithShellPermissions(() -> mWifiManager.setWifiEnabled(true));
+            SystemUtil.runShellCommand("svc wifi enable");
         }
 
         mConnectivityManager = (ConnectivityManager) getContext().getSystemService(
@@ -736,7 +737,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
         // 1. Disable Wi-Fi
         WifiAwareStateBroadcastReceiver receiver1 = new WifiAwareStateBroadcastReceiver();
         mContext.registerReceiver(receiver1, intentFilter);
-        ShellIdentityUtils.invokeWithShellPermissions(() -> mWifiManager.setWifiEnabled(false));
+        SystemUtil.runShellCommand("svc wifi disable");
 
         assertTrue("Timeout waiting for Wi-Fi Aware to change status",
                 receiver1.waitForStateChange());
@@ -751,7 +752,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
         // 2. Enable Wi-Fi
         WifiAwareStateBroadcastReceiver receiver2 = new WifiAwareStateBroadcastReceiver();
         mContext.registerReceiver(receiver2, intentFilter);
-        ShellIdentityUtils.invokeWithShellPermissions(() -> mWifiManager.setWifiEnabled(true));
+        SystemUtil.runShellCommand("svc wifi enable");
 
         assertTrue("Timeout waiting for Wi-Fi Aware to change status",
                 receiver2.waitForStateChange());

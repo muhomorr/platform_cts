@@ -61,7 +61,8 @@ public class PhotoPickerBannersTest extends PhotoPickerBaseTest {
         sPreviouslyAllowedCloudProviders = PhotoPickerCloudUtils.getAllowedProvidersDeviceConfig();
 
         // Override the allowed cloud providers config to enable the banners.
-        PhotoPickerCloudUtils.setAllowedProvidersDeviceConfig(sTargetPackageName);
+        final String allowedCloudProviders = CloudProviderPrimary.AUTHORITY;
+        PhotoPickerCloudUtils.setAllowedProvidersDeviceConfig(allowedCloudProviders);
     }
 
     @AfterClass
