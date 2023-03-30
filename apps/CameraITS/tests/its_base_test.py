@@ -103,6 +103,13 @@ class ItsBaseTest(base_test.BaseTestClass):
       try:
         self.tablet = devices[1]
         self.tablet_screen_brightness = self.user_params['brightness']
+        tablet_name_unencoded = self.tablet.adb.shell(
+            ['getprop', 'ro.build.product']
+        )
+        tablet_name = str(tablet_name_unencoded.decode('utf-8')).strip()
+        logging.debug('tablet name: %s', tablet_name)
+        its_session_utils.validate_tablet_brightness(
+            tablet_name, self.tablet_screen_brightness)
       except KeyError:
         logging.debug('Not all tablet arguments set.')
     else:  # sensor_fusion or manual run
@@ -251,9 +258,11 @@ class ItsBaseTest(base_test.BaseTestClass):
     # edit root_output_path and summary_writer path
     # to add test name to output directory
     logging.debug('summary_writer._path: %s', self.summary_writer._path)
-    logging.debug('root_output_path: %s', self.root_output_path)
     summary_head, summary_tail = os.path.split(self.summary_writer._path)
     self.summary_writer._path = os.path.join(
         f'{summary_head}_{self.__class__.__name__}', summary_tail)
     os.rename(self.root_output_path,
               f'{self.root_output_path}_{self.__class__.__name__}')
+    # print root_output_path so that it can be written to report log.
+    # Note: Do not replace print with logging.debug here.
+    print('root_output_path:', f'{self.root_output_path}_{self.__class__.__name__}')
