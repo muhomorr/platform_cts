@@ -14,22 +14,23 @@
  * limitations under the License.
  */
 
-package android.security.cts.CVE_2021_0963;
+package android.security.cts.CVE_2023_20953;
 
-public class PocStatus {
-    int statusCode;
-    String errorMessage;
+import android.app.Activity;
+import android.os.Bundle;
+import android.widget.EditText;
 
-    public PocStatus(int status, String message) {
-        statusCode = status;
-        errorMessage = message;
-    }
+public class PocActivity extends Activity {
 
-    public int getStatusCode() {
-        return statusCode;
-    }
-
-    public String getErrorMessage() {
-        return errorMessage;
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        try {
+            super.onCreate(savedInstanceState);
+            EditText editText = new EditText(this);
+            editText.setText("CVE-2023-20955");
+            setContentView(editText);
+        } catch (Exception e) {
+            // ignore
+        }
     }
 }
