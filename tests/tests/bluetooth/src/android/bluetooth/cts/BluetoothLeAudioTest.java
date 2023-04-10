@@ -151,9 +151,6 @@ public class BluetoothLeAudioTest extends AndroidTestCase {
             mBluetoothLeAudio = null;
             mIsProfileReady = false;
         }
-        if (mAdapter != null) {
-            assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
-        }
         TestUtils.dropPermissionAsShellUid();
         mAdapter = null;
     }
@@ -229,6 +226,21 @@ public class BluetoothLeAudioTest extends AndroidTestCase {
         // Verify returns false if bluetooth is not enabled
         assertEquals(BluetoothLeAudio.AUDIO_LOCATION_INVALID,
                 mBluetoothLeAudio.getAudioLocation(mTestDevice));
+    }
+
+    public void test_isInbandRingtoneEnabled() {
+        if (!(mHasBluetooth && mIsLeAudioSupported)) return;
+
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mBluetoothLeAudio);
+
+        mTestDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
+
+        assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
+
+        // Verify returns false if bluetooth is not enabled
+        assertEquals(false, mBluetoothLeAudio.isInbandRingtoneEnabled(
+                        BluetoothLeAudio.GROUP_ID_INVALID));
     }
 
     public void test_setgetConnectionPolicy() {

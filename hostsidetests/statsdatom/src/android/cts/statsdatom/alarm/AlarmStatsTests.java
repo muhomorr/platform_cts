@@ -16,6 +16,7 @@
 
 package android.cts.statsdatom.alarm;
 
+import com.android.tradefed.util.RunUtil;
 import static com.google.common.truth.Truth.assertThat;
 
 import android.app.ProcessStateEnum;
@@ -58,7 +59,7 @@ public class AlarmStatsTests extends DeviceTestCase implements IBuildReceiver {
                 mCtsBuild);
         DeviceUtils.installTestApp(getDevice(), ALARM_ATOM_TEST_APK_2, ALARM_ATOM_TEST_PACKAGE_2,
                 mCtsBuild);
-        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
 
         enableCompatChange("ENABLE_USE_EXACT_ALARM", ALARM_ATOM_TEST_PACKAGE);
     }
@@ -237,9 +238,22 @@ public class AlarmStatsTests extends DeviceTestCase implements IBuildReceiver {
         List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
         assertThat(data.size()).isAtLeast(1);
         boolean found = false;
+        final int expectedUid = getUid(ALARM_ATOM_TEST_PACKAGE);
         for (int i = 0; i < data.size(); i++) {
             AtomsProto.AlarmBatchDelivered abd = data.get(i).getAtom().getAlarmBatchDelivered();
-            found |= abd.getWakeups() >= 1 && abd.getNumAlarms() >= 1;
+            int expectedNumAlarms = 0;
+            int expectedWakeups = 0;
+            for (int j = 0; j < abd.getUidsCount(); j++) {
+                expectedNumAlarms += abd.getNumAlarmsPerUid(j);
+                expectedWakeups += abd.getNumWakeupsPerUid(j);
+                if (abd.getUids(j) == expectedUid) {
+                    assertThat(abd.getNumAlarmsPerUid(j)).isEqualTo(1);
+                    assertThat(abd.getNumWakeupsPerUid(j)).isEqualTo(1);
+                    found = true;
+                }
+            }
+            assertThat(abd.getNumAlarms()).isEqualTo(expectedNumAlarms);
+            assertThat(abd.getWakeups()).isEqualTo(expectedWakeups);
         }
         assertThat(found).isTrue();
     }
@@ -253,10 +267,10 @@ public class AlarmStatsTests extends DeviceTestCase implements IBuildReceiver {
         // Schedule some alarms
         DeviceUtils.runDeviceTests(getDevice(), ALARM_ATOM_TEST_PACKAGE, DEVICE_TEST_CLASS,
                 "testPendingAlarmInfo");
-        Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
+        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_SHORT);
         // Trigger atom pull
         AtomTestUtils.sendAppBreadcrumbReportedAtom(getDevice());
-        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
 
         // The list of atoms will be empty if the atom is not supported.
         List<AtomsProto.Atom> atoms = ReportUtils.getGaugeMetricAtoms(getDevice());

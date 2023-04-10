@@ -16,6 +16,9 @@
 
 package com.android.cts.verifier.audio;
 
+import static com.android.cts.verifier.TestListActivity.sCurrentDisplayMode;
+import static com.android.cts.verifier.TestListAdapter.setTestNameSuffix;
+
 import android.graphics.Color;
 import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
@@ -32,14 +35,14 @@ import com.android.cts.verifier.PassFailButtons;
 import com.android.cts.verifier.R;
 import com.android.cts.verifier.audio.analyzers.BaseSineAnalyzer;
 import com.android.cts.verifier.audio.audiolib.AudioDeviceUtils;
+import com.android.cts.verifier.audio.audiolib.AudioSystemFlags;
 import com.android.cts.verifier.audio.audiolib.WaveScopeView;
 
 // MegaAudio
-import org.hyphonate.megaaudio.common.Globals;
+import org.hyphonate.megaaudio.common.StreamBase;
 import org.hyphonate.megaaudio.duplex.DuplexAudioManager;
 import org.hyphonate.megaaudio.player.AudioSource;
 import org.hyphonate.megaaudio.player.AudioSourceProvider;
-import org.hyphonate.megaaudio.player.JavaSourceProxy;
 import org.hyphonate.megaaudio.player.NativeAudioSource;
 import org.hyphonate.megaaudio.player.sources.NoiseAudioSourceProvider;
 import org.hyphonate.megaaudio.player.sources.SilenceAudioSourceProvider;
@@ -55,9 +58,6 @@ import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import static com.android.cts.verifier.TestListActivity.sCurrentDisplayMode;
-import static com.android.cts.verifier.TestListAdapter.setTestNameSuffix;
-
 /**
  * CtsVerifier test for audio data paths.
  */
@@ -66,23 +66,11 @@ public class AudioDataPathsActivity
         implements View.OnClickListener, AppCallback {
     private static final String TAG = "AudioDataPathsActivity";
 
-    // JNI load
-    static {
-        try {
-            System.loadLibrary("megaaudio_jni");
-            JavaSourceProxy.initN();
-            Globals.setOboeWorkaroundsEnabled(false);
-        } catch (UnsatisfiedLinkError e) {
-            Log.e(TAG, "Error loading MegaAudio JNI library");
-            Log.e(TAG, "e: " + e);
-            e.printStackTrace();
-        }
-
-        /* TODO: gracefully fail/notify if the library can't be loaded */
-    }
-
     // ReportLog Schema
     private static final String SECTION_AUDIO_DATAPATHS = "audio_datapaths";
+
+    private boolean mHasMic;
+    private boolean mHasSpeaker;
 
     // UI
     View mStartBtn;
@@ -114,6 +102,19 @@ public class AudioDataPathsActivity
 
         super.onCreate(savedInstanceState);
 
+        // MegaAudio Initialization
+        StreamBase.setup(this);
+
+        mHasMic = AudioSystemFlags.claimsInput(this);
+        mHasSpeaker = AudioSystemFlags.claimsOutput(this);
+
+        String yesString = getResources().getString(R.string.audio_general_yes);
+        String noString = getResources().getString(R.string.audio_general_no);
+        ((TextView) findViewById(R.id.audio_datapaths_mic))
+                .setText(mHasMic ? yesString : noString);
+        ((TextView) findViewById(R.id.audio_datapaths_speaker))
+                .setText(mHasSpeaker ? yesString : noString);
+
         mStartBtn = findViewById(R.id.audio_datapaths_start);
         mStartBtn.setOnClickListener(this);
         mStopBtn = findViewById(R.id.audio_datapaths_stop);
@@ -141,20 +142,23 @@ public class AudioDataPathsActivity
         getPassButton().setEnabled(false);
     }
 
+    void enableTestButtons(boolean startEnabled, boolean stopEnabled) {
+        mStartBtn.setEnabled(startEnabled);
+        mStopBtn.setEnabled(stopEnabled);
+    }
+
     private void startTest() {
         if (mDuplexAudioManager == null) {
             mDuplexAudioManager = new DuplexAudioManager(null, null);
         }
 
-        mStartBtn.setEnabled(false);
-        mStopBtn.setEnabled(true);
+        enableTestButtons(false, true);
 
         mTestManager.startTest();
     }
 
     private void stopTest() {
-        mStartBtn.setEnabled(true);
-        mStopBtn.setEnabled(false);
+        mTestManager.displayTestDevices();
     }
 
     private void calculateTestPass() {
@@ -402,7 +406,10 @@ public class AudioDataPathsActivity
                 // Check to see if we have a (physical) device of this type
                 for (AudioDeviceInfo devInfo : outputDevices) {
                     testSpec.mOutDeviceInfo = null;
-                    if (testSpec.mOutDeviceType == devInfo.getType()) {
+                    if (testSpec.mOutDeviceType == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                            && !mHasSpeaker) {
+                        break;
+                    } else if (testSpec.mOutDeviceType == devInfo.getType()) {
                         testSpec.mOutDeviceInfo = devInfo;
                         break;
                     }
@@ -416,12 +423,25 @@ public class AudioDataPathsActivity
                 // Check to see if we have a (physical) device of this type
                 for (AudioDeviceInfo devInfo : inputDevices) {
                     testSpec.mInDeviceInfo = null;
-                    if (testSpec.mInDeviceType == devInfo.getType()) {
+                    if (testSpec.mInDeviceType == AudioDeviceInfo.TYPE_BUILTIN_MIC
+                            && !mHasMic) {
+                        break;
+                    } else if (testSpec.mInDeviceType == devInfo.getType()) {
                         testSpec.mInDeviceInfo = devInfo;
                         break;
                     }
                 }
             }
+        }
+
+        public int countValidTestSpecs() {
+            int numValid = 0;
+            for (TestSpec testSpec : mTestSpecs) {
+                if (testSpec.mOutDeviceInfo != null && testSpec.mInDeviceInfo != null) {
+                    numValid++;
+                }
+            }
+            return numValid;
         }
 
         public void displayTestDevices() {
@@ -445,6 +465,13 @@ public class AudioDataPathsActivity
                 testStep++;
             }
             mRoutesTx.setText(sb.toString());
+
+            int numValidSpecs = countValidTestSpecs();
+            if (numValidSpecs == 0) {
+                enableTestButtons(false, false);
+                mResultsTx.setText(getResources().getString(R.string.audio_datapaths_noio));
+                getPassButton().setEnabled(true);
+            }
         }
 
         public TestSpec getActiveTestSpec() {
@@ -452,8 +479,6 @@ public class AudioDataPathsActivity
         }
 
         public boolean runTest(TestSpec testSpec) {
-            Log.i(TAG, "runTest()");
-
             AudioDeviceInfo outDevInfo = testSpec.mOutDeviceInfo;
             AudioDeviceInfo inDevInfo = testSpec.mInDeviceInfo;
             if (outDevInfo != null && inDevInfo != null) {
@@ -515,11 +540,11 @@ public class AudioDataPathsActivity
         }
 
         public void completeTest() {
+            Log.i(TAG, "completeTest()");
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    mStartBtn.setEnabled(true);
-                    mStopBtn.setEnabled(false);
+                    enableTestButtons(true, false);
 
                     calculateTestPass();
                 }
@@ -536,7 +561,7 @@ public class AudioDataPathsActivity
                 if (devInfo != null) {
                     mMagnitudes[localTestStep] = mAnalyzer.getMagnitude();
                     mMaxMagnitudes[localTestStep] = mAnalyzer.getMaxMagnitude();
-                    mPhases[localTestStep] = mAnalyzer.getPhase();
+                    mPhases[localTestStep] = mAnalyzer.getPhaseOffset();
                     mPhaseJitters[localTestStep] = mAnalyzer.getPhaseJitter();
 
                     recordTestStatus();
@@ -552,10 +577,11 @@ public class AudioDataPathsActivity
                                     currentResultsText,
                                     testSpec.getDescription(),
                                     String.format(Locale.getDefault(),
-                                            "[mag:%f, maxMag:%f, phase:%f]",
+                                            "[mag:%f, maxMag:%f, phase:%f, jitter:%f]",
                                             mMagnitudes[localTestStep],
                                             mMaxMagnitudes[localTestStep],
-                                            mPhases[localTestStep]));
+                                            mPhases[localTestStep],
+                                            mPhaseJitters[localTestStep]));
                             mResultsTx.setText(newResultsText);
                         }
                     });
@@ -586,6 +612,11 @@ public class AudioDataPathsActivity
     //
     // PassFailButtons Overrides
     //
+    @Override
+    public boolean requiresReportLog() {
+        return true;
+    }
+
     @Override
     public String getReportFileName() {
         return PassFailButtons.AUDIO_TESTS_REPORT_LOG_NAME;
@@ -626,11 +657,11 @@ public class AudioDataPathsActivity
     // Analysis
     private static final String KEY_MAXMAGNITUDE = "max_magnitude";
     private static final String KEY_MAGNITUDE = "magnitude";
-    private static final String KEY_PHASE = "phase";
+    private static final String KEY_PHASEOFFSET = "phase_offset";
     private static final String KEY_PHASEJITTER = "phase_jitter";
 
     private void recordTestStatus() {
-        CtsVerifierReportLog reportLog = newReportLog();
+        CtsVerifierReportLog reportLog = getReportLog();
 
         // Test General
         reportLog.addValue(
@@ -724,8 +755,8 @@ public class AudioDataPathsActivity
                 ResultUnit.NONE);
 
         reportLog.addValue(
-                KEY_PHASE,
-                mAnalyzer.getPhase(),
+                KEY_PHASEOFFSET,
+                mAnalyzer.getPhaseOffset(),
                 ResultType.NEUTRAL,
                 ResultUnit.NONE);
 
@@ -754,8 +785,9 @@ public class AudioDataPathsActivity
             startTest();
         } else if (id == R.id.audio_datapaths_stop) {
             stopTest();
-        } else {
+        } else if (id == R.id.audioJavaApiBtn || id == R.id.audioNativeApiBtn) {
             super.onClick(view);
+            mTestManager.displayTestDevices();
         }
     }
 

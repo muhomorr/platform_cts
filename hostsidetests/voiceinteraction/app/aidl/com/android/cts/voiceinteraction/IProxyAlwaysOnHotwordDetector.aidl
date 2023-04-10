@@ -35,9 +35,11 @@ interface IProxyAlwaysOnHotwordDetector {
     boolean startRecognitionWithFlags(int recognitionFlags);
     boolean startRecognition();
     boolean stopRecognition();
+    void triggerHardwareRecognitionEventWithFakeAudioStream(int keyphraseId, int confidenceLevel);
     void triggerHardwareRecognitionEventForTest(
             int status,
             int soundModelHandle,
+            long halEventReceivedMillis,
             boolean captureAvailable,
             int captureSession,
             int captureDelayMs,
@@ -48,5 +50,7 @@ interface IProxyAlwaysOnHotwordDetector {
             in List<KeyphraseRecognitionExtra> keyphraseExtras);
     void overrideAvailability(int availability);
     void resetAvailability();
+    int waitForNextAvailabilityUpdate(int timeoutMs);
+    int getCurrentAvailability();
     void destroy();
 }

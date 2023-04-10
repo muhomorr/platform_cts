@@ -19,7 +19,7 @@ package android.mediav2.cts;
 import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_Format32bitABGR2101010;
 import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface;
 import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010;
-import static android.mediav2.common.cts.EncoderTestBase.colorFormatToString;
+import static android.mediav2.common.cts.CodecEncoderTestBase.colorFormatToString;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -32,7 +32,9 @@ import android.mediav2.common.cts.CodecAsyncHandler;
 import android.mediav2.common.cts.CodecDecoderTestBase;
 import android.mediav2.common.cts.CodecTestBase;
 import android.mediav2.common.cts.EncoderConfigParams;
+import android.mediav2.common.cts.InputSurface;
 import android.mediav2.common.cts.OutputManager;
+import android.mediav2.common.cts.OutputSurface;
 import android.opengl.GLES20;
 import android.opengl.GLES30;
 import android.util.Log;
@@ -105,7 +107,7 @@ public class EncodeDecodeAccuracyTest extends CodecDecoderTestBase {
     private final CodecAsyncHandler mAsyncHandleEncoder;
     private MediaCodec mEncoder;
     private Surface mInpSurface;
-    private EGLWindowSurface mEGLWindowInpSurface;
+    private InputSurface mEGLWindowInpSurface;
     private OutputSurface mEGLWindowOutSurface;
     private boolean mSawInputEOSEnc;
     private boolean mSawOutputEOSEnc;
@@ -171,9 +173,9 @@ public class EncodeDecodeAccuracyTest extends CodecDecoderTestBase {
         }
         if (mEncCfgParams.mInputBitDepth == 10) {
             assumeTrue("Codec doesn't support ABGR2101010",
-                    hasSupportForColorFormat(mCompName, mMime, COLOR_Format32bitABGR2101010));
+                    hasSupportForColorFormat(mCompName, mMediaType, COLOR_Format32bitABGR2101010));
             assumeTrue("Codec doesn't support high bit depth profile encoding",
-                    doesCodecSupportHDRProfile(mCompName, mMime));
+                    doesCodecSupportHDRProfile(mCompName, mMediaType));
         }
     }
 
@@ -193,7 +195,7 @@ public class EncodeDecodeAccuracyTest extends CodecDecoderTestBase {
                 .build();
     }
 
-    @Parameterized.Parameters(name = "{index}({0}_{1}_{3})")
+    @Parameterized.Parameters(name = "{index}_{0}_{1}_{3}")
     public static Collection<Object[]> input() {
         final boolean isEncoder = true;
         final boolean needAudio = false;
@@ -301,7 +303,7 @@ public class EncodeDecodeAccuracyTest extends CodecDecoderTestBase {
         mInpSurface = mEncoder.createInputSurface();
         assertTrue("Surface is not valid \n" + mTestConfig + mTestEnv, mInpSurface.isValid());
         mEGLWindowInpSurface =
-                new EGLWindowSurface(mInpSurface, mEncCfgParams.mInputBitDepth == 10);
+                new InputSurface(mInpSurface, false, mEncCfgParams.mInputBitDepth == 10);
         if (ENABLE_LOGS) {
             Log.v(LOG_TAG, "codec configured");
         }
@@ -497,13 +499,14 @@ public class EncodeDecodeAccuracyTest extends CodecDecoderTestBase {
         ArrayList<MediaFormat> formats = new ArrayList<>();
         formats.add(format);
         ArrayList<String> listOfDecoders =
-                CodecDecoderTestBase.selectCodecs(mMime, formats, null, false);
+                CodecDecoderTestBase.selectCodecs(mMediaType, formats, null, false);
         assertFalse("no suitable codecs found for : " + format + "\n" + mTestConfig + mTestEnv,
                 listOfDecoders.isEmpty());
         for (String decoder : listOfDecoders) {
             if (mEncCfgParams.mInputBitDepth == 10
-                    && !hasSupportForColorFormat(decoder, mMime, COLOR_FormatYUVP010)
-                    && !hasSupportForColorFormat(decoder, mMime, COLOR_Format32bitABGR2101010)) {
+                    && !hasSupportForColorFormat(decoder, mMediaType, COLOR_FormatYUVP010)
+                    && !hasSupportForColorFormat(decoder, mMediaType,
+                                                 COLOR_Format32bitABGR2101010)) {
                 continue;
             }
             mCodec = MediaCodec.createByCodecName(decoder);
@@ -547,8 +550,8 @@ public class EncodeDecodeAccuracyTest extends CodecDecoderTestBase {
             assertTrue(outputFormat.containsKey(MediaFormat.KEY_COLOR_RANGE));
             assertTrue(outputFormat.containsKey(MediaFormat.KEY_COLOR_STANDARD));
             assertTrue(outputFormat.containsKey(MediaFormat.KEY_COLOR_TRANSFER));
-            if (mMime.equals(MediaFormat.MIMETYPE_VIDEO_AVC) ||
-                    mMime.equals(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
+            if (mMediaType.equals(MediaFormat.MIMETYPE_VIDEO_AVC)
+                    || mMediaType.equals(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
                 outputFormat.removeKey(MediaFormat.KEY_COLOR_RANGE);
                 outputFormat.removeKey(MediaFormat.KEY_COLOR_STANDARD);
                 outputFormat.removeKey(MediaFormat.KEY_COLOR_TRANSFER);

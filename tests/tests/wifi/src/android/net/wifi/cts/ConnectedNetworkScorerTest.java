@@ -343,10 +343,14 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
                     int[] links = statsEntry.getLinkIds();
                     if (links != null) {
                         for (int link : links) {
+                            assertThat(statsEntry.getLinkState(link)).isIn(Range.closed(
+                                    WifiUsabilityStatsEntry.LINK_STATE_UNKNOWN,
+                                    WifiUsabilityStatsEntry.LINK_STATE_IN_USE));
                             assertThat(statsEntry.getRssi(link)).isLessThan(0);
                             assertThat(statsEntry.getRadioId(link)).isAtLeast(0);
                             assertThat(statsEntry.getTxLinkSpeedMbps(link)).isAtLeast(0);
-                            assertThat(statsEntry.getRxLinkSpeedMbps(link)).isAtLeast(0);
+                            // -1 is a default value for rx link speed if it is not available.
+                            assertThat(statsEntry.getRxLinkSpeedMbps(link)).isAtLeast(-1);
                             assertThat(statsEntry.getTotalTxSuccess(link)).isAtLeast(0L);
                             assertThat(statsEntry.getTotalTxRetries(link)).isAtLeast(0L);
                             assertThat(statsEntry.getTotalTxBad(link)).isAtLeast(0L);
@@ -497,7 +501,7 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
         }
     }
 
-    private static abstract class TestConnectedNetworkScorer implements
+    private abstract static class TestConnectedNetworkScorer implements
             WifiManager.WifiConnectedNetworkScorer {
         protected CountDownLatch mCountDownLatch;
         public Integer startSessionId;
@@ -540,6 +544,7 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
 
         @Override
         public void onStart(int sessionId) {
+            super.onStart(sessionId);
             synchronized (mCountDownLatch) {
                 this.startSessionId = sessionId;
                 mCountDownLatch.countDown();
@@ -555,6 +560,7 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
 
         @Override
         public void onStart(WifiConnectedSessionInfo sessionInfo) {
+            super.onStart(sessionInfo);
             synchronized (mCountDownLatch) {
                 this.startSessionId = sessionInfo.getSessionId();
                 this.isUserSelected = sessionInfo.isUserSelected();
@@ -565,6 +571,20 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
                 sessionBuilder.build();
                 mCountDownLatch.countDown();
             }
+        }
+
+        @Override
+        public void onNetworkSwitchAccepted(
+                int sessionId, int targetNetworkId, @NonNull String targetBssid) {
+            super.onNetworkSwitchAccepted(sessionId, targetNetworkId, targetBssid);
+            // Not possible to fake via CTS since it requires two networks and UI interaction.
+        }
+
+        @Override
+        public void onNetworkSwitchRejected(
+                int sessionId, int targetNetworkId, @NonNull String targetBssid) {
+            super.onNetworkSwitchRejected(sessionId, targetNetworkId, targetBssid);
+            // Not possible to fake via CTS since it requires two networks and UI interaction.
         }
     }
 
@@ -778,7 +798,7 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
 
             savedNetworks = mWifiManager.getPrivilegedConfiguredNetworks();
             WifiConfiguration testNetwork =
-                    TestHelper.findMatchingSavedNetworksWithBssid(mWifiManager, savedNetworks)
+                    TestHelper.findMatchingSavedNetworksWithBssid(mWifiManager, savedNetworks, 1)
                             .get(0);
             // Disconnect & disable auto-join on the saved network to prevent auto-connect from
             // interfering with the test.

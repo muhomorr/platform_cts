@@ -301,7 +301,7 @@ public class MockJobService extends JobService {
     public boolean onStopJob(JobParameters params) {
         Log.i(TAG, "Received stop callback");
         TestEnvironment.getTestEnvironment().notifyStopped(params);
-        return mWaitingForStop;
+        return mWaitingForStop || TestEnvironment.getTestEnvironment().requestReschedule();
     }
 
     @Override
@@ -438,8 +438,10 @@ public class MockJobService extends JobService {
         private CountDownLatch mDoJobLatch;
         private CountDownLatch mStoppedLatch;
         private CountDownLatch mDoWorkLatch;
+        private CountDownLatch mNetworkChangeLatch;
         private TestWorkItem[] mExpectedWork;
         private boolean mContinueAfterStart;
+        private boolean mRequestReschedule;
         private JobParameters mExecutedJobParameters;
         private JobParameters mNetworkChangedJobParameters;
         private MockJobService mExecutedJobService;
@@ -548,6 +550,10 @@ public class MockJobService extends JobService {
             return mDoJobLatch.await(DEFAULT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         }
 
+        public boolean awaitNetworkChange() throws InterruptedException {
+            return mNetworkChangeLatch.await(DEFAULT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        }
+
         public boolean awaitStopped() throws InterruptedException {
             return mStoppedLatch.await(DEFAULT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         }
@@ -568,6 +574,9 @@ public class MockJobService extends JobService {
 
         private void notifyNetworkChanged(JobParameters params) {
             mNetworkChangedJobParameters = params;
+            if (mNetworkChangeLatch != null) {
+                mNetworkChangeLatch.countDown();
+            }
         }
 
         private void notifyWaitingForStop() {
@@ -600,8 +609,10 @@ public class MockJobService extends JobService {
             mDoJobLatch = null;
             mStoppedLatch = null;
             mDoWorkLatch = null;
+            mNetworkChangeLatch = null;
             mExpectedWork = null;
             mContinueAfterStart = false;
+            mRequestReschedule = false;
             mExecutedEvents.clear();
             mJobStartNotification = null;
         }
@@ -617,6 +628,10 @@ public class MockJobService extends JobService {
 
         public void setExpectedStopped() {
             mStoppedLatch = new CountDownLatch(1);
+        }
+
+        public void setExpectedNetworkChange() {
+            mNetworkChangeLatch = new CountDownLatch(1);
         }
 
         public void setNotificationAtStart(int notificationId,
@@ -647,6 +662,14 @@ public class MockJobService extends JobService {
             boolean res = mContinueAfterStart;
             mContinueAfterStart = false;
             return res;
+        }
+
+        public void setRequestReschedule() {
+            mRequestReschedule = true;
+        }
+
+        boolean requestReschedule() {
+            return mRequestReschedule;
         }
 
         /** Called in each testCase#setup */

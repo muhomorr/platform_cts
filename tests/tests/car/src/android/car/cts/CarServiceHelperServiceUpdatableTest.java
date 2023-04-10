@@ -16,6 +16,9 @@
 
 package android.car.cts;
 
+import static android.Manifest.permission.CREATE_USERS;
+import static android.Manifest.permission.INTERACT_ACROSS_USERS;
+
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -30,6 +33,7 @@ import android.car.test.ApiCheckerRule.IgnoreInvalidApi;
 import android.car.test.ApiCheckerRule.SupportedVersionTest;
 import android.car.test.ApiCheckerRule.UnsupportedVersionTest;
 import android.car.test.ApiCheckerRule.UnsupportedVersionTest.Behavior;
+import android.car.test.PermissionsCheckerRule.EnsureHasPermission;
 import android.car.user.CarUserManager;
 import android.car.user.CarUserManager.UserLifecycleEvent;
 import android.car.user.CarUserManager.UserLifecycleListener;
@@ -42,7 +46,6 @@ import android.os.UserManager;
 import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
-import androidx.test.filters.FlakyTest;
 
 import com.android.compatibility.common.util.ApiTest;
 import com.android.compatibility.common.util.SystemUtil;
@@ -116,6 +119,7 @@ public final class CarServiceHelperServiceUpdatableTest extends AbstractCarTestC
     @ApiTest(apis = {"android.car.user.CarUserManager#USER_LIFECYCLE_EVENT_TYPE_CREATED"})
     @SupportedVersionTest(unsupportedVersionTest =
             "testSendUserLifecycleEventAndOnUserCreated_unsupportedVersion")
+    @EnsureHasPermission({CREATE_USERS, INTERACT_ACROSS_USERS})
     public void testSendUserLifecycleEventAndOnUserCreated_supportedVersion() throws Exception {
         testSendUserLifecycleEventAndOnUserCreated(/*onSupportedVersion=*/ true);
     }
@@ -124,6 +128,7 @@ public final class CarServiceHelperServiceUpdatableTest extends AbstractCarTestC
     @ApiTest(apis = {"android.car.user.CarUserManager#USER_LIFECYCLE_EVENT_TYPE_CREATED"})
     @UnsupportedVersionTest(behavior = Behavior.EXPECT_PASS,
             supportedVersionTest = "testSendUserLifecycleEventAndOnUserCreated_supportedVersion")
+    @EnsureHasPermission({CREATE_USERS, INTERACT_ACROSS_USERS})
     public void testSendUserLifecycleEventAndOnUserCreated_unsupportedVersion() throws Exception {
         testSendUserLifecycleEventAndOnUserCreated(/*onSupportedVersion=*/ false);
     }
@@ -139,10 +144,6 @@ public final class CarServiceHelperServiceUpdatableTest extends AbstractCarTestC
         NewUserResponse response = null;
         UserManager userManager = null;
         try {
-            // get create User permissions
-            InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                    .adoptShellPermissionIdentity(android.Manifest.permission.CREATE_USERS);
-
             // CreateUser
             userManager = mContext.getSystemService(UserManager.class);
             response = userManager.createUser(new NewUserRequest.Builder().build());
@@ -163,25 +164,23 @@ public final class CarServiceHelperServiceUpdatableTest extends AbstractCarTestC
             // Clean up the user that was previously created.
             userManager.removeUser(response.getUser());
             carUserManager.removeListener(listener);
-            InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                    .dropShellPermissionIdentity();
         }
     }
 
-    @FlakyTest(bugId = 222167696)
     @Test
     @ApiTest(apis = {"android.car.user.CarUserManager#USER_LIFECYCLE_EVENT_TYPE_REMOVED"})
     @SupportedVersionTest(unsupportedVersionTest =
             "testSendUserLifecycleEventAndOnUserRemoved_unsupportedVersion")
+    @EnsureHasPermission({CREATE_USERS, INTERACT_ACROSS_USERS})
     public void testSendUserLifecycleEventAndOnUserRemoved_supportedVersion() throws Exception {
         testSendUserLifecycleEventAndOnUserRemoved(/*onSupportedVersion=*/ true);
     }
 
-    @FlakyTest(bugId = 222167696)
     @Test
     @ApiTest(apis = {"android.car.user.CarUserManager#USER_LIFECYCLE_EVENT_TYPE_REMOVED"})
     @UnsupportedVersionTest(behavior = Behavior.EXPECT_PASS,
             supportedVersionTest = "testSendUserLifecycleEventAndOnUserRemoved_supportedVersion")
+    @EnsureHasPermission({CREATE_USERS, INTERACT_ACROSS_USERS})
     public void testSendUserLifecycleEventAndOnUserRemoved_unsupportedVersion() throws Exception {
         testSendUserLifecycleEventAndOnUserRemoved(/*onSupportedVersion=*/ false);
     }
@@ -204,10 +203,6 @@ public final class CarServiceHelperServiceUpdatableTest extends AbstractCarTestC
         UserManager userManager = null;
         boolean userRemoved = false;
         try {
-            // get create User permissions
-            InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                    .adoptShellPermissionIdentity(android.Manifest.permission.CREATE_USERS);
-
             // CreateUser
             userManager = mContext.getSystemService(UserManager.class);
             response = userManager.createUser(new NewUserRequest.Builder().build());
@@ -238,8 +233,6 @@ public final class CarServiceHelperServiceUpdatableTest extends AbstractCarTestC
                 userManager.removeUser(response.getUser());
             }
             carUserManager.removeListener(listener);
-            InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                    .dropShellPermissionIdentity();
         }
     }
 

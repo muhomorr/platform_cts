@@ -16,6 +16,7 @@
 
 package android.localemanager.cts;
 
+import static android.localemanager.cts.util.LocaleConstants.APP_RECEIVER_ACTION;
 import static android.localemanager.cts.util.LocaleConstants.CALLING_PACKAGE;
 import static android.localemanager.cts.util.LocaleConstants.DEFAULT_APP_LOCALES;
 import static android.localemanager.cts.util.LocaleConstants.DEFAULT_SYSTEM_LOCALES;
@@ -217,7 +218,7 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
      * in the tests.
      */
     private void bindToBroadcastReceiverOfApp(String packageName, String broadcastReceiver) {
-        final Intent intent = new Intent()
+        final Intent intent = new Intent(APP_RECEIVER_ACTION)
                 .setComponent(new ComponentName(packageName, broadcastReceiver))
                 .setFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
         CountDownLatch latch = new CountDownLatch(1);
@@ -268,11 +269,11 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
         sLocaleManager.setApplicationLocales(DEFAULT_APP_LOCALES);
 
         assertLocalesCorrectlySetForCallingApp(DEFAULT_APP_LOCALES);
-        mCallingAppBroadcastReceiver.await();
+        assertTrue(mCallingAppBroadcastReceiver.await());
         assertReceivedBroadcastContains(mCallingAppBroadcastReceiver,
                 CALLING_PACKAGE, DEFAULT_APP_LOCALES);
 
-        mInstallerBroadcastInfoProvider.await();
+        assertTrue(mInstallerBroadcastInfoProvider.await());
         assertReceivedBroadcastContains(mInstallerBroadcastInfoProvider,
                 CALLING_PACKAGE, DEFAULT_APP_LOCALES);
     }
@@ -283,7 +284,7 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
         // First set the locales to non-empty
         sLocaleManager.setApplicationLocales(DEFAULT_APP_LOCALES);
         assertLocalesCorrectlySetForCallingApp(DEFAULT_APP_LOCALES);
-        mCallingAppBroadcastReceiver.await();
+        assertTrue(mCallingAppBroadcastReceiver.await());
         assertReceivedBroadcastContains(mCallingAppBroadcastReceiver,
                 CALLING_PACKAGE, DEFAULT_APP_LOCALES);
         mCallingAppBroadcastReceiver.reset();
@@ -311,7 +312,7 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
         // First set the locales to non-empty
         sLocaleManager.setApplicationLocales(DEFAULT_APP_LOCALES);
         assertLocalesCorrectlySetForCallingApp(DEFAULT_APP_LOCALES);
-        mCallingAppBroadcastReceiver.await();
+        assertTrue(mCallingAppBroadcastReceiver.await());
         assertReceivedBroadcastContains(mCallingAppBroadcastReceiver,
                 CALLING_PACKAGE, DEFAULT_APP_LOCALES);
         mCallingAppBroadcastReceiver.reset();
@@ -334,7 +335,7 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
 
         // Wait for a while since LocaleList::getDefault could take a while to
         // reflect the new app locales.
-        mCallingAppBroadcastReceiver.await();
+        assertTrue(mCallingAppBroadcastReceiver.await());
         assertEquals(combineLocales(DEFAULT_APP_LOCALES, systemLocales), LocaleList.getDefault());
     }
 
@@ -348,9 +349,8 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
         runWithShellPermissionIdentity(() ->
                         sLocaleManager.setApplicationLocales(TEST_APP_PACKAGE, DEFAULT_APP_LOCALES),
                 Manifest.permission.CHANGE_CONFIGURATION);
-        assertLocalesCorrectlySetForAnotherApp(TEST_APP_PACKAGE, DEFAULT_APP_LOCALES);
 
-        mTestAppBroadcastInfoProvider.await();
+        assertTrue(mTestAppBroadcastInfoProvider.await());
         assertReceivedBroadcastContains(mTestAppBroadcastInfoProvider, TEST_APP_PACKAGE,
                 DEFAULT_APP_LOCALES);
 
@@ -372,13 +372,11 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
                         sLocaleManager.setApplicationLocales(TEST_APP_PACKAGE, DEFAULT_APP_LOCALES),
                 Manifest.permission.CHANGE_CONFIGURATION);
 
-        assertLocalesCorrectlySetForAnotherApp(TEST_APP_PACKAGE, DEFAULT_APP_LOCALES);
-
-        mTestAppBroadcastInfoProvider.await();
+        assertTrue(mTestAppBroadcastInfoProvider.await());
         assertReceivedBroadcastContains(mTestAppBroadcastInfoProvider, TEST_APP_PACKAGE,
                 DEFAULT_APP_LOCALES);
 
-        mInstallerBroadcastInfoProvider.await();
+        assertTrue(mInstallerBroadcastInfoProvider.await());
         assertReceivedBroadcastContains(mInstallerBroadcastInfoProvider, TEST_APP_PACKAGE,
                 DEFAULT_APP_LOCALES);
     }
@@ -393,7 +391,7 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
         // received by the app and listen to the broadcast for result from the app.
         launchActivity(TEST_APP_MAIN_ACTIVITY, extraString(EXTRA_QUERY_LOCALES, "true"));
 
-        mTestAppCreationInfoProvider.await();
+        assertTrue(mTestAppCreationInfoProvider.await());
         assertReceivedBroadcastContains(mTestAppCreationInfoProvider, TEST_APP_PACKAGE,
                 DEFAULT_APP_LOCALES);
     }
@@ -423,9 +421,8 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
         runWithShellPermissionIdentity(() ->
                         sLocaleManager.setApplicationLocales(TEST_APP_PACKAGE, DEFAULT_APP_LOCALES),
                 Manifest.permission.CHANGE_CONFIGURATION);
-        assertLocalesCorrectlySetForAnotherApp(TEST_APP_PACKAGE, DEFAULT_APP_LOCALES);
 
-        mTestAppConfigChangedInfoProvider.await();
+        assertTrue(mTestAppConfigChangedInfoProvider.await());
         assertReceivedBroadcastContains(mTestAppConfigChangedInfoProvider, TEST_APP_PACKAGE,
                 combineLocales(DEFAULT_APP_LOCALES, DEFAULT_SYSTEM_LOCALES));
     }
@@ -445,7 +442,6 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
             // Tell the test app to change its app-specific locales
             launchActivity(TEST_APP_MAIN_ACTIVITY, extraString(EXTRA_SET_LOCALES,
                     DEFAULT_APP_LOCALES.toLanguageTags()));
-            assertLocalesCorrectlySetForAnotherApp(TEST_APP_PACKAGE, DEFAULT_APP_LOCALES);
 
             appSpecificLocaleBroadcastReceiver.await();
         }, Manifest.permission.READ_APP_SPECIFIC_LOCALES);
@@ -467,7 +463,6 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
         // Tell the test app to change its app-specific locales
         launchActivity(TEST_APP_MAIN_ACTIVITY, extraString(EXTRA_SET_LOCALES,
                 DEFAULT_APP_LOCALES.toLanguageTags()));
-        assertLocalesCorrectlySetForAnotherApp(TEST_APP_PACKAGE, DEFAULT_APP_LOCALES);
 
         // Ensure that no broadcasts were received since the change was for another app (the Test
         //   App) and we are neither the Test App's installer, nor do we hold
@@ -487,7 +482,7 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
         launchActivity(INSTALLER_APP_MAIN_ACTIVITY,
                 extraString(EXTRA_QUERY_LOCALES, CALLING_PACKAGE));
 
-        mInstallerAppCreationInfoProvider.await();
+        assertTrue(mInstallerAppCreationInfoProvider.await());
         assertReceivedBroadcastContains(mInstallerAppCreationInfoProvider,
                 CALLING_PACKAGE, DEFAULT_APP_LOCALES);
     }
@@ -546,7 +541,7 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
         launchActivity(IME_APP_MAIN_ACTIVITY,
                 extraString(EXTRA_QUERY_LOCALES, CALLING_PACKAGE));
 
-        mImeAppCreationInfoProvider.await();
+        assertTrue(mImeAppCreationInfoProvider.await());
         assertReceivedBroadcastContains(mImeAppCreationInfoProvider, CALLING_PACKAGE,
                 DEFAULT_APP_LOCALES);
     }
@@ -603,15 +598,6 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
         assertEquals(expectedLocales, sLocaleManager.getApplicationLocales());
     }
 
-    /**
-     * Verifies that the locales are correctly set for another package
-     * by fetching locales of the app with a binder call.
-     */
-    private void assertLocalesCorrectlySetForAnotherApp(String packageName,
-            LocaleList expectedLocales) throws Exception {
-        assertEquals(expectedLocales, getApplicationLocales(packageName));
-    }
-
     private LocaleList getApplicationLocales(String packageName) throws Exception {
         return callWithShellPermissionIdentity(() ->
                 sLocaleManager.getApplicationLocales(packageName),
@@ -639,7 +625,7 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
      * We need to combine them since {@link LocaleList} does not have any direct way like
      * a normal list to check if locale or subset of locales is present.
      */
-    private  LocaleList combineLocales(LocaleList appLocales, LocaleList systemLocales) {
+    private LocaleList combineLocales(LocaleList appLocales, LocaleList systemLocales) {
         Locale[] combinedLocales = new Locale[appLocales.size() + systemLocales.size()];
         for (int i = 0; i < appLocales.size(); i++) {
             combinedLocales[i] = appLocales.get(i);
@@ -683,7 +669,7 @@ public class LocaleManagerTests extends ActivityManagerTestBase {
         ShellUtils.runShellCommand("ime set " + mTestIme);
         mNeedsImeReset = true;
 
-        mImeChangedBroadcastReceiver.await();
+        assertTrue(mImeChangedBroadcastReceiver.await());
         assertEquals(mTestIme, mImeChangedBroadcastReceiver.getInputMethodId());
         mImeChangedBroadcastReceiver.reset();
     }

@@ -53,13 +53,13 @@ public class CodecDecoderPauseTest extends CodecDecoderTestBase {
 
     private final SupportClass mSupportRequirements;
 
-    public CodecDecoderPauseTest(String decoder, String mime, String srcFile,
+    public CodecDecoderPauseTest(String decoder, String mediaType, String srcFile,
             SupportClass supportRequirements, String allTestParams) {
-        super(decoder, mime, MEDIA_DIR + srcFile, allTestParams);
+        super(decoder, mediaType, MEDIA_DIR + srcFile, allTestParams);
         mSupportRequirements = supportRequirements;
     }
 
-    @Parameterized.Parameters(name = "{index}({0}_{1})")
+    @Parameterized.Parameters(name = "{index}_{0}_{1}")
     public static Collection<Object[]> input() {
         final boolean isEncoder = false;
         final boolean needAudio = true;
@@ -95,7 +95,7 @@ public class CodecDecoderPauseTest extends CodecDecoderTestBase {
         ArrayList<MediaFormat> formats = new ArrayList<>();
         formats.add(setUpSource(mTestFile));
         mExtractor.release();
-        checkFormatSupport(mCodecName, mMime, false, formats, null, mSupportRequirements);
+        checkFormatSupport(mCodecName, mMediaType, false, formats, null, mSupportRequirements);
         final boolean isAsync = true;
         MediaFormat format = setUpSource(mTestFile);
         {

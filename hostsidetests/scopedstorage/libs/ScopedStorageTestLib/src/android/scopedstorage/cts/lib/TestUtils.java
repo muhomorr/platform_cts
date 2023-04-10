@@ -95,6 +95,7 @@ public class TestUtils {
     public static final String INTENT_EXTRA_PATH = "android.scopedstorage.cts.path";
     public static final String INTENT_EXTRA_URI = "android.scopedstorage.cts.uri";
     public static final String INTENT_EXTRA_CALLING_PKG = "android.scopedstorage.cts.calling_pkg";
+    public static final String INTENT_EXTRA_ARGS = "android.scopedstorage.cts.args";
     public static final String INTENT_EXCEPTION = "android.scopedstorage.cts.exception";
     public static final String FILE_EXISTS_QUERY = "android.scopedstorage.cts.file_exists";
     public static final String CREATE_FILE_QUERY = "android.scopedstorage.cts.createfile";
@@ -115,6 +116,9 @@ public class TestUtils {
     public static final String QUERY_URI = "android.scopedstorage.cts.query_uri";
     public static final String QUERY_MAX_ROW_ID = "android.scopedstorage.cts.query_max_row_id";
     public static final String QUERY_MIN_ROW_ID = "android.scopedstorage.cts.query_min_row_id";
+    public static final String QUERY_OWNER_PACKAGE_NAMES =
+            "android.scopedstorage.cts.query_owner_package_names";
+    public static final String QUERY_WITH_ARGS = "android.scopedstorage.cts.query_with_args";
     public static final String OPEN_FILE_FOR_READ_QUERY =
             "android.scopedstorage.cts.openfile_read";
     public static final String OPEN_FILE_FOR_WRITE_QUERY =
@@ -288,7 +292,45 @@ public class TestUtils {
      * by an {@code '/'}.
      */
     public static boolean createImageEntryAs(TestApp testApp, String path) throws Exception {
-        return getResultFromTestApp(testApp, path, CREATE_IMAGE_ENTRY_QUERY);
+        return createImageEntryForUriAs(testApp, path) != null;
+    }
+
+    /**
+     * Makes the given {@code testApp} create a mediastore DB entry under
+     * {@code MediaStore.Media.Images}.
+     *
+     * The {@code path} argument is treated as a relative path and a name separated
+     * by an {@code '/'}.
+     *
+     * Returns URI of the created image.
+     */
+    public static Uri createImageEntryForUriAs(TestApp testApp, String path) throws Exception {
+        final String actionName = CREATE_IMAGE_ENTRY_QUERY;
+        final String uriString = getFromTestApp(testApp, path, actionName)
+                .getString(actionName, null);
+        return Uri.parse(uriString);
+    }
+
+    /**
+     * Makes the given {@code testApp} query on {@code uri} to get all the ownerPackageName values.
+     *
+     * <p>This method drops shell permission identity.
+     */
+    public static String[] queryForOwnerPackageNamesAs(TestApp testApp, Uri uri) throws Exception {
+        final String actionName = QUERY_OWNER_PACKAGE_NAMES;
+        return getFromTestApp(testApp, uri, actionName).getStringArray(actionName);
+    }
+
+    /**
+     * Makes the given {@code testApp} query on {@code uri} with the provided {@code queryArgs}.
+     *
+     * Returns the number of rows in the result cursor.
+     *
+     * <p>This method drops shell permission identity.
+     */
+    public static int queryWithArgsAs(TestApp testApp, Uri uri, Bundle queryArgs) throws Exception {
+        final String actionName = QUERY_WITH_ARGS;
+        return getFromTestApp(testApp, uri, actionName, queryArgs).getInt(actionName);
     }
 
     /**
@@ -1006,33 +1048,23 @@ public class TestUtils {
         final File otherAppExternalDataDir = new File(getExternalFilesDir().getPath().replace(
                 callingPackageName, otherApp.getPackageName()));
         final File file = new File(otherAppExternalDataDir, fileName);
+        String absolutePath = file.getAbsolutePath();
+
+        final ContentValues valuesWithRelativePath = new ContentValues();
+        final String absoluteDirectoryPath = otherAppExternalDataDir.getAbsolutePath();
+        valuesWithRelativePath.put(MediaStore.MediaColumns.RELATIVE_PATH,
+                absoluteDirectoryPath.substring(absoluteDirectoryPath.indexOf("Android")));
+        valuesWithRelativePath.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+
         try {
             assertThat(createFileAs(otherApp, file.getPath())).isTrue();
+            assertCantInsertDataValue(throwsExceptionForDataValue, absolutePath);
+            assertCantInsertDataValue(throwsExceptionForDataValue,
+                    "/sdcard/" + absolutePath.substring(absolutePath.indexOf("Android")));
+            assertCantInsertDataValue(throwsExceptionForDataValue,
+                    "/storage/emulated/0/Pictures/../"
+                            + absolutePath.substring(absolutePath.indexOf("Android")));
 
-            final ContentValues valuesWithData = new ContentValues();
-            valuesWithData.put(MediaStore.MediaColumns.DATA, file.getAbsolutePath());
-            try {
-                Uri uri = getContentResolver().insert(
-                        MediaStore.Files.getContentUri(VOLUME_EXTERNAL),
-                        valuesWithData);
-
-                if (throwsExceptionForDataValue) {
-                    fail("File insert expected to fail: " + file);
-                } else {
-                    try (Cursor c = getContentResolver().query(uri, new String[]{
-                            MediaStore.MediaColumns.DATA}, null, null)) {
-                        assertThat(c.moveToFirst()).isTrue();
-                        assertThat(c.getString(0)).isNotEqualTo(file.getAbsolutePath());
-                    }
-                }
-            } catch (IllegalArgumentException expected) {
-            }
-
-            final ContentValues valuesWithRelativePath = new ContentValues();
-            final String path = file.getAbsolutePath();
-            valuesWithRelativePath.put(MediaStore.MediaColumns.RELATIVE_PATH,
-                    path.substring(path.indexOf("Android")));
-            valuesWithRelativePath.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
             try {
                 getContentResolver().insert(MediaStore.Files.getContentUri(VOLUME_EXTERNAL),
                         valuesWithRelativePath);
@@ -1042,6 +1074,34 @@ public class TestUtils {
         } finally {
             deleteFileAsNoThrow(otherApp, file.getPath());
         }
+    }
+
+    private static void assertCantInsertDataValue(boolean throwsExceptionForDataValue,
+            String path) throws Exception {
+        if (throwsExceptionForDataValue) {
+            assertThrowsErrorOnInsertToOtherAppPrivateDirectories(path);
+        } else {
+            insertDataWithValue(path);
+            try (Cursor c = getContentResolver().query(
+                    MediaStore.Files.getContentUri(VOLUME_EXTERNAL),
+                    new String[] {MediaStore.MediaColumns.DATA},
+                    MediaStore.MediaColumns.DATA + "=?", new String[] {path}, null)) {
+                assertThat(c.getCount()).isEqualTo(0);
+            }
+        }
+    }
+
+    private static void assertThrowsErrorOnInsertToOtherAppPrivateDirectories(String path)
+            throws Exception {
+        assertThrows(IllegalArgumentException.class, () -> insertDataWithValue(path));
+    }
+
+    private static void insertDataWithValue(String path) {
+        final ContentValues valuesWithData = new ContentValues();
+        valuesWithData.put(MediaStore.MediaColumns.DATA, path);
+
+        getContentResolver().insert(MediaStore.Files.getContentUri(VOLUME_EXTERNAL),
+                valuesWithData);
     }
 
     /**
@@ -1559,7 +1619,8 @@ public class TestUtils {
      * <p>This method drops shell permission identity.
      */
     private static void sendIntentToTestApp(TestApp testApp, Uri uri, String actionName,
-            BroadcastReceiver broadcastReceiver, CountDownLatch latch) throws Exception {
+            BroadcastReceiver broadcastReceiver, CountDownLatch latch,
+            Bundle args) throws Exception {
         if (sShouldForceStopTestApp) {
             final String packageName = testApp.getPackageName();
             forceStopApp(packageName);
@@ -1567,6 +1628,7 @@ public class TestUtils {
 
         final Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.putExtra(INTENT_EXTRA_URI, uri);
+        intent.putExtra(INTENT_EXTRA_ARGS, args);
         launchTestApp(testApp, actionName, broadcastReceiver, latch, intent);
     }
 
@@ -1638,6 +1700,14 @@ public class TestUtils {
      */
     private static Bundle getFromTestApp(TestApp testApp, Uri uri, String actionName)
             throws Exception {
+        return getFromTestApp(testApp, uri, actionName, null);
+    }
+
+    /**
+     * <p>This method drops shell permission identity.
+     */
+    private static Bundle getFromTestApp(TestApp testApp, Uri uri, String actionName, Bundle args)
+            throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         final Bundle[] bundle = new Bundle[1];
         final Exception[] exception = new Exception[1];
@@ -1654,7 +1724,7 @@ public class TestUtils {
             }
         };
 
-        sendIntentToTestApp(testApp, uri, actionName, broadcastReceiver, latch);
+        sendIntentToTestApp(testApp, uri, actionName, broadcastReceiver, latch, args);
         if (exception[0] != null) {
             throw exception[0];
         }

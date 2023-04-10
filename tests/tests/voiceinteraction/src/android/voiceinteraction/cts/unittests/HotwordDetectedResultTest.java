@@ -38,6 +38,8 @@ import android.voiceinteraction.common.Utils;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.android.compatibility.common.util.CddTest;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -53,6 +55,7 @@ public class HotwordDetectedResultTest {
     }
 
     @Test
+    @CddTest(requirement = "9.8/H-1-6")
     public void testHotwordDetectedResult_totalSize() throws Exception {
         final int bitsForConfidenceLevel = Utils.bitCount(
                 HotwordDetectedResult.CONFIDENCE_LEVEL_VERY_HIGH);
@@ -63,13 +66,15 @@ public class HotwordDetectedResultTest {
         final int bitsForHotwordDetectionPersonalized = 1;
         final int bitsForScore = Utils.bitCount(HotwordDetectedResult.getMaxScore());
         final int bitsForPersonalizedScore = Utils.bitCount(HotwordDetectedResult.getMaxScore());
-        final int bitsForHotwordPhraseId = Utils.bitCount(
-                HotwordDetectedResult.getMaxHotwordPhraseId());
+        final int bitsForHotwordPhraseId = Utils.bitCount(Integer.MAX_VALUE);
+        final int bitsForBackgroundAudioPower = Utils.bitCount(
+                HotwordDetectedResult.getMaxBackgroundAudioPower());
 
         final int totalSize =
                 bitsForConfidenceLevel + bitsForHotwordOffsetMillis + bitsForHotwordDurationMillis
                         + bitsForAudioChannel + bitsForHotwordDetectionPersonalized + bitsForScore
                         + bitsForPersonalizedScore + bitsForHotwordPhraseId
+                        + bitsForBackgroundAudioPower
                         + HotwordDetectedResult.getMaxBundleSize() * Byte.SIZE;
 
         assertThat(totalSize <= Utils.MAX_HOTWORD_DETECTED_RESULT_SIZE * Byte.SIZE).isTrue();
@@ -130,6 +135,22 @@ public class HotwordDetectedResultTest {
     }
 
     @Test
+    public void testHotwordDetectedResult_getMaxBackgroundAudioPower() throws Exception {
+        assertThat(HotwordDetectedResult.getMaxBackgroundAudioPower() >= 255).isTrue();
+    }
+
+    @Test
+    public void testHotwordDetectedResult_setInvalidBackgroundAudioPower() throws Exception {
+        assertThrows(IllegalArgumentException.class,
+                () -> new HotwordDetectedResult.Builder().setBackgroundAudioPower(
+                        HotwordDetectedResult.BACKGROUND_AUDIO_POWER_UNSET - 1).build());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> new HotwordDetectedResult.Builder().setBackgroundAudioPower(
+                        HotwordDetectedResult.getMaxBackgroundAudioPower() + 1).build());
+    }
+
+    @Test
     public void testHotwordDetectedResult_setInvalidHotwordDurationMillis() throws Exception {
         assertThrows(IllegalArgumentException.class,
                 () -> new HotwordDetectedResult.Builder().setHotwordDurationMillis(-1).build());
@@ -183,7 +204,8 @@ public class HotwordDetectedResultTest {
                             /* personalizedScore= */ 100,
                             /* hotwordPhraseId= */ 1,
                             audioStreams,
-                            new PersistableBundle());
+                            new PersistableBundle(),
+                            /* backgroundAudioPower= */ 100);
 
             assertHotwordDetectedResult(hotwordDetectedResult);
             HotwordAudioStream result = hotwordDetectedResult.getAudioStreams().get(0);
@@ -216,7 +238,8 @@ public class HotwordDetectedResultTest {
                             /* personalizedScore= */ 100,
                             /* hotwordPhraseId= */ 1,
                             audioStreams,
-                            new PersistableBundle());
+                            new PersistableBundle(),
+                            /* backgroundAudioPower= */ 100);
 
             final Parcel p = Parcel.obtain();
             hotwordDetectedResult.writeToParcel(p, 0);
@@ -246,7 +269,8 @@ public class HotwordDetectedResultTest {
             int personalizedScore,
             int hotwordPhraseId,
             List<HotwordAudioStream> audioStreams,
-            PersistableBundle extras) {
+            PersistableBundle extras,
+            int backgroundAudioPower) {
         return new HotwordDetectedResult.Builder()
                 .setConfidenceLevel(confidenceLevel)
                 .setMediaSyncEvent(mediaSyncEvent)
@@ -259,6 +283,7 @@ public class HotwordDetectedResultTest {
                 .setHotwordPhraseId(hotwordPhraseId)
                 .setAudioStreams(audioStreams)
                 .setExtras(extras)
+                .setBackgroundAudioPower(backgroundAudioPower)
                 .build();
     }
 
@@ -275,6 +300,7 @@ public class HotwordDetectedResultTest {
         assertThat(hotwordDetectedResult.getHotwordPhraseId()).isEqualTo(1);
         assertThat(hotwordDetectedResult.getAudioStreams()).isNotNull();
         assertThat(hotwordDetectedResult.getExtras()).isNotNull();
+        assertThat(hotwordDetectedResult.getBackgroundAudioPower()).isEqualTo(100);
     }
 
     private static void assertHotwordAudioStream(HotwordAudioStream hotwordAudioStream,

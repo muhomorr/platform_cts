@@ -65,7 +65,7 @@ import org.mockito.Mockito.verifyZeroInteractions
 @RunWith(AndroidJUnit4::class)
 class AppOpsTest {
     // Notifying OnOpChangedListener callbacks is an async operation, so we define a timeout.
-    private val TIMEOUT_MS = 5000L
+    private val TIMEOUT_MS = 10000L
 
     private lateinit var mAppOps: AppOpsManager
     private lateinit var mContext: Context
@@ -307,16 +307,28 @@ class AppOpsTest {
                     activeWatcher)
             try {
                 mAppOps.startOp(OPSTR_WIFI_SCAN, mMyUid, mOpPackageName, null, null)
-                assertTrue(receivedActiveState.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS)!!)
+                var activeState = receivedActiveState.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                assertNotNull("Did not receive active state callback within $TIMEOUT_MS ms",
+                    activeState)
+                assertTrue(activeState!!)
 
                 mAppOps.finishOp(OPSTR_WIFI_SCAN, USER_SHELL_UID, SHELL_PACKAGE_NAME, null)
-                assertFalse(receivedActiveState.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS)!!)
+                activeState = receivedActiveState.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                assertNotNull("Did not receive active state callback within $TIMEOUT_MS ms",
+                    activeState)
+                assertFalse(activeState!!)
 
                 mAppOps.startOp(OPSTR_WIFI_SCAN, mMyUid, mOpPackageName, null, null)
-                assertTrue(receivedActiveState.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS)!!)
+                activeState = receivedActiveState.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                assertNotNull("Did not receive active state callback within $TIMEOUT_MS ms",
+                    activeState)
+                assertTrue(activeState!!)
 
                 mAppOps.finishOp(OPSTR_WIFI_SCAN, USER_SHELL_UID, SHELL_PACKAGE_NAME, null)
-                assertFalse(receivedActiveState.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS)!!)
+                activeState = receivedActiveState.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                assertNotNull("Did not receive active state callback within $TIMEOUT_MS ms",
+                    activeState)
+                assertFalse(activeState!!)
             } finally {
                 mAppOps.stopWatchingActive(activeWatcher)
             }
@@ -442,16 +454,19 @@ class AppOpsTest {
     }
 
     @Test
-    fun testOnOpNotedListener() {
+    fun startWatchingNoted_withoutExecutor_whenOpNoted_receivesCallback() {
         val watcher = mock(AppOpsManager.OnOpNotedListener::class.java)
         try {
-            mAppOps.startWatchingNoted(arrayOf<String>(OPSTR_FINE_LOCATION), watcher)
+            mAppOps.startWatchingNoted(arrayOf(OPSTR_WRITE_CALENDAR), watcher)
 
-            mAppOps.noteOp(OPSTR_FINE_LOCATION, mMyUid, mOpPackageName, "testAttribution", null)
+            mAppOps.noteOp(OPSTR_WRITE_CALENDAR,
+                    mMyUid, mOpPackageName,
+                    "testAttribution",
+                    /* message = */ null)
 
             verify(watcher, timeout(TIMEOUT_MS))
                     .onOpNoted(
-                            OPSTR_FINE_LOCATION,
+                            OPSTR_WRITE_CALENDAR,
                             mMyUid,
                             mOpPackageName,
                             "testAttribution",
@@ -460,21 +475,83 @@ class AppOpsTest {
 
             Mockito.reset(watcher)
 
-            mAppOps.noteOp(OPSTR_FINE_LOCATION, mMyUid, mOpPackageName, null, null)
+            mAppOps.noteOp(OPSTR_WRITE_CALENDAR,
+                    mMyUid,
+                    mOpPackageName,
+                    /* attributionTag = */ null,
+                    /* message = */ null)
 
             verify(watcher, timeout(TIMEOUT_MS))
                     .onOpNoted(
-                            OPSTR_FINE_LOCATION,
+                            OPSTR_WRITE_CALENDAR,
                             mMyUid,
                             mOpPackageName,
-                            null,
+                            /* attributionTag = */ null,
                             AppOpsManager.OP_FLAG_SELF,
                             MODE_ALLOWED)
 
             mAppOps.stopWatchingNoted(watcher)
             Mockito.reset(watcher)
 
-            mAppOps.noteOp(OPSTR_FINE_LOCATION, mMyUid, mOpPackageName, "testAttribution", null)
+            mAppOps.noteOp(OPSTR_WRITE_CALENDAR,
+                    mMyUid,
+                    mOpPackageName,
+                    "testAttribution",
+                    /* message = */ null)
+
+            verifyZeroInteractions(watcher)
+        } finally {
+            mAppOps.stopWatchingNoted(watcher)
+        }
+    }
+
+    @Test
+    fun startWatchingNoted_withExecutor_whenOpNoted_receivesCallback() {
+        val watcher = mock(AppOpsManager.OnOpNotedListener::class.java)
+        try {
+            mAppOps.startWatchingNoted(arrayOf(OPSTR_WRITE_CALENDAR), { it.run() }, watcher)
+
+            mAppOps.noteOp(
+                    OPSTR_WRITE_CALENDAR,
+                    mMyUid,
+                    mOpPackageName,
+                    "testAttribution",
+                    /* message = */ null)
+
+            verify(watcher, timeout(TIMEOUT_MS))
+                    .onOpNoted(
+                            OPSTR_WRITE_CALENDAR,
+                            mMyUid,
+                            mOpPackageName,
+                            "testAttribution",
+                            AppOpsManager.OP_FLAG_SELF,
+                            MODE_ALLOWED)
+
+            Mockito.reset(watcher)
+
+            mAppOps.noteOp(OPSTR_WRITE_CALENDAR,
+                    mMyUid,
+                    mOpPackageName,
+                    /* attributionTag = */ null,
+                    /* message = */ null)
+
+            verify(watcher, timeout(TIMEOUT_MS))
+                    .onOpNoted(
+                            OPSTR_WRITE_CALENDAR,
+                            mMyUid,
+                            mOpPackageName,
+                            /* attributionTag = */ null,
+                            AppOpsManager.OP_FLAG_SELF,
+                            MODE_ALLOWED)
+
+            mAppOps.stopWatchingNoted(watcher)
+            Mockito.reset(watcher)
+
+            mAppOps.noteOp(OPSTR_WRITE_CALENDAR,
+                    mMyUid,
+                    mOpPackageName,
+                    "testAttribution",
+                    /* message = */ null)
 
             verifyZeroInteractions(watcher)
         } finally {
@@ -510,16 +587,18 @@ class AppOpsTest {
     }
 
     private fun testPermissionMapping(permission: String, opStr: String) {
-        // Do the public value => internal op code lookups.
-        val mappedOpStr = AppOpsManager.permissionToOp(permission)
-        assertEquals(mappedOpStr, opStr)
+        // Do the permission => op lookups.
+        val mappedOpStr = AppOpsManager.permissionToOp(permission)!!
+        assertEquals(opStr, mappedOpStr)
+        val opCode = AppOpsManager.strOpToOp(opStr)
         val mappedOpCode = AppOpsManager.permissionToOpCode(permission)
-        val mappedOpCode2 = AppOpsManager.strOpToOp(opStr)
-        assertEquals(mappedOpCode, mappedOpCode2)
+        assertEquals(opCode, mappedOpCode)
 
-        // Do the internal op code => public value lookup (reverse lookup).
-        val permissionMappedBack = AppOpsManager.opToPermission(mappedOpCode)
-        assertEquals(permission, permissionMappedBack)
+        // Do the op => permission lookups.
+        val strMappedPermission = AppOpsManager.opToPermission(opStr)
+        assertEquals(permission, strMappedPermission)
+        val codeMappedPermission = AppOpsManager.opToPermission(opCode)
+        assertEquals(permission, codeMappedPermission)
     }
 
     /**

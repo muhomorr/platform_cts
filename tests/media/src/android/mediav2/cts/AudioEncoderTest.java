@@ -27,8 +27,8 @@ import android.media.AudioFormat;
 import android.media.MediaCodec;
 import android.media.MediaFormat;
 import android.mediav2.common.cts.CodecDecoderTestBase;
+import android.mediav2.common.cts.CodecEncoderTestBase;
 import android.mediav2.common.cts.EncoderConfigParams;
-import android.mediav2.common.cts.EncoderTestBase;
 import android.mediav2.common.cts.OutputManager;
 
 import androidx.test.filters.LargeTest;
@@ -61,7 +61,7 @@ import java.util.List;
  * </ul>
  */
 @RunWith(Parameterized.class)
-public class AudioEncoderTest extends EncoderTestBase {
+public class AudioEncoderTest extends CodecEncoderTestBase {
     public AudioEncoderTest(String encoder, String mediaType, EncoderConfigParams encCfgParams,
             @SuppressWarnings("unused") String testLabel, String allTestParams) {
         super(encoder, mediaType, new EncoderConfigParams[]{encCfgParams}, allTestParams);
@@ -110,7 +110,7 @@ public class AudioEncoderTest extends EncoderTestBase {
         return argsList;
     }
 
-    @Parameterized.Parameters(name = "{index}({0}_{1}_{3})")
+    @Parameterized.Parameters(name = "{index}_{0}_{1}_{3}")
     public static Collection<Object[]> input() {
         final boolean isEncoder = true;
         final boolean needAudio = true;
@@ -165,10 +165,10 @@ public class AudioEncoderTest extends EncoderTestBase {
         ArrayList<MediaFormat> fmts = new ArrayList<>();
         mOutFormat.setInteger(MediaFormat.KEY_PCM_ENCODING, mActiveEncCfg.mPcmEncoding);
         fmts.add(mOutFormat);
-        ArrayList<String> listOfDecoders = selectCodecs(mMime, fmts, null, false);
+        ArrayList<String> listOfDecoders = selectCodecs(mMediaType, fmts, null, false);
         assertFalse("no suitable codecs found for fmt: " + mOutFormat + "\n" + mTestConfig
                 + mTestEnv, listOfDecoders.isEmpty());
-        CodecDecoderTestBase cdtb = new CodecDecoderTestBase(listOfDecoders.get(0), mMime,
+        CodecDecoderTestBase cdtb = new CodecDecoderTestBase(listOfDecoders.get(0), mMediaType,
                 null, mAllTestParams);
         cdtb.decodeToMemory(mOutputBuff.getBuffer(), mInfoList, mOutFormat, listOfDecoders.get(0));
         assertEquals(String.format("cdd required audio encoding %s, not supported by %s \n",
@@ -179,8 +179,8 @@ public class AudioEncoderTest extends EncoderTestBase {
 
         // validate
         ByteBuffer out = cdtb.getOutputManager().getBuffer();
-        if (isMediaTypeLossless(mMime)) {
-            if (mMime.equals(MediaFormat.MIMETYPE_AUDIO_FLAC)
+        if (isMediaTypeLossless(mMediaType)) {
+            if (mMediaType.equals(MediaFormat.MIMETYPE_AUDIO_FLAC)
                     && mActiveEncCfg.mPcmEncoding == AudioFormat.ENCODING_PCM_FLOAT) {
                 CodecDecoderTest.verify(cdtb.getOutputManager(), mActiveRawRes.mFileName, 3.446394f,
                         mActiveEncCfg.mPcmEncoding, -1L,
@@ -209,7 +209,7 @@ public class AudioEncoderTest extends EncoderTestBase {
      */
     @ApiTest(apis = {"android.media.AudioFormat#ENCODING_PCM_16BIT",
             "android.media.AudioFormat#ENCODING_PCM_FLOAT"})
-    @CddTest(requirements = "5.1.1")
+    @CddTest(requirements = "5.1.1/C-3-1")
     @LargeTest
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testEncodeAndValidate() throws IOException, InterruptedException {
@@ -217,7 +217,7 @@ public class AudioEncoderTest extends EncoderTestBase {
         mActiveEncCfg = mEncCfgParams[0];
         ArrayList<MediaFormat> formats = new ArrayList<>();
         formats.add(mActiveEncCfg.getFormat());
-        checkFormatSupport(mCodecName, mMime, true, formats, null, CODEC_OPTIONAL);
+        checkFormatSupport(mCodecName, mMediaType, true, formats, null, CODEC_OPTIONAL);
 
         // encode and validate
         mActiveRawRes = EncoderInput.getRawResource(mActiveEncCfg);

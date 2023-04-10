@@ -30,6 +30,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.graphics.RectF;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.CancellationSignal;
@@ -235,7 +236,7 @@ public class MockImeSession implements AutoCloseable {
     }
 
     @Nullable
-    private InputMethodInfo getInputMethodInfo() {
+    public InputMethodInfo getInputMethodInfo() {
         for (InputMethodInfo imi :
                 mContext.getSystemService(InputMethodManager.class).getInputMethodList()) {
             if (TextUtils.equals(getImeId(), imi.getId())) {
@@ -1256,9 +1257,31 @@ public class MockImeSession implements AutoCloseable {
      * {@link InputConnection#performHandwritingGesture(HandwritingGesture, Executor, IntConsumer)}
      * with the given parameters.
      *
-     * <p>Use {@link ImeEvent#getReturnIntegerValue()} for {@link ImeEvent} returned from
-     * {@link ImeEventStreamTestUtils#expectCommand(ImeEventStream, ImeCommand, long)} to see the
-     * value returned from the API.</p>
+     * <p>The result callback will be recorded as an {@code onPerformHandwritingGestureResult}
+     * event.
+     *
+     * <p>This can be affected by {@link #memorizeCurrentInputConnection()}.</p>
+     *
+     * @param gesture {@link SelectGesture} or {@link InsertGesture} or {@link DeleteGesture}.
+     * @param useDelayedCancellation {@code true} to use delayed {@link CancellationSignal#cancel()}
+     *  on a supported gesture like {@link android.view.inputmethod.InsertModeGesture}.
+     * @return {@link ImeCommand} object that can be passed to
+     *         {@link ImeEventStreamTestUtils#expectCommand(ImeEventStream, ImeCommand, long)} to
+     *         wait until this event is handled by {@link MockIme}.
+     */
+    @NonNull
+    public ImeCommand callPerformHandwritingGesture(
+            @NonNull HandwritingGesture gesture, boolean useDelayedCancellation) {
+        final Bundle params = new Bundle();
+        params.putByteArray("gesture", gesture.toByteArray());
+        params.putBoolean("useDelayedCancellation", useDelayedCancellation);
+        return callCommandInternal("performHandwritingGesture", params);
+    }
+
+    /**
+     * Lets {@link MockIme} to call {@link InputConnection#requestTextBoundsInfo}.
+     *
+     * <p>The result callback will be recorded as an {@code onRequestTextBoundsInfoResult} event.
      *
      * <p>This can be affected by {@link #memorizeCurrentInputConnection()}.</p>
      *
@@ -1268,10 +1291,10 @@ public class MockImeSession implements AutoCloseable {
      *         wait until this event is handled by {@link MockIme}.
      */
     @NonNull
-    public ImeCommand callPerformHandwritingGesture(@NonNull HandwritingGesture gesture) {
+    public ImeCommand callRequestTextBoundsInfo(RectF rectF) {
         final Bundle params = new Bundle();
-        params.putByteArray("gesture", gesture.toByteArray());
-        return callCommandInternal("performHandwritingGesture", params);
+        params.putParcelable("rectF", rectF);
+        return callCommandInternal("requestTextBoundsInfo", params);
     }
 
     /**
@@ -1287,15 +1310,18 @@ public class MockImeSession implements AutoCloseable {
      *
      * @param gesture one of {@link SelectGesture}, {@link SelectRangeGesture},
      * {@link DeleteGesture}, {@link DeleteRangeGesture}.
+     * @param useDelayedCancellation {@code true} to use delayed {@link CancellationSignal#cancel()}
+     *  on a gesture preview.
      * @return {@link ImeCommand} object that can be passed to
      *         {@link ImeEventStreamTestUtils#expectCommand(ImeEventStream, ImeCommand, long)} to
      *         wait until this event is handled by {@link MockIme}.
      */
     @NonNull
     public ImeCommand callPreviewHandwritingGesture(
-            @NonNull PreviewableHandwritingGesture gesture) {
+            @NonNull PreviewableHandwritingGesture gesture, boolean useDelayedCancellation) {
         final Bundle params = new Bundle();
         params.putByteArray("gesture", gesture.toByteArray());
+        params.putBoolean("useDelayedCancellation", useDelayedCancellation);
         return callCommandInternal("previewHandwritingGesture", params);
     }
 
@@ -1511,6 +1537,23 @@ public class MockImeSession implements AutoCloseable {
         params.putString("imeId", imeId);
         params.putIntArray("subtypeHashCodes", subtypeHashCodes);
         return callCommandInternal("setExplicitlyEnabledInputMethodSubtypes", params);
+    }
+
+    /**
+     * Makes {@link MockIme} call {@link
+     * android.inputmethodservice.InputMethodService#switchInputMethod(String)}
+     * with the given parameters.
+     *
+     * @param id the IME ID.
+     * @return {@link ImeCommand} object that can be passed to
+     *         {@link ImeEventStreamTestUtils#expectCommand(ImeEventStream, ImeCommand, long)} to
+     *         wait until this event is handled by {@link MockIme}
+     */
+    @NonNull
+    public ImeCommand callSwitchInputMethod(String id) {
+        final Bundle params = new Bundle();
+        params.putString("id", id);
+        return callCommandInternal("switchInputMethod", params);
     }
 
     /**

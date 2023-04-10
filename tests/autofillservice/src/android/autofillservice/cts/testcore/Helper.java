@@ -26,6 +26,8 @@ import static android.service.autofill.FillEventHistory.Event.TYPE_DATASETS_SHOW
 import static android.service.autofill.FillEventHistory.Event.TYPE_DATASET_AUTHENTICATION_SELECTED;
 import static android.service.autofill.FillEventHistory.Event.TYPE_DATASET_SELECTED;
 import static android.service.autofill.FillEventHistory.Event.TYPE_SAVE_SHOWN;
+import static android.service.autofill.FillEventHistory.Event.TYPE_VIEW_REQUESTED_AUTOFILL;
+
 
 import static com.android.compatibility.common.util.ShellUtils.runShellCommand;
 
@@ -85,10 +87,10 @@ import androidx.test.runner.lifecycle.Stage;
 import com.android.compatibility.common.util.BitmapUtils;
 import com.android.compatibility.common.util.DeviceConfigStateManager;
 import com.android.compatibility.common.util.OneTimeSettingsListener;
-import com.android.compatibility.common.util.SettingsUtils;
 import com.android.compatibility.common.util.ShellUtils;
 import com.android.compatibility.common.util.TestNameUtils;
 import com.android.compatibility.common.util.Timeout;
+import com.android.compatibility.common.util.UserSettings;
 
 import java.io.File;
 import java.io.IOException;
@@ -123,6 +125,8 @@ public final class Helper {
     public static final String ID_EMPTY = "empty";
     public static final String ID_CANCEL_FILL = "cancel_fill";
     public static final String ID_IMEACTION_TEXT = "ime_option_text";
+    public static final String ID_IMEACTION_TEXT_IMPORTANT_FOR_AUTOFILL =
+        "ime_option_text_important_for_autofill";
     public static final String ID_IMEACTION_LABEL = "ime_option_text_label";
 
     public static final String NULL_DATASET_ID = null;
@@ -151,6 +155,8 @@ public final class Helper {
             OneTimeSettingsListener.DEFAULT_TIMEOUT_MS);
 
     public static final String DEVICE_CONFIG_AUTOFILL_DIALOG_HINTS = "autofill_dialog_hints";
+
+    private static final UserSettings sUserSettings = new UserSettings();
 
     /**
      * Helper interface used to filter nodes.
@@ -271,8 +277,8 @@ public final class Helper {
     /**
      * Sets whether the user completed the initial setup.
      */
-    public static void setUserComplete(Context context, boolean complete) {
-        SettingsUtils.syncSet(context, USER_SETUP_COMPLETE, complete ? "1" : null);
+    public static void setUserComplete(boolean complete) {
+        sUserSettings.syncSet(USER_SETUP_COMPLETE, complete ? "1" : null);
     }
 
     private static void dump(@NonNull StringBuilder builder, @NonNull ViewNode node,
@@ -949,13 +955,12 @@ public final class Helper {
      * Uses Settings to enable the given autofill service for the default user, and checks the
      * value was properly check, throwing an exception if it was not.
      */
-    public static void enableAutofillService(@NonNull Context context,
-            @NonNull String serviceName) {
+    public static void enableAutofillService(String serviceName) {
         if (isAutofillServiceEnabled(serviceName)) return;
 
         // Sets the setting synchronously. Note that the config itself is sets synchronously but
         // launch of the service is asynchronous after the config is updated.
-        SettingsUtils.syncSet(context, AUTOFILL_SERVICE, serviceName);
+        sUserSettings.syncSet(AUTOFILL_SERVICE, serviceName);
 
         // Waits until the service is actually enabled.
         try {
@@ -971,14 +976,14 @@ public final class Helper {
      * Uses Settings to disable the given autofill service for the default user, and waits until
      * the setting is deleted.
      */
-    public static void disableAutofillService(@NonNull Context context) {
-        final String currentService = SettingsUtils.get(AUTOFILL_SERVICE);
+    public static void disableAutofillService() {
+        final String currentService = sUserSettings.get(AUTOFILL_SERVICE);
         if (currentService == null) {
             Log.v(TAG, "disableAutofillService(): already disabled");
             return;
         }
         Log.v(TAG, "Disabling " + currentService);
-        SettingsUtils.syncDelete(context, AUTOFILL_SERVICE);
+        sUserSettings.syncDelete(AUTOFILL_SERVICE);
     }
 
     /**
@@ -993,14 +998,14 @@ public final class Helper {
      * Gets then name of the autofill service for the default user.
      */
     public static String getAutofillServiceName() {
-        return SettingsUtils.get(AUTOFILL_SERVICE);
+        return sUserSettings.get(AUTOFILL_SERVICE);
     }
 
     /**
      * Asserts whether the given service is enabled as the autofill service for the default user.
      */
     public static void assertAutofillServiceStatus(@NonNull String serviceName, boolean enabled) {
-        final String actual = SettingsUtils.get(AUTOFILL_SERVICE);
+        final String actual = sUserSettings.get(AUTOFILL_SERVICE);
         final String expected = enabled ? serviceName : null;
         assertWithMessage("Invalid value for secure setting %s", AUTOFILL_SERVICE)
                 .that(actual).isEqualTo(expected);
@@ -1013,6 +1018,23 @@ public final class Helper {
         Log.d(TAG, "setDefaultAugmentedAutofillServiceEnabled(): " + enabled);
         runShellCommand("cmd autofill set default-augmented-service-enabled 0 %s",
                 Boolean.toString(enabled));
+    }
+
+    /**
+     * Sets the pcc detection service temporarily for 300 seconds.
+     */
+    public static void setAutofillDetectionService(String service) {
+        Log.d(TAG, "setAutofillDetectionService");
+        runShellCommand("cmd autofill set temporary-detection-service 0 %s 30000",
+                service);
+    }
+
+    /**
+     * Reset the pcc detection service
+     */
+    public static void resetAutofillDetectionService() {
+        Log.d(TAG, "resetAutofillDetectionService");
+        runShellCommand("cmd autofill set temporary-detection-service 0");
     }
 
     /**
@@ -1187,6 +1209,14 @@ public final class Helper {
             @Nullable String datasetId, int uiType) {
         assertFillEvent(event, TYPE_DATASET_SELECTED, datasetId, null, null, null);
         assertFillEventPresentationType(event, uiType);
+    }
+
+    /**
+     * Asserts that {@android.service.autofill.FillEventHistory.Event#TYPE_VIEW_REQUESTED_AUTOFILL}
+     * is present in the FillEventHistory
+     */
+    public static void assertFillEventForViewEntered(@NonNull FillEventHistory.Event event) {
+        assertFillEvent(event, TYPE_VIEW_REQUESTED_AUTOFILL, null, null, null, null);
     }
 
     /**
@@ -1685,6 +1715,31 @@ public final class Helper {
                 new DeviceConfigStateManager(context, DeviceConfig.NAMESPACE_AUTOFILL,
                         AutofillFeatureFlags.DEVICE_CONFIG_AUTOFILL_DIALOG_ENABLED);
         setDeviceConfig(deviceConfigStateManager, "true");
+    }
+
+    /**
+     * Enable PCC Detection Feature Hints
+     */
+    public static void enablePccDetectionFeature(@NonNull Context context, String...types) {
+        DeviceConfigStateManager deviceConfigStateManager =
+                new DeviceConfigStateManager(context, DeviceConfig.NAMESPACE_AUTOFILL,
+                        AutofillFeatureFlags.DEVICE_CONFIG_AUTOFILL_PCC_FEATURE_PROVIDER_HINTS);
+        setDeviceConfig(deviceConfigStateManager, TextUtils.join(",", types));
+
+        DeviceConfigStateManager deviceConfigStateManager2 =
+                new DeviceConfigStateManager(context, DeviceConfig.NAMESPACE_AUTOFILL,
+                        AutofillFeatureFlags.DEVICE_CONFIG_AUTOFILL_PCC_CLASSIFICATION_ENABLED);
+        setDeviceConfig(deviceConfigStateManager2, "true");
+    }
+
+    /**
+     * Disable PCC Detection Feature
+     */
+    public static void disablePccDetectionFeature(@NonNull Context context) {
+        DeviceConfigStateManager deviceConfigStateManager2 =
+                new DeviceConfigStateManager(context, DeviceConfig.NAMESPACE_AUTOFILL,
+                        AutofillFeatureFlags.DEVICE_CONFIG_AUTOFILL_PCC_CLASSIFICATION_ENABLED);
+        setDeviceConfig(deviceConfigStateManager2, "false");
     }
 
     /**

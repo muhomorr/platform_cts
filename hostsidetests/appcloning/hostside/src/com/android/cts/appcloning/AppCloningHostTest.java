@@ -18,6 +18,7 @@ package com.android.cts.appcloning;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
 import android.platform.test.annotations.AppModeFull;
@@ -50,6 +51,7 @@ public class AppCloningHostTest extends AppCloningBaseHostTest {
 
     private static final String IMAGE_NAME_TO_BE_CREATED_KEY = "imageNameToBeCreated";
     private static final String IMAGE_NAME_TO_BE_DISPLAYED_KEY = "imageNameToBeDisplayed";
+    private static final String PUBLIC_SD_CARD_VOLUME_KEY = "publicSdCardVol";
     private static final String EXTERNAL_STORAGE_PATH = "/storage/emulated/%d/";
     private static final String IMAGE_NAME_TO_BE_VERIFIED_IN_OWNER_PROFILE_KEY =
             "imageNameToBeVerifiedInOwnerProfile";
@@ -241,5 +243,48 @@ public class AppCloningHostTest extends AppCloningBaseHostTest {
         args.put(CLONE_USER_ID, sCloneUserId);
         runDeviceTestAsUserInPkgA("testStorageManager_verifyInclusionOfSharedProfileVolumes",
                 currentUserId, args);
+    }
+
+    @Test
+    public void testDeletionOfPrimaryApp_deleteAppWithParentPropertyTrue_deletesCloneApp()
+            throws Exception {
+        assumeTrue(isAtLeastU(sDevice));
+
+        int currentUserId = getCurrentUserId();
+
+        // Install the app in owner user space
+        installPackage(APP_A, "--user " + currentUserId);
+        eventually(() -> {
+            // Wait for finish.
+            assertThat(isPackageInstalled(APP_A_PACKAGE, String.valueOf(currentUserId))).isTrue();
+        }, CLONE_PROFILE_DIRECTORY_CREATION_TIMEOUT_MS);
+
+        // Install the app in clone user profile
+        installPackage(APP_A, "--user " + sCloneUserId);
+        eventually(() -> {
+            // Wait for finish.
+            assertThat(isPackageInstalled(APP_A_PACKAGE, sCloneUserId)).isTrue();
+        }, CLONE_PROFILE_DIRECTORY_CREATION_TIMEOUT_MS);
+
+        eventually(() -> {
+            uninstallPackage(APP_A_PACKAGE, currentUserId);
+        }, CLONE_PROFILE_DIRECTORY_CREATION_TIMEOUT_MS);
+
+        assertTrue(!getPackageInUser(APP_A_PACKAGE, Integer.parseInt(sCloneUserId))
+                .contains(APP_A_PACKAGE));
+    }
+
+    private String getPackageInUser(String pkgName, int userId) throws Exception {
+        String command = "pm list packages --user " + userId + " " + pkgName;
+        CommandResult result = executeShellV2Command(command);
+        assertTrue(isSuccessful(result));
+        return result.getStdout();
+    }
+
+    private String uninstallPackage(String pkgName, int userId) throws Exception {
+        String command = "pm uninstall --user " + userId + " " + pkgName;
+        CommandResult result = executeShellV2Command(command);
+        assertTrue(isSuccessful(result));
+        return result.getStdout();
     }
 }

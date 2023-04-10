@@ -62,6 +62,7 @@ import static org.testng.Assert.assertThrows;
 
 import android.annotation.NonNull;
 import android.app.Activity;
+import android.app.ActivityOptions;
 import android.app.ActivityThread;
 import android.app.Instrumentation;
 import android.app.PendingIntent;
@@ -379,8 +380,8 @@ public class PackageManagerTest {
         }
     }
 
-    @Test
-    public void testEnforceIntentToMatchIntentFilter() {
+    // Disable the test due to feature revert
+    private void testEnforceIntentToMatchIntentFilter() {
         Intent intent = new Intent();
         List<ResolveInfo> results;
 
@@ -600,6 +601,53 @@ public class PackageManagerTest {
         } catch (ActivityNotFoundException ignore) {
 
         }
+    }
+
+    @Test
+    public void testRevertEnforceIntentToMatchIntentFilter() {
+        Intent intent = new Intent();
+        List<ResolveInfo> results;
+        ComponentName comp;
+
+        /* Component explicit intent tests */
+
+        // Explicit intents with non-matching intent filter on target T+
+        intent.setAction(NON_EXISTENT_ACTION_NAME);
+        comp = new ComponentName(INTENT_RESOLUTION_TEST_PKG_NAME, ACTIVITY_NAME);
+        intent.setComponent(comp);
+        results = mPackageManager.queryIntentActivities(intent,
+                PackageManager.ResolveInfoFlags.of(0));
+        assertEquals(1, results.size());
+        comp = new ComponentName(INTENT_RESOLUTION_TEST_PKG_NAME, SERVICE_NAME);
+        intent.setComponent(comp);
+        results = mPackageManager.queryIntentServices(intent,
+                PackageManager.ResolveInfoFlags.of(0));
+        assertEquals(1, results.size());
+        comp = new ComponentName(INTENT_RESOLUTION_TEST_PKG_NAME, RECEIVER_NAME);
+        intent.setComponent(comp);
+        results = mPackageManager.queryBroadcastReceivers(intent,
+                PackageManager.ResolveInfoFlags.of(0));
+        assertEquals(1, results.size());
+
+        /* Intent selector tests */
+
+        Intent selector = new Intent();
+        selector.setPackage(INTENT_RESOLUTION_TEST_PKG_NAME);
+        intent = new Intent();
+        intent.setSelector(selector);
+
+        // Non-matching intent and matching selector
+        selector.setAction(SELECTOR_ACTION_NAME);
+        intent.setAction(NON_EXISTENT_ACTION_NAME);
+        results = mPackageManager.queryIntentActivities(intent,
+                PackageManager.ResolveInfoFlags.of(0));
+        assertEquals(1, results.size());
+        results = mPackageManager.queryIntentServices(intent,
+                PackageManager.ResolveInfoFlags.of(0));
+        assertEquals(1, results.size());
+        results = mPackageManager.queryBroadcastReceivers(intent,
+                PackageManager.ResolveInfoFlags.of(0));
+        assertEquals(1, results.size());
     }
 
     private boolean containsActivityInfoName(String expectedName, List<ResolveInfo> resolves) {
@@ -2057,8 +2105,7 @@ public class PackageManagerTest {
             assertThat(intentSender.getCreatorPackage()).isEqualTo(PACKAGE_NAME);
             assertThat(intentSender.getCreatorUid()).isEqualTo(mContext.getApplicationInfo().uid);
 
-            intentSender.sendIntent(mContext, 0 /* code */, null /* intent */,
-                    null /* onFinished */, null /* handler */);
+            sendIntent(intentSender);
             final Activity activity = monitor.waitForActivityWithTimeout(TIMEOUT_MS);
             assertThat(activity).isNotNull();
             activity.finish();
@@ -2083,8 +2130,7 @@ public class PackageManagerTest {
         assertThat(intentSender.getCreatorPackage()).isEqualTo(PACKAGE_NAME);
         assertThat(intentSender.getCreatorUid()).isEqualTo(mContext.getApplicationInfo().uid);
 
-        intentSender.sendIntent(mContext, 0 /* code */, null /* intent */,
-                null /* onFinished */, null /* handler */);
+        sendIntent(intentSender);
     }
 
     @Test(expected = IntentSender.SendIntentException.class)
@@ -2100,8 +2146,7 @@ public class PackageManagerTest {
         assertThat(intentSender.getCreatorPackage()).isEqualTo(PACKAGE_NAME);
         assertThat(intentSender.getCreatorUid()).isEqualTo(mContext.getApplicationInfo().uid);
 
-        intentSender.sendIntent(mContext, 0 /* code */, null /* intent */,
-                null /* onFinished */, null /* handler */);
+        sendIntent(intentSender);
     }
 
     @Test
@@ -2564,5 +2609,12 @@ public class PackageManagerTest {
         }, DELETE_PACKAGES);
 
         assertEquals(true, mPackageManager.canUserUninstall(PACKAGE_NAME, CURRENT));
+    }
+
+    private void sendIntent(IntentSender intentSender) throws IntentSender.SendIntentException {
+        intentSender.sendIntent(mContext, 0 /* code */, null /* intent */,
+                null /* onFinished */, null /* handler */, null /* requiredPermission */,
+                ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(
+                        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED).toBundle());
     }
 }

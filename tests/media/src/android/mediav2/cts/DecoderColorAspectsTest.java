@@ -64,10 +64,10 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
     private final SupportClass mSupportRequirements;
     private ArrayList<String> mCheckESList;
 
-    public DecoderColorAspectsTest(String decoderName, String mime, String testFile, int range,
+    public DecoderColorAspectsTest(String decoderName, String mediaType, String testFile, int range,
             int standard, int transferCurve, boolean canIgnoreColorBox,
             SupportClass supportRequirements, String allTestParams) {
-        super(decoderName, mime, MEDIA_DIR + testFile, allTestParams);
+        super(decoderName, mediaType, MEDIA_DIR + testFile, allTestParams);
         mColorRange = range;
         mColorStandard = standard;
         mColorTransferCurve = transferCurve;
@@ -82,7 +82,7 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
         mSupportRequirements = supportRequirements;
     }
 
-    @Parameterized.Parameters(name = "{index}({0}_{1}_{3}_{4}_{5})")
+    @Parameterized.Parameters(name = "{index}_{0}_{1}_{3}_{4}_{5}")
     public static Collection<Object[]> input() {
         final boolean isEncoder = false;
         final boolean needAudio = true;
@@ -262,7 +262,7 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
                         MediaFormat.COLOR_TRANSFER_HLG, true, CODEC_OPTIONAL},
                 {MediaFormat.MIMETYPE_VIDEO_AV1, "cosmat_352x288_hlg_av1.mkv",
                         MediaFormat.COLOR_RANGE_LIMITED, MediaFormat.COLOR_STANDARD_BT709,
-                        MediaFormat.COLOR_TRANSFER_HLG, true, CODEC_ALL},
+                        MediaFormat.COLOR_TRANSFER_HLG, true, CODEC_OPTIONAL},
         });
         return prepareParamList(exhaustiveArgsList, isEncoder, needAudio, needVideo, false);
     }
@@ -290,17 +290,17 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
         mExtractor.release();
         ArrayList<MediaFormat> formats = new ArrayList<>();
         formats.add(format);
-        if (doesAnyFormatHaveHDRProfile(mMime, formats)) {
+        if (doesAnyFormatHaveHDRProfile(mMediaType, formats)) {
             Assume.assumeTrue(canDisplaySupportHDRContent());
         }
-        checkFormatSupport(mCodecName, mMime, false, formats, null, mSupportRequirements);
+        checkFormatSupport(mCodecName, mMediaType, false, formats, null, mSupportRequirements);
 
         mActivity.setScreenParams(getWidth(format), getHeight(format), true);
         {
             validateColorAspects(mColorRange, mColorStandard, mColorTransferCurve, false);
             // If color metadata can also be signalled via elementary stream, then verify if the
             // elementary stream contains color aspects as expected
-            if (mCanIgnoreColorBox && mCheckESList.contains(mMime)) {
+            if (mCanIgnoreColorBox && mCheckESList.contains(mMediaType)) {
                 validateColorAspects(mColorRange, mColorStandard, mColorTransferCurve, true);
             }
         }

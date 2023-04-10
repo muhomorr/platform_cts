@@ -17,11 +17,10 @@
 package android.permission3.cts
 
 import android.Manifest.permission.ACCESS_COARSE_LOCATION
-import android.Manifest.permission.CAMERA
 import android.os.Build
 import android.provider.DeviceConfig
-import android.support.test.uiautomator.By
 import androidx.test.filters.SdkSuppress
+import androidx.test.uiautomator.By
 import com.android.compatibility.common.util.DeviceConfigStateChangerRule
 import com.android.modules.utils.build.SdkLevel
 import org.junit.Assume
@@ -38,15 +37,6 @@ class AppPermissionTest : BaseUsePermissionTest() {
       DeviceConfigStateChangerRule(
           context, DeviceConfig.NAMESPACE_PRIVACY, PERMISSION_RATIONALE_ENABLED, true.toString())
 
-  // TODO(b/257293222): Remove when hooking up PackageManager APIs
-  @get:Rule
-  val deviceConfigTestSafetyLabelDataEnabled =
-      DeviceConfigStateChangerRule(
-          context,
-          DeviceConfig.NAMESPACE_PRIVACY,
-          PRIVACY_PLACEHOLDER_SAFETY_LABEL_DATA_ENABLED,
-          true.toString())
-
   @Before
   fun setup() {
     Assume.assumeTrue("Permission rationale is only available on U+", SdkLevel.isAtLeastU())
@@ -56,74 +46,102 @@ class AppPermissionTest : BaseUsePermissionTest() {
   }
 
   @Test
-  fun showPermissionRationaleContainer_withInstallSource_whenPermissionRationaleEnabled() {
-    installPackageWithInstallSource()
+  fun showPermissionRationaleContainer_withInstallSourceAndMetadata() {
+    installPackageWithInstallSourceAndMetadata(APP_APK_NAME_31)
     navigateToIndividualPermissionSetting(ACCESS_COARSE_LOCATION)
 
-    assertPermissionRationaleOnAppPermissionIsVisible(true)
+    assertAppPermissionRationaleContainerIsVisible(true)
 
     clickPermissionRationaleContentInAppPermission()
-    assertPermissionRationaleDialogOnAppPermissionIsVisible(true)
+    assertPermissionRationaleDialogIsVisible(expected = true, showSettingsSection = false)
   }
 
   @Test
-  fun noShowPermissionRationaleContainer_withOutInstallSource_whenPermissionRationaleEnabled() {
-    installPackageWithoutInstallSource()
+  fun noShowPermissionRationaleContainer_withInstallSourceAndNoMetadata() {
+    installPackageWithInstallSourceAndNoMetadata(APP_APK_NAME_31)
     navigateToIndividualPermissionSetting(ACCESS_COARSE_LOCATION)
 
-    assertPermissionRationaleOnAppPermissionIsVisible(false)
+    assertAppPermissionRationaleContainerIsVisible(false)
   }
 
   @Test
-  fun noShowPermissionRationaleContainer_withoutLocationPermission_whenPermissionRationaleEnabled()
+  fun noShowPermissionRationaleContainer_withInstallSourceAndNullMetadata() {
+    installPackageWithInstallSourceAndNoMetadata(APP_APK_NAME_31)
+    navigateToIndividualPermissionSetting(ACCESS_COARSE_LOCATION)
+
+    assertAppPermissionRationaleContainerIsVisible(false)
+  }
+
+  @Test
+  fun noShowPermissionRationaleContainer_withInstallSourceAndEmptyMetadata() {
+    installPackageWithInstallSourceAndEmptyMetadata(APP_APK_NAME_31)
+    navigateToIndividualPermissionSetting(ACCESS_COARSE_LOCATION)
+
+    assertAppPermissionRationaleContainerIsVisible(false)
+  }
+
+  @Test
+  fun noShowPermissionRationaleContainer_withInstallSourceAndInvalidMetadata() {
+    installPackageWithInstallSourceAndInvalidMetadata(APP_APK_NAME_31)
+    navigateToIndividualPermissionSetting(ACCESS_COARSE_LOCATION)
+
+    assertAppPermissionRationaleContainerIsVisible(false)
+  }
+
+  @Test
+  fun noShowPermissionRationaleContainer_withInstallSourceAndMetadataWithoutTopLevelVersion() {
+    installPackageWithInstallSourceAndMetadataWithoutTopLevelVersion(APP_APK_NAME_31)
+    navigateToIndividualPermissionSetting(ACCESS_COARSE_LOCATION)
+
+    assertAppPermissionRationaleContainerIsVisible(false)
+  }
+
+  @Test
+  fun noShowPermissionRationaleContainer_withInstallSourceAndMetadataWithInvalidTopLevelVersion() {
+    installPackageWithInstallSourceAndMetadataWithInvalidTopLevelVersion(APP_APK_NAME_31)
+    navigateToIndividualPermissionSetting(ACCESS_COARSE_LOCATION)
+
+    assertAppPermissionRationaleContainerIsVisible(false)
+  }
+
+  @Test
+  fun noShowPermissionRationaleContainer_withInstallSourceAndMetadataWithoutSafetyLabelVersion() {
+    installPackageWithInstallSourceAndMetadataWithoutSafetyLabelVersion(APP_APK_NAME_31)
+    navigateToIndividualPermissionSetting(ACCESS_COARSE_LOCATION)
+
+    assertAppPermissionRationaleContainerIsVisible(false)
+  }
+
+  @Test
+  fun noShowPermissionRationaleContainer_withInstallSourceAndMetadataWithInvalidSafetyLabelVersion()
   {
-    installPackageWithInstallSource()
-    navigateToIndividualPermissionSetting(CAMERA)
+    installPackageWithInstallSourceAndMetadataWithInvalidSafetyLabelVersion(APP_APK_NAME_31)
+    navigateToIndividualPermissionSetting(ACCESS_COARSE_LOCATION)
 
-    assertPermissionRationaleOnAppPermissionIsVisible(false)
+    assertAppPermissionRationaleContainerIsVisible(false)
   }
 
   @Test
-  fun noShowPermissionRationaleContainer_whenSafetyLabelDataDisabled() {
-    setDeviceConfigPrivacyProperty(PRIVACY_PLACEHOLDER_SAFETY_LABEL_DATA_ENABLED, false.toString())
-    installPackageWithInstallSource()
+  fun noShowPermissionRationaleContainer_withOutInstallSource() {
+    installPackageWithoutInstallSource(APP_APK_PATH_31)
     navigateToIndividualPermissionSetting(ACCESS_COARSE_LOCATION)
 
-    assertPermissionRationaleOnAppPermissionIsVisible(false)
+    assertAppPermissionRationaleContainerIsVisible(false)
   }
 
   @Test
-  fun noShowPermissionRationaleContainer_whenPermissionRationaleDisabled() {
-    setDeviceConfigPrivacyProperty(PERMISSION_RATIONALE_ENABLED, false.toString())
-    installPackageWithInstallSource()
+  fun noShowPermissionRationaleContainer_withoutMetadata() {
+    installPackageWithInstallSourceAndNoMetadata(APP_APK_NAME_31)
     navigateToIndividualPermissionSetting(ACCESS_COARSE_LOCATION)
 
-    assertPermissionRationaleOnAppPermissionIsVisible(false)
+    assertAppPermissionRationaleContainerIsVisible(false)
   }
 
-  private fun installPackageWithInstallSource() {
-    // TODO(b/257293222): Update/remove when hooking up PackageManager APIs
-    installPackage(APP_APK_PATH_31, installSource = TEST_INSTALLER_PACKAGE_NAME)
-  }
-
-  private fun installPackageWithoutInstallSource() {
-    // TODO(b/257293222): Update/remove when hooking up PackageManager APIs
-    installPackage(APP_APK_PATH_31)
-  }
-
-  private fun assertPermissionRationaleOnAppPermissionIsVisible(expected: Boolean) {
-    findView(By.res(APP_PERMISSION_RATIONALE_CONTAINER_VIEW), expected = expected)
-  }
-
-  private fun assertPermissionRationaleDialogOnAppPermissionIsVisible(expected: Boolean) {
-    findView(By.res(PERMISSION_RATIONALE_ACTIVITY_TITLE_VIEW), expected = expected)
+  private fun assertAppPermissionRationaleContainerIsVisible(expected: Boolean) {
+    findView(By.res(APP_PERMISSION_RATIONALE_CONTAINER_VIEW), expected)
   }
 
   companion object {
-    // TODO(b/257293222): Remove when hooking up PackageManager APIs
-    private const val PRIVACY_PLACEHOLDER_SAFETY_LABEL_DATA_ENABLED =
-        "privacy_placeholder_safety_label_data_enabled"
-
     private const val PERMISSION_RATIONALE_ENABLED = "permission_rationale_enabled"
   }
 }

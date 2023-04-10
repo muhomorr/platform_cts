@@ -21,6 +21,7 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
+import android.speech.ModelDownloadListener;
 import android.speech.RecognitionListener;
 import android.speech.RecognitionSupportCallback;
 import android.speech.RecognizerIntent;
@@ -116,6 +117,20 @@ public class SpeechRecognitionActivity extends Activity {
 
     public void triggerModelDownload(Intent intent, int index) {
         mHandler.post(() -> mRecognizerInfos.get(index).mRecognizer.triggerModelDownload(intent));
+    }
+
+    public void triggerModelDownloadWithListenerDefault(
+            Intent intent, ModelDownloadListener listener) {
+        triggerModelDownloadWithListener(intent, listener, /* index */ 0);
+    }
+
+    public void triggerModelDownloadWithListener(
+            Intent intent, ModelDownloadListener listener, int index) {
+        mHandler.post(() -> mRecognizerInfos.get(index)
+                .mRecognizer.triggerModelDownload(
+                        intent,
+                        Executors.newSingleThreadExecutor(),
+                        listener));
     }
 
     public void initDefault(boolean onDevice, String customRecognizerComponent) {
@@ -234,6 +249,11 @@ public class SpeechRecognitionActivity extends Activity {
             @Override
             public void onEndOfSegmentedSession() {
                 mCallbackMethodsInvoked.add(CallbackMethod.CALLBACK_METHOD_END_SEGMENTED_SESSION);
+            }
+
+            @Override
+            public void onLanguageDetection(@NonNull Bundle results) {
+                mCallbackMethodsInvoked.add(CallbackMethod.CALLBACK_METHOD_LANGUAGE_DETECTION);
             }
 
             @Override

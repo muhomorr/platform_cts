@@ -18,7 +18,6 @@ package android.permission.cts;
 
 import static android.Manifest.permission.ACCESS_BACKGROUND_LOCATION;
 import static android.Manifest.permission.ACCESS_FINE_LOCATION;
-import static android.Manifest.permission.WRITE_DEVICE_CONFIG;
 import static android.app.AppOpsManager.OPSTR_FINE_LOCATION;
 import static android.app.AppOpsManager.OP_FLAGS_ALL_TRUSTED;
 import static android.content.Context.BIND_AUTO_CREATE;
@@ -41,6 +40,7 @@ import static org.junit.Assume.assumeTrue;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import android.app.ActivityManager;
+import android.app.ActivityOptions;
 import android.app.AppOpsManager;
 import android.app.PendingIntent;
 import android.app.UiAutomation;
@@ -76,6 +76,7 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.compatibility.common.util.DeviceConfigStateChangerRule;
 import com.android.compatibility.common.util.mainline.MainlineModule;
 import com.android.compatibility.common.util.mainline.ModuleDetector;
+import com.android.modules.utils.build.SdkLevel;
 
 import org.junit.After;
 import org.junit.AfterClass;
@@ -374,8 +375,9 @@ public class LocationAccessCheckTest {
      * @return The notification or {@code null} if there is none
      */
     private StatusBarNotification getNotification(boolean cancelNotification) throws Throwable {
-        return NotificationListenerUtils.getNotificationForPackageAndId(PERMISSION_CONTROLLER_PKG,
-                LOCATION_ACCESS_CHECK_NOTIFICATION_ID, cancelNotification);
+        return CtsNotificationListenerServiceUtils.getNotificationForPackageAndId(
+                PERMISSION_CONTROLLER_PKG, LOCATION_ACCESS_CHECK_NOTIFICATION_ID,
+                cancelNotification);
     }
 
     /**
@@ -388,11 +390,11 @@ public class LocationAccessCheckTest {
     }
 
     /**
-     * Register {@link NotificationListener}.
+     * Register {@link CtsNotificationListenerService}.
      */
     public static void allowNotificationAccess() {
         runShellCommand("cmd notification allow_listener " + (new ComponentName(sContext,
-                NotificationListener.class).flattenToString()));
+                CtsNotificationListenerService.class).flattenToString()));
     }
 
     public static void installBackgroundAccessApp() throws Exception {
@@ -435,7 +437,7 @@ public class LocationAccessCheckTest {
             if (!valueWasSet) {
                 throw new IllegalStateException("Could not set " + propertyName + " to " + value);
             }
-        }, WRITE_DEVICE_CONFIG);
+        });
     }
 
 
@@ -587,11 +589,11 @@ public class LocationAccessCheckTest {
     }
 
     /**
-     * Unregister {@link NotificationListener}.
+     * Unregister {@link CtsNotificationListenerService}.
      */
     public static void disallowNotificationAccess() {
         runShellCommand("cmd notification disallow_listener " + (new ComponentName(sContext,
-                NotificationListener.class)).flattenToString());
+                CtsNotificationListenerService.class)).flattenToString());
     }
 
     @After
@@ -820,7 +822,13 @@ public class LocationAccessCheckTest {
 
         // Verify content intent
         PendingIntent contentIntent = currentNotification.getNotification().contentIntent;
-        contentIntent.send();
+        if (SdkLevel.isAtLeastU()) {
+            contentIntent.send(null, 0, null, null, null, null,
+                    ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(
+                            ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED).toBundle());
+        } else {
+            contentIntent.send();
+        }
 
         SafetyCenterUtils.assertSafetyCenterStarted();
     }

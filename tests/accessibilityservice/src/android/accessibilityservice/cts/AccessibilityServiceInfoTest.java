@@ -16,12 +16,17 @@
 
 package android.accessibilityservice.cts;
 
+import static com.google.common.truth.Truth.assertWithMessage;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 
 import android.accessibility.cts.common.AccessibilityDumpOnFailureRule;
+import android.accessibility.cts.common.InstrumentedAccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.os.Parcel;
+import android.platform.test.annotations.AsbSecurityTest;
 import android.platform.test.annotations.Presubmit;
 import android.view.accessibility.AccessibilityEvent;
 
@@ -29,6 +34,9 @@ import androidx.test.filters.MediumTest;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.CddTest;
+import com.android.sts.common.util.StsExtraBusinessLogicTestCase;
+
+import com.google.common.base.Strings;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -40,7 +48,7 @@ import org.junit.runner.RunWith;
 @Presubmit
 @RunWith(AndroidJUnit4.class)
 @CddTest(requirements = {"3.10/C-1-1,C-1-2"})
-public class AccessibilityServiceInfoTest {
+public class AccessibilityServiceInfoTest extends StsExtraBusinessLogicTestCase {
 
     @Rule
     public final AccessibilityDumpOnFailureRule mDumpOnFailureRule =
@@ -132,6 +140,30 @@ public class AccessibilityServiceInfoTest {
         assertEquals("FLAG_REQUEST_SHORTCUT_WARNING_DIALOG_SPOKEN_FEEDBACK", AccessibilityServiceInfo.flagToString(
                 AccessibilityServiceInfo.FLAG_REQUEST_SHORTCUT_WARNING_DIALOG_SPOKEN_FEEDBACK));
 
+    }
+
+    @Test
+    @AsbSecurityTest(cveBugId = {261589597})
+    public void testSetServiceInfo_throwsForLargeServiceInfo() {
+        try {
+            final InstrumentedAccessibilityService service =
+                    InstrumentedAccessibilityService.enableService(
+                            InstrumentedAccessibilityService.class);
+            final AccessibilityServiceInfo info = service.getServiceInfo();
+            info.packageNames = new String[]{Strings.repeat("A", 1024 * 507)};
+
+            assertThrows(IllegalStateException.class, () -> service.setServiceInfo(info));
+        } finally {
+            InstrumentedAccessibilityService.disableAllServices();
+        }
+    }
+
+    @Test
+    public void testDefaultConstructor() throws Exception {
+        AccessibilityServiceInfo info = new AccessibilityServiceInfo();
+
+        assertWithMessage("info.getId()").that(info.getId()).isNull();
+        assertWithMessage("info.toString()").that(info.toString()).isNotNull();
     }
 
     /**

@@ -27,9 +27,9 @@ import android.media.Image;
 import android.media.MediaCodec;
 import android.media.MediaFormat;
 import android.mediav2.common.cts.BitStreamUtils;
+import android.mediav2.common.cts.CodecEncoderTestBase;
 import android.mediav2.common.cts.DecodeStreamToYuv;
 import android.mediav2.common.cts.EncoderConfigParams;
-import android.mediav2.common.cts.EncoderTestBase;
 import android.mediav2.common.cts.RawResource;
 import android.util.Log;
 
@@ -47,13 +47,14 @@ import java.util.TreeMap;
 /**
  * Wrapper class for handling and testing video encoder components.
  */
-public class VideoEncoderValidationTestBase extends EncoderTestBase {
+public class VideoEncoderValidationTestBase extends CodecEncoderTestBase {
     private static final String LOG_TAG = VideoEncoderValidationTestBase.class.getSimpleName();
     private static final String MEDIA_DIR = WorkDir.getMediaDirString();
 
     static final boolean ENABLE_LOGS = false;
 
     protected final CompressedResource mCRes;
+    protected BitStreamUtils.ParserBase mParser;
 
     final TreeMap<Long, Integer> mPtsPicTypeMap = new TreeMap<>();
 
@@ -81,10 +82,10 @@ public class VideoEncoderValidationTestBase extends EncoderTestBase {
         }
     }
 
-    protected static final CompressedResource BIRTHDAY_FULLHD_LANDSCAPE =
+    public static final CompressedResource BIRTHDAY_FULLHD_LANDSCAPE =
             new CompressedResource(MediaFormat.MIMETYPE_VIDEO_AVC, MEDIA_DIR
                     + "AVICON-MOBILE-BirthdayHalfway-SI17-CRUW03-L-420-8bit-SDR-1080p-30fps.mp4");
-    protected static final CompressedResource SELFIEGROUP_FULLHD_PORTRAIT =
+    public static final CompressedResource SELFIEGROUP_FULLHD_PORTRAIT =
             new CompressedResource(MediaFormat.MIMETYPE_VIDEO_AVC, MEDIA_DIR
                     + "AVICON-MOBILE-SelfieGroupGarden-SF15-CF01-P-420-8bit-SDR-1080p-30fps.mp4");
 
@@ -120,6 +121,11 @@ public class VideoEncoderValidationTestBase extends EncoderTestBase {
         mInputData = null;
         mFileReadOffset = 0L;
         mFileLength = mFileInp.length();
+    }
+
+    protected void resetContext(boolean isAsync, boolean signalEOSWithLastFrame) {
+        super.resetContext(isAsync, signalEOSWithLastFrame);
+        mPtsPicTypeMap.clear();
     }
 
     protected void enqueueInput(int bufferIndex) {
@@ -185,9 +191,9 @@ public class VideoEncoderValidationTestBase extends EncoderTestBase {
                 MediaFormat format = mCodec.getOutputFormat(bufferIndex);
                 picType = format.getInteger(MediaFormat.KEY_PICTURE_TYPE, PICTURE_TYPE_UNKNOWN);
             }
-            if (picType == PICTURE_TYPE_UNKNOWN) {
+            if (picType == PICTURE_TYPE_UNKNOWN && mParser != null) {
                 ByteBuffer buf = mCodec.getOutputBuffer(bufferIndex);
-                picType = BitStreamUtils.getFrameTypeFromBitStream(mMime, buf, info);
+                picType = BitStreamUtils.getFrameTypeFromBitStream(buf, info, mParser);
             }
             mPtsPicTypeMap.put(info.presentationTimeUs, picType);
         }

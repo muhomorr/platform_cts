@@ -20,6 +20,7 @@ import static android.media.AudioManager.MODE_IN_COMMUNICATION;
 
 import android.app.ActivityManager;
 import android.app.UiAutomation;
+import android.app.UiModeManager;
 import android.app.role.RoleManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -50,6 +51,9 @@ import android.telecom.cts.thirdptydialertwo.CtsThirdPtyDialerInCallServiceContr
 import android.telecom.cts.thirdptyincallservice.CtsThirdPartyInCallServiceControl;
 import android.telecom.cts.thirdptyincallservice.ICtsThirdPartyInCallServiceControl;
 import android.util.Log;
+
+import com.android.compatibility.common.util.ApiTest;
+import com.android.compatibility.common.util.CddTest;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -181,24 +185,24 @@ public class SelfManagedConnectionTest extends BaseTelecomTestWithMockServices {
 
     @Override
     protected void tearDown() throws Exception {
-        if (!mShouldTestTelecom) {
-            return;
+        if (mShouldTestTelecom) {
+            disableAndVerifyCarMode(mCarModeIncallServiceControlOne,
+                    Configuration.UI_MODE_TYPE_NORMAL);
+            disableAndVerifyCarMode(mCarModeIncallServiceControlTwo,
+                    Configuration.UI_MODE_TYPE_NORMAL);
+
+            disconnectAllCallsAndVerify(mCarModeIncallServiceControlOne);
+            disconnectAllCallsAndVerify(mCarModeIncallServiceControlTwo);
+
+            CtsSelfManagedConnectionService connectionService =
+                    CtsSelfManagedConnectionService.getConnectionService();
+            if (connectionService != null) {
+                connectionService.tearDown();
+                mTelecomManager.unregisterPhoneAccount(TestUtils.TEST_SELF_MANAGED_HANDLE_4);
+                assertTrue(setDefaultDialer(mDefaultDialer));
+            }
         }
         super.tearDown();
-
-        disableAndVerifyCarMode(mCarModeIncallServiceControlOne, Configuration.UI_MODE_TYPE_NORMAL);
-        disableAndVerifyCarMode(mCarModeIncallServiceControlTwo, Configuration.UI_MODE_TYPE_NORMAL);
-
-        disconnectAllCallsAndVerify(mCarModeIncallServiceControlOne);
-        disconnectAllCallsAndVerify(mCarModeIncallServiceControlTwo);
-
-        CtsSelfManagedConnectionService connectionService =
-                CtsSelfManagedConnectionService.getConnectionService();
-        if (connectionService != null) {
-            connectionService.tearDown();
-            mTelecomManager.unregisterPhoneAccount(TestUtils.TEST_SELF_MANAGED_HANDLE_4);
-            assertTrue(setDefaultDialer(mDefaultDialer));
-        }
     }
 
     /**
@@ -305,6 +309,8 @@ public class SelfManagedConnectionTest extends BaseTelecomTestWithMockServices {
      * Test {@link TelecomManager#getOwnSelfManagedPhoneAccounts} works on packages with only the
      * {@link android.Manifest.permission#MANAGE_OWN_CALLS} permission.
      */
+    @CddTest(requirements = "7.4.1.2/C-12-1,7.4.1.2/C-12-2")
+    @ApiTest(apis = {"android.telecom.TelecomManager#getOwnSelfManagedPhoneAccounts"})
     public void testTelecomManagerGetSelfManagedPhoneAccountsForPackage() throws Exception {
         if (!mShouldTestTelecom) {
             return;
@@ -350,6 +356,13 @@ public class SelfManagedConnectionTest extends BaseTelecomTestWithMockServices {
         assertTrue(serviceControl.placeIncomingCall(handle, address.toString(),
                 VideoProfile.STATE_BIDIRECTIONAL));
 
+        // Wait for Telecom to finish creating the new connection.
+        try {
+            TestUtils.waitOnAllHandlers(getInstrumentation());
+        } catch (Exception e) {
+            fail("Failed to wait on handlers");
+        }
+
         // Ensure Telecom bound to the self managed CS
         if (!serviceControl.waitForBinding()) {
             fail("Could not bind to Self-Managed ConnectionService");
@@ -360,6 +373,8 @@ public class SelfManagedConnectionTest extends BaseTelecomTestWithMockServices {
      * Test ensures that Incoming video call received with Audio only when
      * car mode with phone account only audio is supported.
      */
+    @CddTest(requirements = "7.4.1.2/C-12-1,7.4.1.2/C-12-2")
+    @ApiTest(apis = {"android.telecom.TelecomManager#addNewIncomingCall"})
     public void testIncomingVideoCallWithNoVideoSupportInCarMode() throws Exception {
         if (!mShouldTestTelecom) {
             return;
@@ -368,6 +383,15 @@ public class SelfManagedConnectionTest extends BaseTelecomTestWithMockServices {
         if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
             return;
         }
+
+        if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
+            UiModeManager uiModeManager = mContext.getSystemService(UiModeManager.class);
+            if (uiModeManager.isUiModeLocked()) {
+                Log.e(TAG, "testIncomingVideoCallWithNoVideoSupportInCarMode: UI mode Locked");
+                return;
+            }
+        }
+
 
         //bind to test app selfmanagedcstestappone
         TestServiceConnection csControl =
@@ -458,6 +482,14 @@ public class SelfManagedConnectionTest extends BaseTelecomTestWithMockServices {
 
         if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
             return;
+        }
+
+        if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
+            UiModeManager uiModeManager = mContext.getSystemService(UiModeManager.class);
+            if (uiModeManager.isUiModeLocked()) {
+                Log.e(TAG, "testSwapInCallServicesForSelfManagedCSCall: UI mode Locked");
+                return;
+            }
         }
 
         //Place self-managed CS second call

@@ -25,6 +25,7 @@ import static android.app.ActivityManager.STOP_USER_ON_SWITCH_TRUE;
 import static android.os.Build.VERSION.SDK_INT;
 import static android.os.Build.VERSION_CODES.S;
 import static android.os.Build.VERSION_CODES.S_V2;
+import static android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE;
 import static android.os.Process.myUserHandle;
 
 import static com.android.bedstead.nene.users.UserType.MANAGED_PROFILE_TYPE_NAME;
@@ -164,7 +165,9 @@ public final class Users {
         if (Versions.meetsMinimumSdkVersionRequirement(S)) {
             try (PermissionContext p =
                          TestApis.permissions().withPermission(INTERACT_ACROSS_USERS_FULL)) {
-                return find(ActivityManager.getCurrentUser());
+                int currentUserId = ActivityManager.getCurrentUser();
+                Log.d(LOG_TAG, "current(): finding " + currentUserId);
+                return find(currentUserId);
             }
         }
 
@@ -296,6 +299,20 @@ public final class Users {
         }
 
         return profiles.iterator().next();
+    }
+
+
+    /**
+     * Find all users which have the given {@link UserType} and the instrumented user as parent.
+     *
+     * <p>If there are no users of the given type and parent, {@code Null} will be returned.
+     *
+     * <p>If there is more than one user of the given type and parent, {@link NeneException} will
+     * be thrown.
+     */
+    @Nullable
+    public UserReference findProfileOfType(UserType userType) {
+        return findProfileOfType(userType, TestApis.users().instrumented());
     }
 
     private void ensureSupportedTypesCacheFilled() {
@@ -479,6 +496,26 @@ public final class Users {
     public boolean isHeadlessSystemUserMode() {
         if (Versions.meetsMinimumSdkVersionRequirement(S)) {
             return UserManager.isHeadlessSystemUserMode();
+        }
+
+        return false;
+    }
+
+    /** See {@link UserManager#isVisibleBackgroundUsersSupported()}. */
+    @SuppressWarnings("NewApi")
+    public boolean isVisibleBackgroundUsersSupported() {
+        if (Versions.meetsMinimumSdkVersionRequirement(UPSIDE_DOWN_CAKE)) {
+            return sUserManager.isVisibleBackgroundUsersSupported();
+        }
+
+        return false;
+    }
+
+    /** See {@link UserManager#isVisibleBackgroundUsersOnDefaultDisplaySupported()}. */
+    @SuppressWarnings("NewApi")
+    public boolean isVisibleBackgroundUsersOnDefaultDisplaySupported() {
+        if (Versions.meetsMinimumSdkVersionRequirement(UPSIDE_DOWN_CAKE)) {
+            return sUserManager.isVisibleBackgroundUsersOnDefaultDisplaySupported();
         }
 
         return false;

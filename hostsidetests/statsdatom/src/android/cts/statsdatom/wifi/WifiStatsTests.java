@@ -31,6 +31,7 @@ import com.android.os.StatsLog;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.testtype.DeviceTestCase;
 import com.android.tradefed.testtype.IBuildReceiver;
+import com.android.tradefed.util.RunUtil;
 
 import com.google.common.collect.Range;
 import com.google.protobuf.AbstractMessage;
@@ -60,7 +61,7 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
         ReportUtils.clearReports(getDevice());
         DeviceUtils.installStatsdTestApp(getDevice(), mCtsBuild);
         saveFeature("high_perf_lock_deprecated");
-        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
     }
 
     @Override
@@ -137,7 +138,25 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
         setFeature("high_perf_lock_deprecated", "true");
         ConfigUtils.uploadConfigForPushedAtomWithUid(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
                 AtomsProto.Atom.WIFI_LOCK_STATE_CHANGED_FIELD_NUMBER, true);
-        DeviceUtils.runDeviceTestsOnStatsdApp(getDevice(), ".AtomTests", "testWifiLockHighPerf");
+
+        // High perf lock is deprecated from Android U onwards. Acquisition of  High perf lock will
+        // be treated as a call to Low Latency Lock.
+        //
+        // For low latency lock to be active following conditions need to be met,
+        //    - Wi-Fi is connected
+        //    - Screen On
+        //    - Application is foreground.
+
+        // Check Wi-Fi is connected.
+        DeviceUtils.runDeviceTestsOnStatsdApp(getDevice(), ".AtomTests", "testWifiConnected");
+
+        // Turn screen on.
+        DeviceUtils.turnScreenOn(getDevice());
+
+        // Acquire and release highperf lock in foreground activity.
+        DeviceUtils.runActivity(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
+                "StatsdCtsForegroundActivity", "action", "action.acquire_release_wifi_hiperf_lock");
+        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_SHORT);
 
         // Sorted list of events in order in which they occurred.
         List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
@@ -172,7 +191,22 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
 
         ConfigUtils.uploadConfigForPushedAtomWithUid(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
                 AtomsProto.Atom.WIFI_LOCK_STATE_CHANGED_FIELD_NUMBER, true);
-        DeviceUtils.runDeviceTestsOnStatsdApp(getDevice(), ".AtomTests", "testWifiLockLowLatency");
+
+        // For low latency lock to be active following conditions need to be met,
+        //    - Wi-Fi is connected
+        //    - Screen On
+        //    - Application is foreground.
+
+        // Check Wi-Fi is connected.
+        DeviceUtils.runDeviceTestsOnStatsdApp(getDevice(), ".AtomTests", "testWifiConnected");
+
+        // Turn screen on.
+        DeviceUtils.turnScreenOn(getDevice());
+
+        // Acquire and release low latency lock in foreground activity.
+        DeviceUtils.runActivity(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
+                "StatsdCtsForegroundActivity", "action", "action.acquire_release_wifi_ll_lock");
+        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_SHORT);
 
         // Sorted list of events in order in which they occurred.
         List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
@@ -239,7 +273,7 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
         // This test on device checks if device is connected, and connects it if it is not;
         // Afterwards, it disconnects from that network and connects back to it.
         DeviceUtils.runDeviceTestsOnStatsdApp(getDevice(), ".AtomTests", "testWifiReconnect");
-        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_LONG);
 
         List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
 
@@ -279,7 +313,7 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
         ConfigUtils.uploadConfigForPushedAtom(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
                 AtomsProto.Atom.WIFI_SCAN_REPORTED_FIELD_NUMBER);
         DeviceUtils.runDeviceTestsOnStatsdApp(getDevice(), ".AtomTests", "testWifiScan");
-        Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
+        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_SHORT);
 
         List<StatsLog.EventMetricData> metricData = ReportUtils.getEventMetricDataList(getDevice());
         List<AtomsProto.WifiScanReported> wifiScanAtoms = metricData.stream()
@@ -301,8 +335,11 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
             assertThat(scan.getResult()).isEqualTo(
                     AtomsProto.WifiScanReported.Result.RESULT_SUCCESS);
             assertThat(scan.getType()).isEqualTo(AtomsProto.WifiScanReported.Type.TYPE_SINGLE);
-            assertThat(scan.getImportance()).isEqualTo(
-                    AtomsProto.WifiScanReported.Importance.IMPORTANCE_FOREGROUND_SERVICE);
+            List<AtomsProto.WifiScanReported.Importance> expectedResult =
+                    Arrays.asList(
+                            AtomsProto.WifiScanReported.Importance.IMPORTANCE_FOREGROUND_SERVICE,
+                            AtomsProto.WifiScanReported.Importance.IMPORTANCE_FOREGROUND);
+            assertThat(scan.getImportance()).isIn(expectedResult);
             assertThat(scan.getScanDurationMillis()).isGreaterThan(0);
         }
     }
@@ -314,7 +351,7 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
         ConfigUtils.uploadConfigForPushedAtomWithUid(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
                 AtomsProto.Atom.WIFI_SCAN_STATE_CHANGED_FIELD_NUMBER, true);
         DeviceUtils.runDeviceTestsOnStatsdApp(getDevice(), ".AtomTests", "testWifiScan");
-        Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
+        RunUtil.getDefault().sleep(AtomTestUtils.WAIT_TIME_SHORT);
 
         final int stateOn = AtomsProto.WifiScanStateChanged.State.ON_VALUE;
         final int stateOff = AtomsProto.WifiScanStateChanged.State.OFF_VALUE;

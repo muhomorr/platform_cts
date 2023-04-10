@@ -40,6 +40,7 @@ import static android.appenumeration.cts.Constants.ACTION_JUST_FINISH;
 import static android.appenumeration.cts.Constants.ACTION_MANIFEST_ACTIVITY;
 import static android.appenumeration.cts.Constants.ACTION_MANIFEST_PROVIDER;
 import static android.appenumeration.cts.Constants.ACTION_MANIFEST_SERVICE;
+import static android.appenumeration.cts.Constants.ACTION_MANIFEST_UNEXPORTED_ACTIVITY;
 import static android.appenumeration.cts.Constants.ACTION_PENDING_INTENT_GET_ACTIVITY;
 import static android.appenumeration.cts.Constants.ACTION_PENDING_INTENT_GET_CREATOR_PACKAGE;
 import static android.appenumeration.cts.Constants.ACTION_QUERY_ACTIVITIES;
@@ -54,6 +55,7 @@ import static android.appenumeration.cts.Constants.ACTION_START_FOR_RESULT;
 import static android.appenumeration.cts.Constants.ACTION_TAKE_PERSISTABLE_URI_PERMISSION;
 import static android.appenumeration.cts.Constants.ACTIVITY_CLASS_DUMMY_ACTIVITY;
 import static android.appenumeration.cts.Constants.ACTIVITY_CLASS_NOT_EXPORTED;
+import static android.appenumeration.cts.Constants.ACTIVITY_CLASS_PERMISSION_PROTECTED;
 import static android.appenumeration.cts.Constants.ACTIVITY_CLASS_TEST;
 import static android.appenumeration.cts.Constants.AUTHORITY_SUFFIX;
 import static android.appenumeration.cts.Constants.EXTRA_AUTHORITY;
@@ -291,6 +293,26 @@ public class AppEnumerationTests extends AppEnumerationTestsBase {
     }
 
     @Test
+    public void startExplicitly_activityPermissionProtected_canSeeTarget() {
+        ensurePackageIsInstalled(TARGET_STUB, TARGET_STUB_APK);
+        Assert.assertThrows(SecurityException.class,
+                () -> startExplicitPermissionProtectedIntentViaComponent(
+                        QUERIES_ACTIVITY_ACTION, TARGET_STUB));
+        Assert.assertThrows(SecurityException.class,
+                () -> startExplicitIntentViaPackageName(QUERIES_ACTIVITY_ACTION, TARGET_STUB));
+    }
+
+    @Test
+    public void startExplicitly_activityPermissionProtected_cannotSeeTarget() {
+        ensurePackageIsInstalled(TARGET_STUB, TARGET_STUB_APK);
+        Assert.assertThrows(ActivityNotFoundException.class,
+                () -> startExplicitPermissionProtectedIntentViaComponent(
+                        QUERIES_NOTHING, TARGET_STUB));
+        Assert.assertThrows(ActivityNotFoundException.class,
+                () -> startExplicitIntentViaPackageName(QUERIES_NOTHING, TARGET_STUB));
+    }
+
+    @Test
     public void startImplicitly_canStartNonVisible() throws Exception {
         assertNotVisible(QUERIES_NOTHING, TARGET_FILTERS);
         startImplicitIntent(QUERIES_NOTHING);
@@ -325,15 +347,21 @@ public class AppEnumerationTests extends AppEnumerationTestsBase {
         assertNotVisible(QUERIES_NOTHING_RECEIVES_PERM_URI, QUERIES_NOTHING_PERM);
 
         // send with uri but no grant flags; shouldn't be visible
+        // Setting a dummy type to mitigate test failure. Bug: b/273465805
         startExplicitActivityWithIntent(QUERIES_NOTHING_PERM, QUERIES_NOTHING_RECEIVES_PERM_URI,
                 new Intent(ACTION_JUST_FINISH)
-                        .setData(Uri.parse("content://" + QUERIES_NOTHING_PERM + "2/test")));
+                        .setDataAndType(
+                                Uri.parse("content://" + QUERIES_NOTHING_PERM + "2/test"),
+                                "null"));
+
         assertNotVisible(QUERIES_NOTHING_RECEIVES_PERM_URI, QUERIES_NOTHING_PERM);
 
         // send again with uri bug grant flags now set; should be visible
         startExplicitActivityWithIntent(QUERIES_NOTHING_PERM, QUERIES_NOTHING_RECEIVES_PERM_URI,
                 new Intent(ACTION_JUST_FINISH)
-                        .setData(Uri.parse("content://" + QUERIES_NOTHING_PERM + "2/test"))
+                        .setDataAndType(
+                                Uri.parse("content://" + QUERIES_NOTHING_PERM + "2/test"),
+                                "null")
                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
         assertVisible(QUERIES_NOTHING_RECEIVES_PERM_URI, QUERIES_NOTHING_PERM);
     }
@@ -343,10 +371,13 @@ public class AppEnumerationTests extends AppEnumerationTestsBase {
         assertNotVisible(QUERIES_NOTHING_RECEIVES_NON_PERSISTABLE_URI, QUERIES_NOTHING_PERM);
 
         // send with uri grant flags; should be visible
+        // Setting a dummy type to mitigate test failure. Bug: b/273465805
         startExplicitActivityWithIntent(QUERIES_NOTHING_PERM,
                 QUERIES_NOTHING_RECEIVES_NON_PERSISTABLE_URI,
                 new Intent(ACTION_JUST_FINISH)
-                        .setData(Uri.parse("content://" + QUERIES_NOTHING_PERM + "3/test"))
+                        .setDataAndType(
+                                Uri.parse("content://" + QUERIES_NOTHING_PERM + "3/test"),
+                                "null")
                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
         assertVisible(QUERIES_NOTHING_RECEIVES_NON_PERSISTABLE_URI, QUERIES_NOTHING_PERM);
 
@@ -365,10 +396,13 @@ public class AppEnumerationTests extends AppEnumerationTestsBase {
         assertNotVisible(QUERIES_NOTHING_RECEIVES_PERSISTABLE_URI, QUERIES_NOTHING_PERM);
 
         // send with persistable uri grant flags; should be visible
+        // Setting a dummy type to mitigate test failure. Bug: b/273465805
         startExplicitActivityWithIntent(QUERIES_NOTHING_PERM,
                 QUERIES_NOTHING_RECEIVES_PERSISTABLE_URI,
                 new Intent(ACTION_TAKE_PERSISTABLE_URI_PERMISSION)
-                        .setData(Uri.parse("content://" + QUERIES_NOTHING_PERM + "3/test"))
+                        .setDataAndType(
+                                Uri.parse("content://" + QUERIES_NOTHING_PERM + "3/test"),
+                                "null")
                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
                                 | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION));
         assertVisible(QUERIES_NOTHING_RECEIVES_PERSISTABLE_URI, QUERIES_NOTHING_PERM);
@@ -793,7 +827,7 @@ public class AppEnumerationTests extends AppEnumerationTestsBase {
             Assert.assertEquals(TARGET_FILTERS,
                     Uri.parse(result.await().getString(EXTRA_DATA)).getSchemeSpecificPart());
         } catch (MissingBroadcastException e) {
-            fail();
+            fail(e.getMessage());
         }
     }
 
@@ -821,7 +855,7 @@ public class AppEnumerationTests extends AppEnumerationTestsBase {
             Assert.assertEquals(TARGET_FILTERS,
                     Uri.parse(result.await().getString(EXTRA_DATA)).getSchemeSpecificPart());
         } catch (MissingBroadcastException e) {
-            fail();
+            fail(e.getMessage());
         }
     }
 
@@ -1525,21 +1559,29 @@ public class AppEnumerationTests extends AppEnumerationTestsBase {
     private void startExplicitIntentViaComponent(String sourcePackage, String targetPackage)
             throws Exception {
         sendCommandBlocking(sourcePackage, targetPackage,
-                new Intent().setComponent(new ComponentName(targetPackage,
-                        ACTIVITY_CLASS_DUMMY_ACTIVITY)),
+                new Intent(ACTION_MANIFEST_ACTIVITY)
+                        .setClassName(targetPackage, ACTIVITY_CLASS_DUMMY_ACTIVITY),
                 ACTION_START_DIRECTLY);
     }
     private void startExplicitIntentNotExportedViaComponent(
             String sourcePackage, String targetPackage) throws Exception {
         sendCommandBlocking(sourcePackage, targetPackage,
-                new Intent().setComponent(new ComponentName(targetPackage,
-                        ACTIVITY_CLASS_NOT_EXPORTED)),
+                new Intent(ACTION_MANIFEST_UNEXPORTED_ACTIVITY)
+                        .setClassName(targetPackage, ACTIVITY_CLASS_NOT_EXPORTED),
                 ACTION_START_DIRECTLY);
     }
     private void startExplicitIntentViaPackageName(String sourcePackage, String targetPackage)
             throws Exception {
         sendCommandBlocking(sourcePackage, targetPackage,
-                new Intent().setPackage(targetPackage),
+                new Intent(ACTION_MANIFEST_ACTIVITY).setPackage(targetPackage),
+                ACTION_START_DIRECTLY);
+    }
+
+    private void startExplicitPermissionProtectedIntentViaComponent(
+            String sourcePackage, String targetPackage) throws Exception {
+        sendCommandBlocking(sourcePackage, targetPackage,
+                new Intent(ACTION_MANIFEST_ACTIVITY)
+                        .setClassName(targetPackage, ACTIVITY_CLASS_PERMISSION_PROTECTED),
                 ACTION_START_DIRECTLY);
     }
 

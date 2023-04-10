@@ -17,6 +17,7 @@
 package android.view.inputmethod.cts;
 
 import static android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE;
+import static android.view.inputmethod.InputConnection.HANDWRITING_GESTURE_RESULT_SUCCESS;
 
 import static com.android.cts.mocka11yime.MockA11yImeEventStreamUtils.editorMatcherForA11yIme;
 import static com.android.cts.mocka11yime.MockA11yImeEventStreamUtils.expectA11yImeCommand;
@@ -33,6 +34,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -73,6 +75,8 @@ import android.view.inputmethod.SelectGesture;
 import android.view.inputmethod.SelectRangeGesture;
 import android.view.inputmethod.SurroundingText;
 import android.view.inputmethod.TextAttribute;
+import android.view.inputmethod.TextBoundsInfo;
+import android.view.inputmethod.TextBoundsInfoResult;
 import android.view.inputmethod.TextSnapshot;
 import android.view.inputmethod.cts.util.EndToEndImeTestBase;
 import android.view.inputmethod.cts.util.MockTestActivityUtil;
@@ -100,7 +104,9 @@ import com.android.cts.mockime.MockImeSession;
 
 import com.google.common.truth.Correspondence;
 
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ErrorCollector;
 import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
@@ -139,6 +145,9 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
     private static String getTestMarker() {
         return TEST_MARKER_PREFIX + "/"  + SystemClock.elapsedRealtimeNanos();
     }
+
+    @Rule
+    public final ErrorCollector mErrorCollector = new ErrorCollector();
 
     /**
      * A utility method to verify a method is called within a certain timeout period then block
@@ -1112,6 +1121,71 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
         });
     }
 
+    @Test
+    @ApiTest(apis = {"android.view.inputmethod.InputConnection#requestTextBoundsInfo"})
+    public void testRequestTextBoundsInfo() throws Exception {
+        final var methodCallVerifier = new MethodCallVerifier();
+        final var tbiResult = new TextBoundsInfoResult(TextBoundsInfoResult.CODE_FAILED, null);
+
+        final class Wrapper extends InputConnectionWrapper {
+            private Wrapper(InputConnection target) {
+                super(target, false);
+            }
+
+            @Override
+            public void requestTextBoundsInfo(RectF rectF, Executor executor,
+                    Consumer<TextBoundsInfoResult> consumer) {
+                mErrorCollector.checkSucceeds(() -> {
+                    methodCallVerifier.onMethodCalled(args -> {
+                        args.putParcelable("rectF", rectF);
+                    });
+
+                    var called = new boolean[1];
+                    executor.execute(() -> {
+                        called[0] = true;
+                        consumer.accept(tbiResult);
+                    });
+                    assertTrue("editor-side executor must be Runnable::run", called[0]);
+                    return null;
+                });
+            }
+        }
+
+        testInputConnection(Wrapper::new, (MockImeSession session, ImeEventStream stream) -> {
+            final RectF rectF = new RectF(1f, 2f, 3f, 4f);
+            final ImeCommand command = session.callRequestTextBoundsInfo(rectF);
+            methodCallVerifier.expectCalledOnce(args -> {
+                assertEquals(rectF, args.getParcelable("rectF", RectF.class));
+            }, TIMEOUT);
+            expectCommand(stream, command, TIMEOUT);
+            var event = expectEvent(stream, onRequestTextBoundsInfoResultMatcher(command.getId()),
+                    TIMEOUT);
+            var actualResultCode = event.getArguments().getInt("resultCode");
+            var actualBoundsInfo = event.getArguments().getParcelable("boundsInfo",
+                    TextBoundsInfo.class);
+
+            assertEquals(TextBoundsInfoResult.CODE_FAILED, actualResultCode);
+            assertNull(actualBoundsInfo);
+        });
+    }
+
+    @Test
+    public void testRequestTextBoundsInfo_unimplemented() throws Exception {
+        testMinimallyImplementedInputConnection((session, stream) -> {
+            final RectF rectF = new RectF(1f, 2f, 3f, 4f);
+            final ImeCommand command = session.callRequestTextBoundsInfo(rectF);
+            expectCommand(stream, command, TIMEOUT);
+            var event = expectEvent(stream, onRequestTextBoundsInfoResultMatcher(command.getId()),
+                    TIMEOUT);
+            var actualResultCode = event.getArguments().getInt("resultCode");
+            var actualBoundsInfo = event.getArguments().getParcelable("boundsInfo",
+                    TextBoundsInfo.class);
+
+            assertEquals(TextBoundsInfoResult.CODE_UNSUPPORTED, actualResultCode);
+            assertNull(actualBoundsInfo);
+        });
+    }
+
     /**
      * Test {@link InputConnection#getSurroundingText(int, int, int)} works as expected.
      */
@@ -1556,7 +1630,7 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
                 builder.setGranularity(HandwritingGesture.GRANULARITY_WORD)
                 .setSelectionArea(new RectF(1, 2, 3, 4))
                         .setFallbackText("").build(),
-                InputConnection.HANDWRITING_GESTURE_RESULT_SUCCESS);
+                HANDWRITING_GESTURE_RESULT_SUCCESS);
     }
 
     /**
@@ -1576,7 +1650,7 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
                         .setSelectionStartArea(new RectF(1, 2, 3, 4))
                         .setSelectionEndArea(new RectF(5, 6, 7, 8))
                         .setFallbackText("").build(),
-                InputConnection.HANDWRITING_GESTURE_RESULT_SUCCESS);
+                HANDWRITING_GESTURE_RESULT_SUCCESS);
     }
 
     /**
@@ -1613,7 +1687,7 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
         InsertGesture.Builder builder = new InsertGesture.Builder();
         testPerformHandwritingGesture(builder.setTextToInsert("text")
                         .setInsertionPoint(new PointF(1, 1)).setFallbackText("").build(),
-                InputConnection.HANDWRITING_GESTURE_RESULT_SUCCESS);
+                HANDWRITING_GESTURE_RESULT_SUCCESS);
     }
 
     /**
@@ -1630,7 +1704,7 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
         InsertGesture.Builder builder = new InsertGesture.Builder();
         testPerformHandwritingGesture(builder.setTextToInsert("")
                         .setInsertionPoint(new PointF(1, 1)).setFallbackText("").build(),
-                InputConnection.HANDWRITING_GESTURE_RESULT_SUCCESS);
+                HANDWRITING_GESTURE_RESULT_SUCCESS);
     }
 
     /**
@@ -1645,9 +1719,24 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
             "android.view.inputmethod.InputConnection#performHandwritingGesture"})
     public void testPerformHandwritingInsertModeGesture() throws Exception {
         InsertModeGesture.Builder builder = new InsertModeGesture.Builder();
-        testPerformHandwritingGesture(builder.setCancellationSignal(new CancellationSignal())
+        testPerformHandwritingGesture(builder
+                        .setCancellationSignal(new CancellationSignal())
                         .setInsertionPoint(new PointF(1, 1)).setFallbackText("").build(),
-                InputConnection.HANDWRITING_GESTURE_RESULT_SUCCESS);
+                HANDWRITING_GESTURE_RESULT_SUCCESS);
+    }
+
+    @Test
+    @ApiTest(apis = {"android.view.inputmethod.InsertModeGesture.Builder#setInsertionPoint",
+            "android.view.inputmethod.InsertGesture.Builder#setFallbackText",
+            "android.view.inputmethod.InsertGesture.Builder#setCancellationSignal",
+            "android.view.inputmethod.InputConnection#performHandwritingGesture"})
+    public void testPerformHandwritingInsertModeGesture_ongoingGestureCancellation()
+            throws Exception {
+        InsertModeGesture.Builder builder = new InsertModeGesture.Builder();
+        testInsertModeGestureOngoingCancellation(
+                builder.setCancellationSignal(new CancellationSignal())
+                        .setInsertionPoint(new PointF(1, 1))
+                        .setFallbackText("").build());
     }
 
     /**
@@ -1666,9 +1755,8 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
                 builder.setGranularity(HandwritingGesture.GRANULARITY_WORD)
                         .setDeletionArea(new RectF(1, 2, 3, 4))
                         .setFallbackText("").build(),
-                InputConnection.HANDWRITING_GESTURE_RESULT_SUCCESS);
+                HANDWRITING_GESTURE_RESULT_SUCCESS);
     }
-
 
     /**
      * Test
@@ -1687,7 +1775,7 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
                         .setDeletionStartArea(new RectF(1, 2, 3, 4))
                         .setDeletionEndArea(new RectF(5, 6, 7, 8))
                         .setFallbackText("").build(),
-                InputConnection.HANDWRITING_GESTURE_RESULT_SUCCESS);
+                HANDWRITING_GESTURE_RESULT_SUCCESS);
     }
 
     /**
@@ -1704,7 +1792,7 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
                         .setPoints(new PointF(1f, 2f), new PointF(3f, 4f))
                         .setFallbackText("")
                         .build(),
-                InputConnection.HANDWRITING_GESTURE_RESULT_SUCCESS);
+                HANDWRITING_GESTURE_RESULT_SUCCESS);
     }
 
     /**
@@ -1721,7 +1809,7 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
                         .setJoinOrSplitPoint(new PointF(1f, 2f))
                         .setFallbackText("")
                         .build(),
-                InputConnection.HANDWRITING_GESTURE_RESULT_SUCCESS);
+                HANDWRITING_GESTURE_RESULT_SUCCESS);
     }
 
     private <T extends HandwritingGesture> void testPerformHandwritingGesture(
@@ -1752,8 +1840,8 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
         }
 
         testInputConnection(Wrapper::new, (MockImeSession session, ImeEventStream stream) -> {
-            ImeCommand command = session.callPerformHandwritingGesture(gesture);
-
+            ImeCommand command = session.callPerformHandwritingGesture(
+                    gesture, false /* useDelayedCancellation */);
             expectCommand(stream, command, TIMEOUT);
             methodCallVerifier.assertCalledOnce(args -> {
                 byte[] bytes = args.getByteArray("gesture");
@@ -1772,10 +1860,59 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
         });
     }
 
+    private void testInsertModeGestureOngoingCancellation(
+            InsertModeGesture gesture1) throws Exception {
+        final MethodCallVerifier methodCallVerifier = new MethodCallVerifier();
+        final CountDownLatch latch = new CountDownLatch(1);
+        final int resultCode = HANDWRITING_GESTURE_RESULT_SUCCESS;
+        final class Wrapper extends InputConnectionWrapper {
+            private Wrapper(InputConnection target) {
+                super(target, false);
+            }
+
+            @Override
+            public void performHandwritingGesture(
+                    HandwritingGesture gesture, Executor executor, IntConsumer consumer) {
+                CancellationSignal cs = ((InsertModeGesture) gesture).getCancellationSignal();
+                assertNotNull(cs);
+
+                methodCallVerifier.onMethodCalled(args -> {});
+                cs.setOnCancelListener(() -> latch.countDown());
+                consumer.accept(resultCode);
+            }
+        }
+        testInputConnection(Wrapper::new, (MockImeSession session, ImeEventStream stream) -> {
+            ImeCommand command = session.callPerformHandwritingGesture(
+                    gesture1, true /* useDelayedCancellation */);
+
+            expectCommand(stream, command, TIMEOUT);
+            methodCallVerifier.assertCalledOnce(args -> {});
+
+            long requestId = command.getId();
+            ImeEvent callbackEvent = expectEvent(
+                    stream, onPerformHandwritingGestureResultMatcher(requestId), TIMEOUT);
+            assertEquals(resultCode, callbackEvent.getArguments().getInt("result"));
+        });
+
+        latch.await(3, TimeUnit.SECONDS);
+        assertEquals(0, latch.getCount());
+
+    }
+
     private static Predicate<ImeEvent> onPerformHandwritingGestureResultMatcher(
             long requestId) {
         return withDescription("onPerformHandwritingGestureResult(" + requestId + ")", event -> {
             if (!TextUtils.equals("onPerformHandwritingGestureResult", event.getEventName())) {
+                return false;
+            }
+            return event.getArguments().getLong("requestId") == requestId;
+        });
+    }
+
+    private static Predicate<ImeEvent> onRequestTextBoundsInfoResultMatcher(
+            long requestId) {
+        return withDescription("onRequestTextBoundsInfoResult(" + requestId + ")", event -> {
+            if (!TextUtils.equals("onRequestTextBoundsInfoResult", event.getEventName())) {
                 return false;
             }
             return event.getArguments().getLong("requestId") == requestId;
@@ -1795,6 +1932,20 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
     public void testPreviewHandwritingSelectGesture() throws Exception {
         SelectGesture.Builder builder = new SelectGesture.Builder();
         testPreviewHandwritingGesture(
+                builder.setGranularity(HandwritingGesture.GRANULARITY_WORD)
+                        .setSelectionArea(new RectF(1, 2, 3, 4))
+                        .build());
+    }
+
+    @Test
+    @ApiTest(apis = {"android.view.inputmethod.SelectGesture.Builder#setGranularity",
+            "android.view.inputmethod.SelectGesture.Builder#setSelectionArea",
+            "android.view.inputmethod.SelectGesture.Builder#setGranularity",
+            "android.view.inputmethod.InputConnection#previewHandwritingGesture"})
+    public void testPreviewHandwritingSelectGesture_ongoingGestureCancellation()
+            throws Exception {
+        SelectGesture.Builder builder = new SelectGesture.Builder();
+        testPreviewHandwritingGestureOngoingCancellation(
                 builder.setGranularity(HandwritingGesture.GRANULARITY_WORD)
                         .setSelectionArea(new RectF(1, 2, 3, 4))
                         .build());
@@ -1823,13 +1974,49 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
 
         testInputConnection(Wrapper::new, (MockImeSession session, ImeEventStream stream) -> {
             ImeCommand command =
-                    session.callPreviewHandwritingGesture(gesture);
+                    session.callPreviewHandwritingGesture(
+                            gesture, false /* useDelayedCancellation */);
 
             expectCommand(stream, command, TIMEOUT);
             methodCallVerifier.assertCalledOnce(
                     args -> assertEquals(gesture,
                             HandwritingGesture.fromByteArray(args.getByteArray("gesture"))));
         });
+    }
+
+    private <T extends PreviewableHandwritingGesture> void
+            testPreviewHandwritingGestureOngoingCancellation(T gesture) throws Exception {
+        final MethodCallVerifier methodCallVerifier = new MethodCallVerifier();
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        final class Wrapper extends InputConnectionWrapper {
+            private Wrapper(InputConnection target) {
+                super(target, false);
+            }
+
+            @Override
+            public boolean previewHandwritingGesture(
+                    PreviewableHandwritingGesture gesture, CancellationSignal cancellationSignal) {
+                assertNotNull(gesture);
+                assertNotNull(cancellationSignal);
+                methodCallVerifier.onMethodCalled(args ->{});
+                cancellationSignal.setOnCancelListener(() -> latch.countDown());
+
+                return true;
+            }
+        }
+
+        testInputConnection(Wrapper::new, (MockImeSession session, ImeEventStream stream) -> {
+            ImeCommand command =
+                    session.callPreviewHandwritingGesture(
+                            gesture, true /* useDelayedCancellation */);
+
+            expectCommand(stream, command, TIMEOUT);
+            methodCallVerifier.assertCalledOnce(args -> {});
+        });
+
+        latch.await(3, TimeUnit.SECONDS);
+        assertEquals(0, latch.getCount());
     }
 
     /**
@@ -2168,11 +2355,13 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
             }
 
             @Override
-            public boolean requestCursorUpdates(int cursorUpdateMode) {
+            public boolean requestCursorUpdates(int cursorUpdateMode, int cursorUpdateFilter) {
                 methodCallVerifier.onMethodCalled(args -> {
                     args.putInt("cursorUpdateMode", cursorUpdateMode);
+                    args.putInt("cursorUpdateFilter", cursorUpdateFilter);
                 });
                 assertEquals(expectedFlags, cursorUpdateMode);
+                assertEquals(0, cursorUpdateFilter);
                 return expectedResult;
             }
         }
@@ -2182,6 +2371,45 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
             assertTrue(expectCommand(stream, command, TIMEOUT).getReturnBooleanValue());
             methodCallVerifier.assertCalledOnce(args -> {
                 assertEquals(expectedFlags, args.getInt("cursorUpdateMode"));
+            });
+        });
+    }
+
+    /**
+     * Test {@link InputConnection#requestCursorUpdates(int, int)} works as expected.
+     */
+    @Test
+    public void testRequestCursorUpdatesWithFilter() throws Exception {
+        final int expectedUpdateFlags = InputConnection.CURSOR_UPDATE_IMMEDIATE;
+        final int expectedFilterFlags = InputConnection.CURSOR_UPDATE_FILTER_EDITOR_BOUNDS;
+        final boolean expectedResult = true;
+
+        final MethodCallVerifier methodCallVerifier = new MethodCallVerifier();
+
+        final class Wrapper extends InputConnectionWrapper {
+            private Wrapper(InputConnection target) {
+                super(target, false);
+            }
+
+            @Override
+            public boolean requestCursorUpdates(int cursorUpdateMode, int cursorUpdateFilter) {
+                methodCallVerifier.onMethodCalled(args -> {
+                    args.putInt("cursorUpdateMode", cursorUpdateMode);
+                    args.putInt("cursorUpdateFilter", cursorUpdateFilter);
+                });
+                assertEquals(expectedUpdateFlags, cursorUpdateMode);
+                assertEquals(expectedFilterFlags, cursorUpdateFilter);
+                return expectedResult;
+            }
+        }
+
+        testInputConnection(Wrapper::new, (MockImeSession session, ImeEventStream stream) -> {
+            final ImeCommand command =
+                    session.callRequestCursorUpdates(expectedUpdateFlags, expectedFilterFlags);
+            assertTrue(expectCommand(stream, command, TIMEOUT).getReturnBooleanValue());
+            methodCallVerifier.assertCalledOnce(args -> {
+                assertEquals(expectedUpdateFlags, args.getInt("cursorUpdateMode"));
+                assertEquals(expectedFilterFlags, args.getInt("cursorUpdateFilter"));
             });
         });
     }
@@ -2204,9 +2432,10 @@ public class InputConnectionEndToEndTest extends EndToEndImeTestBase {
             }
 
             @Override
-            public boolean requestCursorUpdates(int cursorUpdateMode) {
+            public boolean requestCursorUpdates(int cursorUpdateMode, int cursorUpdateFilter) {
                 methodCallVerifier.onMethodCalled(args -> {
                     args.putInt("cursorUpdateMode", cursorUpdateMode);
+                    args.putInt("cursorUpdateFilter", cursorUpdateFilter);
                 });
                 blocker.onMethodCalled();
                 return unexpectedResult;

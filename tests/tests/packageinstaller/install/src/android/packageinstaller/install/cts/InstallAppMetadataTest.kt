@@ -15,16 +15,17 @@
  */
 package android.packageinstaller.install.cts
 
-import android.app.PendingIntent
 import android.app.UiAutomation
-import android.content.Intent
 import android.content.pm.PackageInstaller
+import android.content.pm.PackageManager
 import android.content.pm.PackageManager.NameNotFoundException
 import android.os.PersistableBundle
 import android.platform.test.annotations.AppModeFull
 import androidx.test.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import java.io.File
+import java.io.FileNotFoundException
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,37 +41,19 @@ class InstallAppMetadataTest : PackageInstallerTestBase() {
 
     @Test
     fun installViaSession() {
-        startInstallationViaSession()
-        clickInstallerUIButton(INSTALL_BUTTON_ID)
-
-        // Install should have succeeded
-        val result = getInstallSessionResult()
-        assertThat(result.status).isEqualTo(PackageInstaller.STATUS_SUCCESS)
-        assertThat(result.preapproval).isFalse()
+        installTestApp(null)
 
         uiAutomation.adoptShellPermissionIdentity()
-        val data2 = pm.getAppMetadata(TEST_APK_PACKAGE_NAME)
+        val data = pm.getAppMetadata(TEST_APK_PACKAGE_NAME)
         uiAutomation.dropShellPermissionIdentity()
-        assertThat(data2).isNotNull()
-        assertThat(data2.isEmpty()).isTrue()
+        assertThat(data).isNotNull()
+        assertThat(data.isEmpty()).isTrue()
     }
 
     @Test
     fun installViaSessionWithAppMetadata() {
         val data = createAppMetadata()
-
-        val (sessionId, session) = createSession(0, false, null)
-        writeSession(session, TEST_APK_NAME)
-        setAppMetadata(session, data)
-        assertAppMetadata(data.getString(TEST_FIELD), session.getAppMetadata())
-        commitSession(session)
-
-        clickInstallerUIButton(INSTALL_BUTTON_ID)
-
-        // Install should have succeeded
-        val result = getInstallSessionResult()
-        assertThat(result.status).isEqualTo(PackageInstaller.STATUS_SUCCESS)
-        assertThat(result.preapproval).isFalse()
+        installTestApp(data)
 
         uiAutomation.adoptShellPermissionIdentity()
         assertAppMetadata(data.getString(TEST_FIELD), pm.getAppMetadata(TEST_APK_PACKAGE_NAME))
@@ -79,21 +62,14 @@ class InstallAppMetadataTest : PackageInstallerTestBase() {
 
     @Test(expected = SecurityException::class)
     fun getAppMetadataWithNoPermission() {
-        startInstallationViaSession(createAppMetadata())
-        clickInstallerUIButton(INSTALL_BUTTON_ID)
-
-        // Install should have succeeded
-        val result = getInstallSessionResult()
-        assertThat(result.status).isEqualTo(PackageInstaller.STATUS_SUCCESS)
-        assertThat(result.preapproval).isFalse()
+        installTestApp(createAppMetadata())
 
         pm.getAppMetadata(TEST_APK_PACKAGE_NAME)
     }
 
     @Test(expected = IllegalArgumentException::class)
     fun installViaSessionWithBadAppMetadata() {
-        val data = createAppMetadataExceedSizeLimit()
-        startInstallationViaSession(data)
+        installTestApp(createAppMetadataExceedSizeLimit())
     }
 
     @Test(expected = NameNotFoundException::class)
@@ -113,15 +89,74 @@ class InstallAppMetadataTest : PackageInstallerTestBase() {
         val data = createAppMetadata()
         val (sessionId, session) = createSession(0, false, null)
         setAppMetadata(session, data)
-        val pendingIntent = PendingIntent.getBroadcast(context, 0 /* requestCode */,
-                Intent(INSTALL_ACTION_CB),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
-        session.commit(pendingIntent.intentSender)
+        commitSession(session, false)
         val result = getInstallSessionResult()
         assertThat(result.status).isEqualTo(PackageInstaller.STATUS_FAILURE_INVALID)
     }
 
-    private fun setAppMetadata(session: PackageInstaller.Session, data: PersistableBundle) {
+    @Test
+    fun resetAppMetadataInSession() {
+        val data = createAppMetadata()
+        val (sessionId, session) = createSession(0, false, null)
+        writeSession(session, TEST_APK_NAME)
+        setAppMetadata(session, data)
+        assertAppMetadata(data.getString(TEST_FIELD), session.getAppMetadata())
+        setAppMetadata(session, null)
+        assertThat(session.getAppMetadata().isEmpty()).isTrue()
+        commitSession(session)
+        clickInstallerUIButton(INSTALL_BUTTON_ID)
+        val result = getInstallSessionResult()
+        assertThat(result.status).isEqualTo(PackageInstaller.STATUS_SUCCESS)
+
+        uiAutomation.adoptShellPermissionIdentity()
+        assertThat(pm.getAppMetadata(TEST_APK_PACKAGE_NAME).isEmpty()).isTrue()
+        uiAutomation.dropShellPermissionIdentity()
+    }
+
+    @Test
+    fun installWithNoAppMetadataDropExisting() {
+        val data = createAppMetadata()
+        installTestApp(data)
+
+        uiAutomation.adoptShellPermissionIdentity()
+        assertAppMetadata(data.getString(TEST_FIELD), pm.getAppMetadata(TEST_APK_PACKAGE_NAME))
+        uiAutomation.dropShellPermissionIdentity()
+
+        installTestApp(null)
+
+        uiAutomation.adoptShellPermissionIdentity()
+        assertThat(pm.getAppMetadata(TEST_APK_PACKAGE_NAME).isEmpty()).isTrue()
+        uiAutomation.dropShellPermissionIdentity()
+    }
+
+    @Test(expected = FileNotFoundException::class)
+    fun readAppMetadataFileShouldFail() {
+        val data = createAppMetadata()
+        installTestApp(data)
+
+        val appInfo = pm.getApplicationInfo(TEST_APK_PACKAGE_NAME,
+            PackageManager.ApplicationInfoFlags.of(0))
+        val file = File(File(appInfo.publicSourceDir).getParentFile(), "app.metadata")
+        PersistableBundle.readFromStream(file.inputStream())
+    }
+
+    private fun installTestApp(data: PersistableBundle?) {
+        val (sessionId, session) = createSession(0, false, null)
+        writeSession(session, TEST_APK_NAME)
+        if (data != null) {
+            setAppMetadata(session, data)
+            assertAppMetadata(data.getString(TEST_FIELD), session.getAppMetadata())
+        }
+        commitSession(session)
+
+        clickInstallerUIButton(INSTALL_BUTTON_ID)
+
+        // Install should have succeeded
+        val result = getInstallSessionResult()
+        assertThat(result.status).isEqualTo(PackageInstaller.STATUS_SUCCESS)
+    }
+
+    private fun setAppMetadata(session: PackageInstaller.Session, data: PersistableBundle?) {
         try {
             session.setAppMetadata(data)
         } catch (e: Exception) {

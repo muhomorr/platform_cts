@@ -16,10 +16,13 @@
 
 package android.hardware.input.cts.tests;
 
+import static android.view.Display.DEFAULT_DISPLAY;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 
 import android.graphics.PointF;
+import android.hardware.display.VirtualDisplay;
 import android.hardware.input.VirtualMouse;
 import android.hardware.input.VirtualMouseButtonEvent;
 import android.hardware.input.VirtualMouseConfig;
@@ -48,14 +51,18 @@ public class VirtualMouseTest extends VirtualDeviceTestCase {
 
     @Override
     void onSetUpVirtualInputDevice() {
+        mVirtualMouse = createVirtualMouse(mVirtualDisplay.getDisplay().getDisplayId());
+    }
+
+    VirtualMouse createVirtualMouse(int displayId) {
         final VirtualMouseConfig mouseConfig =
                 new VirtualMouseConfig.Builder()
                         .setVendorId(VENDOR_ID)
                         .setProductId(PRODUCT_ID)
                         .setInputDeviceName(DEVICE_NAME)
-                        .setAssociatedDisplayId(mVirtualDisplay.getDisplay().getDisplayId())
+                        .setAssociatedDisplayId(displayId)
                         .build();
-        mVirtualMouse = mVirtualDevice.createVirtualMouse(mouseConfig);
+        return mVirtualDevice.createVirtualMouse(mouseConfig);
     }
 
     @Override
@@ -97,11 +104,8 @@ public class VirtualMouseTest extends VirtualDeviceTestCase {
                 createMotionEvent(MotionEvent.ACTION_HOVER_ENTER, startPosition.x,
                         startPosition.y, /* relativeX= */ 0f, /* relativeY= */ 0f,
                         /* vScroll= */ 0f, /* hScroll= */ 0f, /* buttonState= */ 0,
-                        /* pressure= */ 0.0f),
-                createMotionEvent(MotionEvent.ACTION_HOVER_MOVE, startPosition.x,
-                        startPosition.y, /* relativeX= */ 0f, /* relativeY= */ 0f,
-                        /* vScroll= */ 0f, /* hScroll= */ 0f, /* buttonState= */ 0,
-                        /* pressure= */ 0.0f)));
+                        /* pressure= */ 0.0f))
+        );
     }
 
     @Test
@@ -117,9 +121,6 @@ public class VirtualMouseTest extends VirtualDeviceTestCase {
         final float firstStopPositionY = startPosition.y + relativeChangeY;
         verifyEvents(Arrays.asList(
                 createMotionEvent(MotionEvent.ACTION_HOVER_ENTER, firstStopPositionX,
-                        firstStopPositionY, relativeChangeX, relativeChangeY, /* vScroll= */ 0f,
-                        /* hScroll= */ 0f, /* buttonState= */ 0, /* pressure= */ 0.0f),
-                createMotionEvent(MotionEvent.ACTION_HOVER_MOVE, firstStopPositionX,
                         firstStopPositionY, relativeChangeX, relativeChangeY, /* vScroll= */ 0f,
                         /* hScroll= */ 0f, /* buttonState= */ 0, /* pressure= */ 0.0f)));
         final PointF cursorPosition1 = mVirtualMouse.getCursorPosition();
@@ -157,10 +158,6 @@ public class VirtualMouseTest extends VirtualDeviceTestCase {
                 .build());
         verifyEvents(Arrays.asList(
                 createMotionEvent(MotionEvent.ACTION_HOVER_ENTER, startPosition.x,
-                        startPosition.y, /* relativeX= */ 0f, /* relativeY= */ 0f,
-                        /* vScroll= */ 0f, /* hScroll= */ 0f, /* buttonState= */ 0,
-                        /* pressure= */ 0f),
-                createMotionEvent(MotionEvent.ACTION_HOVER_MOVE, startPosition.x,
                         startPosition.y, /* relativeX= */ 0f, /* relativeY= */ 0f,
                         /* vScroll= */ 0f, /* hScroll= */ 0f, /* buttonState= */ 0,
                         /* pressure= */ 0f),
@@ -264,5 +261,18 @@ public class VirtualMouseTest extends VirtualDeviceTestCase {
                 /* edgeFlags= */ 0,
                 InputDevice.SOURCE_MOUSE,
                 /* flags= */ 0);
+    }
+
+    @Test
+    public void createVirtualMouse_defaultDisplay_throwsException() {
+        assertThrows(SecurityException.class, () -> createVirtualMouse(DEFAULT_DISPLAY));
+    }
+
+    @Test
+    public void createVirtualMouse_unownedDisplay_throwsException() {
+        VirtualDisplay unownedDisplay = createUnownedVirtualDisplay();
+        assertThrows(SecurityException.class,
+                () -> createVirtualMouse(unownedDisplay.getDisplay().getDisplayId()));
+        unownedDisplay.release();
     }
 }

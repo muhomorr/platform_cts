@@ -219,8 +219,7 @@ public class UsbManagerApiTest {
             };
         };
 
-        assertTrue(mUsbManagerSys.registerDisplayPortAltModeInfoListener(mExecutor,
-                displayPortListener));
+        mUsbManagerSys.registerDisplayPortAltModeInfoListener(mExecutor, displayPortListener);
 
         // Drop MANAGE_USB permission.
         mUiAutomation.dropShellPermissionIdentity();
@@ -245,13 +244,12 @@ public class UsbManagerApiTest {
         final LatchedDisplayPortAltModeInfoListener displayPortListener =
                 new LatchedDisplayPortAltModeInfoListener(notifiedForCtsPort);
 
-        assertTrue(mUsbManagerSys.registerDisplayPortAltModeInfoListener(mExecutor,
-                displayPortListener));
+        mUsbManagerSys.registerDisplayPortAltModeInfoListener(mExecutor, displayPortListener);
 
         SystemUtil.runShellCommand("dumpsys usb add-port " + portIdTestString
                 + " dual --displayport");
         SystemUtil.runShellCommand("dumpsys usb set-displayport-status "
-                + portIdTestString + " 2 2 2");
+                + portIdTestString + " 2 2 2 false 0");
 
         assertTrue(notifiedForCtsPort.await(1000, TimeUnit.MILLISECONDS));
         mUsbManagerSys.unregisterDisplayPortAltModeInfoListener(displayPortListener);
@@ -281,15 +279,14 @@ public class UsbManagerApiTest {
         for (int i = 0; i < numListeners; i++) {
             final LatchedDisplayPortAltModeInfoListener listener =
                     new LatchedDisplayPortAltModeInfoListener(notifiedForCtsPort);
-            Assert.assertTrue(mUsbManagerSys.registerDisplayPortAltModeInfoListener(mExecutor,
-                    listener));
+            mUsbManagerSys.registerDisplayPortAltModeInfoListener(mExecutor, listener);
             listeners.add(listener);
         }
 
         SystemUtil.runShellCommand("dumpsys usb add-port " + portIdTestString
                 + " dual --displayport");
         SystemUtil.runShellCommand("dumpsys usb set-displayport-status "
-                + portIdTestString + " 2 2 2");
+                + portIdTestString + " 2 2 2 false 0");
 
         assertTrue(notifiedForCtsPort.await(1000, TimeUnit.MILLISECONDS));
 

@@ -107,11 +107,10 @@ open class CompanionDeviceManagerUi(private val ui: UiDevice) {
                 By.pkg(PACKAGE_NAME).clazz(".Button").clickable(true)
         private val POSITIVE_BUTTON = By.copy(CLICKABLE_BUTTON).res(PACKAGE_NAME, "btn_positive")
         private val NEGATIVE_BUTTON = By.copy(CLICKABLE_BUTTON).res(PACKAGE_NAME, "btn_negative")
-        private val NEGATIVE_BUTTON_MULTIPLE_DEVICES = By.copy(CLICKABLE_BUTTON)
-                .res(PACKAGE_NAME, "btn_negative_multiple_devices")
+        private val NEGATIVE_BUTTON_MULTIPLE_DEVICES = By.pkg(PACKAGE_NAME)
+                .res(PACKAGE_NAME, "negative_multiple_devices_layout")
 
         private val DEVICE_LIST = By.pkg(PACKAGE_NAME)
-            .clazz("androidx.recyclerview.widget.RecyclerView")
                 .res(PACKAGE_NAME, "device_list")
         private val DEVICE_LIST_ITEM = By.pkg(PACKAGE_NAME)
                 .res(PACKAGE_NAME, "list_item_device")
@@ -119,7 +118,7 @@ open class CompanionDeviceManagerUi(private val ui: UiDevice) {
                 .hasChild(DEVICE_LIST_ITEM)
 
         private val SCROLLABLE_PERMISSION_LIST = UiScrollable(
-            UiSelector().className("androidx.recyclerview.widget.RecyclerView"))
+            UiSelector().resourceId("$PACKAGE_NAME:id/permission_list"))
 
         private val SYSTEM_DATA_TRANSFER_CONFIRMATION_UI = By.pkg(PACKAGE_NAME)
                 .res(PACKAGE_NAME, "data_transfer_confirmation")

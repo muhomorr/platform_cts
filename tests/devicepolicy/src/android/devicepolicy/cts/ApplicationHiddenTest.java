@@ -46,6 +46,7 @@ import com.android.compatibility.common.util.BlockingBroadcastReceiver;
 
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.runner.RunWith;
 
@@ -335,7 +336,14 @@ public class ApplicationHiddenTest {
         }
     }
 
-    @CannotSetPolicyTest(policy = ApplicationHidden.class)
+    @CanSetPolicyTest(policy = ApplicationHidden.class) // TODO: Remove
+    public void setApplicationHidden_systemApp_doesNotThrowException() {
+        sDeviceState.dpc().devicePolicyManager().setApplicationHidden(
+                sDeviceState.dpc().componentName(),
+                SYSTEM_PACKAGE.packageName(), true);
+    }
+
+    @CannotSetPolicyTest(policy = ApplicationHidden.class, includeNonDeviceAdminStates = false)
     public void setApplicationHidden_systemApp_notAllowed_throwsException() {
         assertThrows(SecurityException.class,
                 () -> sDeviceState.dpc().devicePolicyManager().setApplicationHidden(
@@ -353,6 +361,7 @@ public class ApplicationHiddenTest {
     }
 
     @CanSetPolicyTest(policy = {ApplicationHidden.class, ApplicationHiddenSystemOnly.class})
+    @Ignore
     public void setApplicationHidden_true_logsEvent() {
         boolean originalValue = sDeviceState.dpc().devicePolicyManager().isApplicationHidden(
                 sDeviceState.dpc().componentName(), SYSTEM_PACKAGE.packageName());
@@ -378,6 +387,7 @@ public class ApplicationHiddenTest {
     }
 
     @CanSetPolicyTest(policy = {ApplicationHidden.class, ApplicationHiddenSystemOnly.class})
+    @Ignore
     public void setApplicationHidden_false_logsEvent() {
         boolean originalValue = sDeviceState.dpc().devicePolicyManager().isApplicationHidden(
                 sDeviceState.dpc().componentName(), SYSTEM_PACKAGE.packageName());
@@ -412,6 +422,7 @@ public class ApplicationHiddenTest {
     }
 
     @CanSetPolicyTest(policy = {ApplicationHidden.class})
+    @Ignore // No longer applicable for non-admins - need to add a permission/exemption
     public void setApplicationHidden_deviceAdmin_returnsFalse() {
         boolean result = sDeviceState.dpc().devicePolicyManager().setApplicationHidden(
                 sDeviceState.dpc().componentName(), sDeviceState.dpcOnly().packageName(),

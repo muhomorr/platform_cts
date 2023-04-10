@@ -16,16 +16,24 @@
 
 package android.jobscheduler.cts;
 
+import static android.app.job.JobInfo.NETWORK_TYPE_ANY;
 import static android.jobscheduler.cts.JobThrottlingTest.setTestPackageStandbyBucket;
 
 import static org.junit.Assert.assertTrue;
 
+import android.app.ActivityManager;
+import android.app.job.JobScheduler;
 import android.content.Context;
+import android.content.IntentFilter;
+import android.jobscheduler.cts.jobtestapp.TestFgsService;
 import android.jobscheduler.cts.jobtestapp.TestJobSchedulerReceiver;
-import android.support.test.uiautomator.UiDevice;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
+import androidx.test.uiautomator.UiDevice;
+
+import com.android.compatibility.common.util.CallbackAsserter;
+import com.android.compatibility.common.util.ScreenUtils;
 
 import org.junit.After;
 import org.junit.Before;
@@ -42,6 +50,7 @@ public class UserInitiatedJobTest {
     private Context mContext;
     private UiDevice mUiDevice;
     private TestAppInterface mTestAppInterface;
+    private NetworkingHelper mNetworkingHelper;
 
     @Before
     public void setUp() throws Exception {
@@ -49,11 +58,44 @@ public class UserInitiatedJobTest {
         mUiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
         mTestAppInterface = new TestAppInterface(mContext, JOB_ID);
         setTestPackageStandbyBucket(mUiDevice, JobThrottlingTest.Bucket.ACTIVE);
+        mNetworkingHelper =
+                new NetworkingHelper(InstrumentationRegistry.getInstrumentation(), mContext);
+        mNetworkingHelper.setAllNetworksEnabled(true); // all user-initiated jobs require a network
     }
 
     @After
     public void tearDown() throws Exception {
         mTestAppInterface.cleanup();
+        mNetworkingHelper.tearDown();
+    }
+
+    @Test
+    public void testJobUidState() throws Exception {
+        // Go through the notification click/BAL route of scheduling the job so the proc state
+        // data comes from being elevated by the running job and not because of the app being
+        // in a higher state.
+        try (TestNotificationListener.NotificationHelper notificationHelper =
+                     new TestNotificationListener.NotificationHelper(
+                             mContext, TestAppInterface.TEST_APP_PACKAGE)) {
+            // Close the activity so the app isn't considered TOP.
+            mTestAppInterface.closeActivity(true);
+            mTestAppInterface.postUiInitiatingNotification(
+                    Map.of(
+                            TestJobSchedulerReceiver.EXTRA_AS_USER_INITIATED, true,
+                            TestJobSchedulerReceiver.EXTRA_REQUEST_JOB_UID_STATE, true
+                    ),
+                    Map.of(TestJobSchedulerReceiver.EXTRA_REQUIRED_NETWORK_TYPE, NETWORK_TYPE_ANY));
+
+            // Clicking on the notification should put the app into a BAL approved state.
+            notificationHelper.clickNotification();
+
+            assertTrue("Job did not start after scheduling",
+                    mTestAppInterface.awaitJobStart(2 * DEFAULT_WAIT_TIMEOUT_MS));
+            mTestAppInterface.assertJobUidState(ActivityManager.PROCESS_STATE_IMPORTANT_FOREGROUND,
+                    ActivityManager.PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK
+                    | ActivityManager.PROCESS_CAPABILITY_USER_RESTRICTED_NETWORK,
+                    201 /* ProcessList.PERCEPTIBLE_APP_ADJ + 1 */);
+        }
     }
 
     /** Test that UIJs for the TOP app start immediately and there is no limit on the number. */
@@ -61,13 +103,118 @@ public class UserInitiatedJobTest {
     public void testTopUiUnlimited() throws Exception {
         final int standardConcurrency = 64;
         final int numUijs = standardConcurrency + 1;
+        ScreenUtils.setScreenOn(true);
         mTestAppInterface.startAndKeepTestActivity(true);
         for (int i = 0; i < numUijs; ++i) {
             mTestAppInterface.scheduleJob(
                     Map.of(TestJobSchedulerReceiver.EXTRA_AS_USER_INITIATED, true),
-                    Map.of(TestJobSchedulerReceiver.EXTRA_JOB_ID_KEY, i));
+                    Map.of(
+                            TestJobSchedulerReceiver.EXTRA_JOB_ID_KEY, i,
+                            TestJobSchedulerReceiver.EXTRA_REQUIRED_NETWORK_TYPE, NETWORK_TYPE_ANY
+                    ));
+        }
+        for (int i = 0; i < numUijs; ++i) {
             assertTrue("Job did not start after scheduling",
                     mTestAppInterface.awaitJobStart(i, DEFAULT_WAIT_TIMEOUT_MS));
         }
+    }
+
+    @Test
+    public void testSchedulingBal() throws Exception {
+        try (TestNotificationListener.NotificationHelper notificationHelper =
+                     new TestNotificationListener.NotificationHelper(
+                             mContext, TestAppInterface.TEST_APP_PACKAGE)) {
+            // Close the activity so the app isn't considered TOP.
+            mTestAppInterface.closeActivity(true);
+            mTestAppInterface.postUiInitiatingNotification(
+                    Map.of(TestJobSchedulerReceiver.EXTRA_AS_USER_INITIATED, true),
+                    Map.of(TestJobSchedulerReceiver.EXTRA_REQUIRED_NETWORK_TYPE, NETWORK_TYPE_ANY));
+
+            // Clicking on the notification should put the app into a BAL approved state.
+            notificationHelper.clickNotification();
+
+            assertTrue(mTestAppInterface
+                    .awaitJobScheduleResult(DEFAULT_WAIT_TIMEOUT_MS, JobScheduler.RESULT_SUCCESS));
+        }
+    }
+
+    @Test
+    public void testSchedulingBg() throws Exception {
+        // Close the activity and turn the screen off so the app isn't considered TOP.
+        mTestAppInterface.closeActivity();
+        ScreenUtils.setScreenOn(false);
+        mTestAppInterface.scheduleJob(
+                Map.of(TestJobSchedulerReceiver.EXTRA_AS_USER_INITIATED, true),
+                Map.of(TestJobSchedulerReceiver.EXTRA_REQUIRED_NETWORK_TYPE, NETWORK_TYPE_ANY));
+        assertTrue(mTestAppInterface
+                .awaitJobScheduleResult(DEFAULT_WAIT_TIMEOUT_MS, JobScheduler.RESULT_FAILURE));
+    }
+
+    @Test
+    public void testSchedulingEj() throws Exception {
+        // Close the activity and turn the screen off so the app isn't considered TOP.
+        mTestAppInterface.closeActivity();
+        ScreenUtils.setScreenOn(false);
+
+        final int jobIdEj = JOB_ID;
+        final int jobIdUij = JOB_ID + 1;
+
+        mTestAppInterface.scheduleJob(
+                Map.of(TestJobSchedulerReceiver.EXTRA_AS_EXPEDITED, true),
+                Map.of(TestJobSchedulerReceiver.EXTRA_JOB_ID_KEY, jobIdEj));
+        assertTrue(mTestAppInterface.awaitJobStart(jobIdEj, DEFAULT_WAIT_TIMEOUT_MS));
+
+        mTestAppInterface.scheduleJob(
+                Map.of(TestJobSchedulerReceiver.EXTRA_AS_USER_INITIATED, true),
+                Map.of(
+                        TestJobSchedulerReceiver.EXTRA_REQUIRED_NETWORK_TYPE, NETWORK_TYPE_ANY,
+                        TestJobSchedulerReceiver.EXTRA_JOB_ID_KEY, jobIdUij
+                ));
+        assertTrue(mTestAppInterface.awaitJobScheduleResult(
+                jobIdUij, DEFAULT_WAIT_TIMEOUT_MS, JobScheduler.RESULT_FAILURE));
+    }
+
+    @Test
+    public void testSchedulingFgs_approved() throws Exception {
+        ScreenUtils.setScreenOn(true);
+        mTestAppInterface.startAndKeepTestActivity(true);
+        mTestAppInterface.startFgs();
+        mTestAppInterface.closeActivity(true);
+        // FGS started while the app was TOP. The app should be allowed to schedule a UI job
+        // because the FGS is still running, even though it's no longer TOP.
+        Thread.sleep(7000); // Wait a bit so that Activity-close BAL allowance disappears.
+        mTestAppInterface.scheduleJob(
+                Map.of(TestJobSchedulerReceiver.EXTRA_AS_USER_INITIATED, true),
+                Map.of(TestJobSchedulerReceiver.EXTRA_REQUIRED_NETWORK_TYPE, NETWORK_TYPE_ANY));
+        assertTrue(mTestAppInterface
+                .awaitJobScheduleResult(DEFAULT_WAIT_TIMEOUT_MS, JobScheduler.RESULT_SUCCESS));
+    }
+
+    @Test
+    public void testSchedulingFgs_disapproved() throws Exception {
+        mTestAppInterface.closeActivity(true);
+        final CallbackAsserter resultBroadcastAsserter =
+                CallbackAsserter.forBroadcast(new IntentFilter(TestFgsService.ACTION_FGS_STARTED));
+        mTestAppInterface.postFgsStartingAlarm();
+        // FGS started in the background, but not a BAL-approved state. The app shouldn't
+        // be allowed to schedule a UI job.
+        resultBroadcastAsserter.assertCalled("Didn't get schedule FGS started broadcast",
+                15 /* 15 seconds */);
+        mTestAppInterface.scheduleJob(
+                Map.of(TestJobSchedulerReceiver.EXTRA_AS_USER_INITIATED, true),
+                Map.of(TestJobSchedulerReceiver.EXTRA_REQUIRED_NETWORK_TYPE, NETWORK_TYPE_ANY));
+        assertTrue(mTestAppInterface
+                .awaitJobScheduleResult(DEFAULT_WAIT_TIMEOUT_MS, JobScheduler.RESULT_FAILURE));
+    }
+
+    @Test
+    public void testSchedulingTop() throws Exception {
+        ScreenUtils.setScreenOn(true);
+        mTestAppInterface.startAndKeepTestActivity(true);
+        mTestAppInterface.scheduleJob(
+                Map.of(TestJobSchedulerReceiver.EXTRA_AS_USER_INITIATED, true),
+                Map.of(TestJobSchedulerReceiver.EXTRA_REQUIRED_NETWORK_TYPE, NETWORK_TYPE_ANY));
+        assertTrue(mTestAppInterface
+                .awaitJobScheduleResult(DEFAULT_WAIT_TIMEOUT_MS, JobScheduler.RESULT_SUCCESS));
     }
 }

@@ -20,10 +20,10 @@ import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertTrue;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.fail;
 
 import android.annotation.NonNull;
-import android.app.UiAutomation;
 import android.content.Context;
 import android.media.AudioManager;
 import android.net.Uri;
@@ -32,17 +32,23 @@ import android.telecom.Call;
 import android.telecom.PhoneAccount;
 import android.telecom.TelecomManager;
 import android.telephony.AccessNetworkConstants;
+import android.telephony.CallState;
+import android.telephony.PreciseCallState;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
 import android.telephony.cts.InCallServiceStateValidator;
+import android.telephony.ims.ImsCallProfile;
 import android.telephony.ims.ImsCallSessionListener;
+import android.telephony.ims.ImsStreamMediaProfile;
 import android.telephony.ims.MediaQualityStatus;
 import android.telephony.ims.feature.MmTelFeature;
 import android.util.Log;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
+
+import com.android.compatibility.common.util.ShellIdentityUtils;
 
 import org.junit.After;
 import org.junit.AfterClass;
@@ -58,9 +64,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-/**
- * CTS tests for ImsCall .
- */
+/** CTS tests for ImsCall . */
 @RunWith(AndroidJUnit4.class)
 public class ImsCallingTest extends ImsCallingBase {
 
@@ -76,7 +80,9 @@ public class ImsCallingTest extends ImsCallingBase {
     private TestImsCallSessionImpl mConfCallSession = null;
 
     // the timeout to wait result in milliseconds
-    private static final int WAIT_UPDATE_TIMEOUT_MS = 2000;
+    private static final int WAIT_UPDATE_TIMEOUT_MS = 3000;
+
+    private static TelephonyManager sTelephonyManager;
 
     static {
         initializeLatches();
@@ -84,24 +90,37 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @BeforeClass
     public static void beforeAllTests() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
-        TelephonyManager tm = (TelephonyManager) getContext()
-                .getSystemService(Context.TELEPHONY_SERVICE);
+        sTelephonyManager =
+                (TelephonyManager) getContext().getSystemService(Context.TELEPHONY_SERVICE);
+
         sTestSub = ImsUtils.getPreferredActiveSubId();
         sTestSlot = SubscriptionManager.getSlotIndex(sTestSub);
-        if (tm.getSimState(sTestSlot) != TelephonyManager.SIM_STATE_READY) {
+        if (!isSimReady()) {
             return;
         }
 
         beforeAllTestsBase();
     }
 
+    private static boolean isSimReady() {
+        if (sTelephonyManager.getSimState(sTestSlot) != TelephonyManager.SIM_STATE_READY) {
+            Log.d(LOG_TAG, "sim is not present");
+            return false;
+        }
+        return true;
+    }
+
     @AfterClass
     public static void afterAllTests() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
+            return;
+        }
+
+        if (!isSimReady()) {
             return;
         }
 
@@ -110,14 +129,14 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Before
     public void beforeTest() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
-        TelephonyManager tm = (TelephonyManager) InstrumentationRegistry.getInstrumentation()
-                .getContext().getSystemService(Context.TELEPHONY_SERVICE);
-        if (tm.getSimState(sTestSlot) != TelephonyManager.SIM_STATE_READY) {
+
+        if (!isSimReady()) {
             fail("This test requires that there is a SIM in the device!");
         }
+
         // Correctness check: ensure that the subscription hasn't changed between tests.
         int subId = SubscriptionManager.getSubscriptionId(sTestSlot);
         if (subId != sTestSub) {
@@ -127,7 +146,11 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @After
     public void afterTest() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
+            return;
+        }
+
+        if (!isSimReady()) {
             return;
         }
 
@@ -153,7 +176,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testOutGoingCall() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -172,6 +195,7 @@ public class ImsCallingTest extends ImsCallingBase {
         assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CALL_ADDED, WAIT_FOR_CALL_STATE));
 
         Call call = getCall(mCurrentCallId);
+        waitForCallSessionToNotBe(null);
         assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DIALING, WAIT_FOR_CALL_STATE));
 
         TestImsCallSessionImpl callSession = sServiceConnector.getCarrierService().getMmTelFeature()
@@ -188,7 +212,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testOutGoingCallStartFailed() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -208,23 +232,9 @@ public class ImsCallingTest extends ImsCallingBase {
 
         Call call = getCall(mCurrentCallId);
 
-        waitUntilConditionIsTrueOrTimeout(
-                new Condition() {
-                    @Override
-                    public Object expected() {
-                        return true;
-                    }
-
-                    @Override
-                    public Object actual() {
-                        TestMmTelFeature mmtelfeatue = sServiceConnector.getCarrierService()
-                                .getMmTelFeature();
-                        return (mmtelfeatue.isCallSessionCreated()) ? true : false;
-                    }
-                }, WAIT_FOR_CONDITION, "CallSession Created");
-
-        TestImsCallSessionImpl callSession = sServiceConnector.getCarrierService().getMmTelFeature()
-                .getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl callSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
         assertNotNull("Unable to get callSession, its null", callSession);
         callSession.addTestType(TestImsCallSessionImpl.TEST_TYPE_MO_FAILED);
 
@@ -236,7 +246,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testIncomingCall() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
         bindImsService();
@@ -252,8 +262,9 @@ public class ImsCallingTest extends ImsCallingBase {
             call.answer(0);
         }
 
-        TestImsCallSessionImpl callSession = sServiceConnector.getCarrierService().getMmTelFeature()
-                .getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl callSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
 
         isCallActive(call, callSession);
         callSession.terminateIncomingCall();
@@ -283,8 +294,9 @@ public class ImsCallingTest extends ImsCallingBase {
             call.answer(0);
         }
 
-        TestImsCallSessionImpl callSession = sServiceConnector.getCarrierService().getMmTelFeature()
-                .getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl callSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
 
         isCallActive(call, callSession);
         callSession.terminateIncomingCall();
@@ -312,8 +324,9 @@ public class ImsCallingTest extends ImsCallingBase {
             call.reject(504);
         }
 
-        TestImsCallSessionImpl callSession = sServiceConnector.getCarrierService().getMmTelFeature()
-                .getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl callSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
 
         isCallDisconnected(call, callSession);
         assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CALL_REMOVED, WAIT_FOR_CALL_STATE));
@@ -322,7 +335,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testOutGoingCallForExecutor() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -345,8 +358,9 @@ public class ImsCallingTest extends ImsCallingBase {
         Call call = getCall(mCurrentCallId);
         assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DIALING, WAIT_FOR_CALL_STATE));
 
-        TestImsCallSessionImpl callSession = sServiceConnector.getCarrierService().getMmTelFeature()
-                .getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl callSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
 
         isCallActive(call, callSession);
         call.disconnect();
@@ -359,7 +373,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testOutGoingCallHoldResume() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -380,8 +394,9 @@ public class ImsCallingTest extends ImsCallingBase {
         Call call = getCall(mCurrentCallId);
         assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DIALING, WAIT_FOR_CALL_STATE));
 
-        TestImsCallSessionImpl callSession = sServiceConnector.getCarrierService().getMmTelFeature()
-                .getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl callSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
 
         isCallActive(call, callSession);
 
@@ -403,7 +418,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testOutGoingCallHoldFailure() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -424,8 +439,9 @@ public class ImsCallingTest extends ImsCallingBase {
         Call call = getCall(mCurrentCallId);
         assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DIALING, WAIT_FOR_CALL_STATE));
 
-        TestImsCallSessionImpl callSession = sServiceConnector.getCarrierService().getMmTelFeature()
-                .getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl callSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
 
         isCallActive(call, callSession);
         callSession.addTestType(TestImsCallSessionImpl.TEST_TYPE_HOLD_FAILED);
@@ -443,10 +459,9 @@ public class ImsCallingTest extends ImsCallingBase {
         waitForUnboundService();
     }
 
-
     @Test
     public void testOutGoingCallResumeFailure() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -467,8 +482,9 @@ public class ImsCallingTest extends ImsCallingBase {
         Call call = getCall(mCurrentCallId);
         assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DIALING, WAIT_FOR_CALL_STATE));
 
-        TestImsCallSessionImpl callSession = sServiceConnector.getCarrierService().getMmTelFeature()
-                .getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl callSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
 
         isCallActive(call, callSession);
 
@@ -512,8 +528,9 @@ public class ImsCallingTest extends ImsCallingBase {
         Call call = getCall(mCurrentCallId);
         assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DIALING, WAIT_FOR_CALL_STATE));
 
-        TestImsCallSessionImpl callSession = sServiceConnector.getCarrierService().getMmTelFeature()
-                .getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl callSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
         isCallActive(call, callSession);
 
         // received hold and checking it is still active and received the connection event
@@ -541,7 +558,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testOutGoingIncomingMultiCall() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -562,15 +579,16 @@ public class ImsCallingTest extends ImsCallingBase {
         Call moCall = getCall(mCurrentCallId);
         assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DIALING, WAIT_FOR_CALL_STATE));
 
-        TestImsCallSessionImpl moCallSession = sServiceConnector.getCarrierService()
-                .getMmTelFeature().getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl moCallSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
         isCallActive(moCall, moCallSession);
         assertTrue("Call is not in Active State", (moCall.getDetails().getState()
                 == Call.STATE_ACTIVE));
 
         extras.putBoolean("android.telephony.ims.feature.extra.IS_USSD", false);
         extras.putBoolean("android.telephony.ims.feature.extra.IS_UNKNOWN_CALL", false);
-        extras.putString("android:imsCallID",  String.valueOf(++sCounter));
+        extras.putString("android:imsCallID", String.valueOf(++sCounter));
         extras.putLong("android:phone_id", 123456);
         sServiceConnector.getCarrierService().getMmTelFeature().onIncomingCallReceived(extras);
         assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CALL_ADDED, WAIT_FOR_CALL_STATE));
@@ -584,6 +602,7 @@ public class ImsCallingTest extends ImsCallingBase {
         }
 
         assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_HOLDING, WAIT_FOR_CALL_STATE));
+        waitForCallSessionToNotBe(null);
         TestImsCallSessionImpl mtCallSession = sServiceConnector.getCarrierService()
                 .getMmTelFeature().getImsCallsession();
         isCallActive(mtCall, mtCallSession);
@@ -609,7 +628,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testOutGoingIncomingMultiCallAcceptTerminate() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -630,20 +649,22 @@ public class ImsCallingTest extends ImsCallingBase {
         Call moCall = getCall(mCurrentCallId);
         assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DIALING, WAIT_FOR_CALL_STATE));
 
-        TestImsCallSessionImpl moCallSession = sServiceConnector.getCarrierService()
-                .getMmTelFeature().getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl moCallSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
         isCallActive(moCall, moCallSession);
         assertTrue("Call is not in Active State", (moCall.getDetails().getState()
                 == Call.STATE_ACTIVE));
 
         extras.putBoolean("android.telephony.ims.feature.extra.IS_USSD", false);
         extras.putBoolean("android.telephony.ims.feature.extra.IS_UNKNOWN_CALL", false);
-        extras.putString("android:imsCallID",  String.valueOf(++sCounter));
+        extras.putString("android:imsCallID", String.valueOf(++sCounter));
         extras.putLong("android:phone_id", 123456);
         sServiceConnector.getCarrierService().getMmTelFeature().onIncomingCallReceived(extras);
         assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CALL_ADDED, WAIT_FOR_CALL_STATE));
-        TestImsCallSessionImpl mtCallSession = sServiceConnector.getCarrierService()
-                .getMmTelFeature().getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl mtCallSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
         // do not generate an auto hold response here, need to simulate a timing issue.
         moCallSession.addTestType(TestImsCallSessionImpl.TEST_TYPE_HOLD_NO_RESPONSE);
 
@@ -698,16 +719,18 @@ public class ImsCallingTest extends ImsCallingBase {
         Call moCall = getCall(mCurrentCallId);
         assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DIALING, WAIT_FOR_CALL_STATE));
 
-        TestImsCallSessionImpl moCallSession = sServiceConnector.getCarrierService()
-                .getMmTelFeature().getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl moCallSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
         isCallActive(moCall, moCallSession);
         assertTrue("Call is not in Active State", (moCall.getDetails().getState()
                 == Call.STATE_ACTIVE));
 
         sServiceConnector.getCarrierService().getMmTelFeature().onIncomingCallReceived(extras);
         assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CALL_ADDED, WAIT_FOR_CALL_STATE));
-        TestImsCallSessionImpl mtCallSession = sServiceConnector.getCarrierService()
-                .getMmTelFeature().getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl mtCallSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
         moCallSession.addTestType(TestImsCallSessionImpl.TEST_TYPE_HOLD_NO_RESPONSE);
 
         Call mtCall = null;
@@ -720,6 +743,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
         ImsUtils.waitInCurrentState(WAIT_IN_CURRENT_STATE);
         // received holdFailed because the other party of the outgoing call terminated the call
+        waitCallRenegotiating(moCallSession);
         moCallSession.sendHoldFailRemoteTerminated();
         assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CALL_REMOVED, WAIT_FOR_CALL_STATE));
         isCallDisconnected(moCall, moCallSession);
@@ -739,7 +763,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testOutGoingCallSwap() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -787,7 +811,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testOutGoingCallSwapFail() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -837,7 +861,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testConferenceCall() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
         Log.i(LOG_TAG, "testConference ");
@@ -859,7 +883,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testConferenceCallFailure() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
         Log.i(LOG_TAG, "testConferenceCallFailure ");
@@ -944,6 +968,8 @@ public class ImsCallingTest extends ImsCallingBase {
         mCallSession3.addTestType(TestImsCallSessionImpl.TEST_TYPE_JOIN_EXIST_CONFERENCE);
 
         mCall3.conference(mConferenceCall);
+        // Wait for merge complete for the third call:
+        assertTrue(callingTestLatchCountdown(LATCH_IS_ON_MERGE_COMPLETE, WAIT_FOR_CALL_STATE));
         isCallActive(mConferenceCall, mConfCallSession);
 
         ImsUtils.waitInCurrentState(WAIT_IN_CURRENT_STATE);
@@ -978,7 +1004,7 @@ public class ImsCallingTest extends ImsCallingBase {
         // swap the call
         ImsUtils.waitInCurrentState(WAIT_IN_CURRENT_STATE);
         mConferenceCall.unhold();
-        assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_HOLDING, WAIT_FOR_CALL_STATE));
+        isCallHolding(mCall3, mCallSession3);
         assertTrue("Call is not in Hold State", (mCall3.getDetails().getState()
                 == Call.STATE_HOLDING));
         isCallActive(mConferenceCall, mConfCallSession);
@@ -988,13 +1014,18 @@ public class ImsCallingTest extends ImsCallingBase {
 
         // merge call
         mConferenceCall.conference(mCall3);
-        isCallActive(mConferenceCall, mConfCallSession);
+        assertTrue(callingTestLatchCountdown(LATCH_IS_ON_MERGE_START, WAIT_FOR_CALL_STATE));
 
-        // verify third call disconnected after conference Merge success
+        // verify third call disconnected.
+        assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CALL_REMOVED, WAIT_FOR_CALL_STATE));
         assertParticiapantDisconnected(mCall3);
 
         // verify conference participant connections are connected.
+        assertTrue(callingTestLatchCountdown(LATCH_IS_ON_MERGE_COMPLETE, WAIT_FOR_CALL_STATE));
+        assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CHILDREN_CHANGED, WAIT_FOR_CALL_STATE));
         assertParticiapantAddedToConference(3);
+
+        isCallActive(mConferenceCall, mConfCallSession);
 
         // disconnect the conference call.
         mConferenceCall.disconnect();
@@ -1023,7 +1054,7 @@ public class ImsCallingTest extends ImsCallingBase {
         // swap the call
         ImsUtils.waitInCurrentState(WAIT_IN_CURRENT_STATE);
         mConferenceCall.unhold();
-        assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_HOLDING, WAIT_FOR_CALL_STATE));
+        isCallHolding(mCall3, mCallSession3);
         assertTrue("Call is not in Hold State", (mCall3.getDetails().getState()
                 == Call.STATE_HOLDING));
         isCallActive(mConferenceCall, mConfCallSession);
@@ -1077,6 +1108,9 @@ public class ImsCallingTest extends ImsCallingBase {
         final Uri imsUri = Uri.fromParts(PhoneAccount.SCHEME_TEL, String.valueOf(++sCounter), null);
         Bundle extras = new Bundle();
 
+        mAudioManager.setMode(AudioManager.MODE_NORMAL);
+        Log.i(LOG_TAG, "testSetCallAudioHandler - Reset AudioMode: " + mAudioManager.getMode());
+
         // Place outgoing call
         telecomManager.placeCall(imsUri, extras);
         assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CALL_ADDED, WAIT_FOR_CALL_STATE));
@@ -1084,8 +1118,11 @@ public class ImsCallingTest extends ImsCallingBase {
         Call call = getCall(mCurrentCallId);
         assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DIALING, WAIT_FOR_CALL_STATE));
 
-        TestImsCallSessionImpl callSession = sServiceConnector.getCarrierService().getMmTelFeature()
-                .getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TimeUnit.MILLISECONDS.sleep(WAIT_UPDATE_TIMEOUT_MS);
+
+        TestImsCallSessionImpl callSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
 
         isCallActive(call, callSession);
 
@@ -1094,14 +1131,118 @@ public class ImsCallingTest extends ImsCallingBase {
         sServiceConnector.getCarrierService().getMmTelFeature()
                 .getTerminalBasedCallWaitingLatch().await(WAIT_UPDATE_TIMEOUT_MS,
                         TimeUnit.MILLISECONDS);
+
+        assertNotEquals(AudioManager.MODE_NORMAL, mAudioManager.getMode());
         assertEquals(AudioManager.MODE_IN_COMMUNICATION, mAudioManager.getMode());
+
+        call.disconnect();
+        assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DISCONNECTING, WAIT_FOR_CALL_STATE));
+
+        // Place the 2nd outgoing call
+        telecomManager.placeCall(imsUri, extras);
+        assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CALL_ADDED, WAIT_FOR_CALL_STATE));
+
+        call = getCall(mCurrentCallId);
+        assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DIALING, WAIT_FOR_CALL_STATE));
+
+        waitForCallSessionToNotBe(null);
+        TimeUnit.MILLISECONDS.sleep(WAIT_UPDATE_TIMEOUT_MS);
+        callSession = sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
+
+        isCallActive(call, callSession);
 
         sServiceConnector.getCarrierService().getMmTelFeature()
                 .setCallAudioHandler(MmTelFeature.AUDIO_HANDLER_BASEBAND);
         sServiceConnector.getCarrierService().getMmTelFeature()
                 .getTerminalBasedCallWaitingLatch().await(WAIT_UPDATE_TIMEOUT_MS,
                         TimeUnit.MILLISECONDS);
+
+        assertNotEquals(AudioManager.MODE_NORMAL, mAudioManager.getMode());
         assertEquals(AudioManager.MODE_IN_CALL, mAudioManager.getMode());
+
+        call.disconnect();
+
+        assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DISCONNECTING, WAIT_FOR_CALL_STATE));
+        isCallDisconnected(call, callSession);
+        assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CALL_REMOVED, WAIT_FOR_CALL_STATE));
+        waitForUnboundService();
+    }
+
+    @Test
+    public void testNotifyCallStateChanged() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+
+        bindImsService();
+        mServiceCallBack = new ServiceCallBack();
+        InCallServiceStateValidator.setCallbacks(mServiceCallBack);
+
+        TelecomManager telecomManager = (TelecomManager) InstrumentationRegistry
+                .getInstrumentation().getContext().getSystemService(Context.TELECOM_SERVICE);
+
+        final Uri imsUri = Uri.fromParts(PhoneAccount.SCHEME_TEL, String.valueOf(++sCounter), null);
+        Bundle extras = new Bundle();
+
+        // Place outgoing call
+        telecomManager.placeCall(imsUri, extras);
+        assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CALL_ADDED, WAIT_FOR_CALL_STATE));
+
+        Call call = getCall(mCurrentCallId);
+        assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DIALING, WAIT_FOR_CALL_STATE));
+
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl callSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
+
+        isCallActive(call, callSession);
+        String callSessionId = callSession.getCallId();
+
+        LinkedBlockingQueue<List<CallState>> queue = new LinkedBlockingQueue<>();
+        ImsCallingTest.TestTelephonyCallbackForCallStateChange testCb =
+                new ImsCallingTest.TestTelephonyCallbackForCallStateChange(queue);
+
+        // test registration without permission
+        try {
+            sTelephonyManager.registerTelephonyCallback(Runnable::run, testCb);
+            fail("registerTelephonyCallback requires READ_PRECISE_PHONE_STATE permission.");
+        } catch (SecurityException e) {
+            //expected
+        }
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                sTelephonyManager, (tm) -> tm.registerTelephonyCallback(Runnable::run, testCb));
+
+        // Expect to receive cached CallState in TelephonyRegistry when the listener register event.
+        List<CallState> callStateList = queue.poll(ImsUtils.TEST_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        assertNotNull(callStateList);
+        assertEquals(1, callStateList.size());
+        assertEquals(
+                PreciseCallState.PRECISE_CALL_STATE_ACTIVE, callStateList.get(0).getCallState());
+        assertEquals(callSessionId, callStateList.get(0).getImsCallSessionId());
+        assertEquals(ImsCallProfile.CALL_TYPE_VOICE, callStateList.get(0).getImsCallType());
+        assertEquals(ImsCallProfile.SERVICE_TYPE_NORMAL,
+                callStateList.get(0).getImsCallServiceType());
+
+        // Hold Call.
+        ImsStreamMediaProfile mediaProfile = new ImsStreamMediaProfile(
+                ImsStreamMediaProfile.AUDIO_QUALITY_AMR,
+                ImsStreamMediaProfile.DIRECTION_SEND_RECEIVE,
+                ImsStreamMediaProfile.VIDEO_QUALITY_QCIF,
+                ImsStreamMediaProfile.DIRECTION_SEND_RECEIVE,
+                ImsStreamMediaProfile.RTT_MODE_DISABLED);
+        callSession.hold(mediaProfile);
+
+        //Check receiving CallState change callback.
+        callStateList = queue.poll(ImsUtils.TEST_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        assertNotNull(callStateList);
+        assertEquals(1, callStateList.size());
+        assertEquals(
+                PreciseCallState.PRECISE_CALL_STATE_HOLDING, callStateList.get(0).getCallState());
+        assertEquals(callSessionId, callStateList.get(0).getImsCallSessionId());
+        assertEquals(ImsCallProfile.CALL_TYPE_VOICE, callStateList.get(0).getImsCallType());
+        assertEquals(ImsCallProfile.SERVICE_TYPE_NORMAL,
+                callStateList.get(0).getImsCallServiceType());
 
         call.disconnect();
 
@@ -1134,8 +1275,9 @@ public class ImsCallingTest extends ImsCallingBase {
         Call call = getCall(mCurrentCallId);
         assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DIALING, WAIT_FOR_CALL_STATE));
 
-        TestImsCallSessionImpl callSession = sServiceConnector.getCarrierService().getMmTelFeature()
-                .getImsCallsession();
+        waitForCallSessionToNotBe(null);
+        TestImsCallSessionImpl callSession =
+                sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
 
         isCallActive(call, callSession);
         String callSessionId = callSession.getCallId();
@@ -1143,25 +1285,19 @@ public class ImsCallingTest extends ImsCallingBase {
         LinkedBlockingQueue<MediaQualityStatus> queue = new LinkedBlockingQueue<>();
         ImsCallingTest.TestTelephonyCallback testCb =
                 new ImsCallingTest.TestTelephonyCallback(queue);
-        TelephonyManager telephonyManager = getContext().getSystemService(TelephonyManager.class);
 
-        //test registration without permission
+        // test registration without permission
         try {
-            telephonyManager.registerTelephonyCallback(getContext().getMainExecutor(), testCb);
+            sTelephonyManager.registerTelephonyCallback(Runnable::run, testCb);
             fail("registerTelephonyCallback requires READ_PRECISE_PHONE_STATE permission.");
         } catch (SecurityException e) {
             //expected
         }
 
-        final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
-        try {
-            automan.adoptShellPermissionIdentity();
-            telephonyManager.registerTelephonyCallback(getContext().getMainExecutor(), testCb);
-        } finally {
-            automan.dropShellPermissionIdentity();
-        }
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                sTelephonyManager,
+                (tm) -> tm.registerTelephonyCallback(Runnable::run, testCb));
 
-        //Expect to receive cached media quality status retrieved by #queryMediaQualityStatus.
         MediaQualityStatus status = queue.poll(ImsUtils.TEST_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         assertNotNull(status);
         assertEquals(callSessionId, status.getCallSessionId());
@@ -1173,13 +1309,12 @@ public class ImsCallingTest extends ImsCallingBase {
 
         //Notify a new media quality status.
         sServiceConnector.getCarrierService().getMmTelFeature()
-                .notifyMediaQualityStatusChanged(new MediaQualityStatus
-                        .Builder(callSessionId,
+                .notifyMediaQualityStatusChanged(new MediaQualityStatus(callSessionId,
                         MediaQualityStatus.MEDIA_SESSION_TYPE_AUDIO,
-                        AccessNetworkConstants.TRANSPORT_TYPE_WWAN)
-                        .setRtpPacketLossRate(TEST_RTP_THRESHOLD_PACKET_LOSS_RATE)
-                        .setRtpJitterMillis(TEST_RTP_THRESHOLD_JITTER_MILLIS)
-                        .setRtpInactivityMillis(TEST_RTP_THRESHOLD_INACTIVITY_TIME_MILLIS).build());
+                        AccessNetworkConstants.TRANSPORT_TYPE_WWAN,
+                        TEST_RTP_THRESHOLD_PACKET_LOSS_RATE,
+                        TEST_RTP_THRESHOLD_JITTER_MILLIS,
+                        TEST_RTP_THRESHOLD_INACTIVITY_TIME_MILLIS));
 
         status = queue.poll(ImsUtils.TEST_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         assertNotNull(status);
@@ -1207,6 +1342,18 @@ public class ImsCallingTest extends ImsCallingBase {
         @Override
         public void onMediaQualityStatusChanged(@NonNull MediaQualityStatus status) {
             mTestMediaQualityStatusQueue.offer(status);
+        }
+    }
+
+    private class TestTelephonyCallbackForCallStateChange extends TelephonyCallback
+            implements TelephonyCallback.CallAttributesListener {
+        LinkedBlockingQueue<List<CallState>> mTestCallStateListeQueue;
+        TestTelephonyCallbackForCallStateChange(LinkedBlockingQueue<List<CallState>> queue) {
+            mTestCallStateListeQueue = queue;
+        }
+        @Override
+        public void onCallStatesChanged(@NonNull List<CallState> states) {
+            mTestCallStateListeQueue.offer(states);
         }
     }
 
@@ -1286,6 +1433,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
         mCall1 = getCall(mCurrentCallId);
         assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DIALING, WAIT_FOR_CALL_STATE));
+        waitForCallSessionToNotBe(null);
         mCallSession1 = sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
         isCallActive(mCall1, mCallSession1);
         assertTrue("Call is not in Active State", (mCall1.getDetails().getState()
@@ -1305,22 +1453,8 @@ public class ImsCallingTest extends ImsCallingBase {
         assertTrue("Call is not in Hold State", (mCall1.getDetails().getState()
                 == Call.STATE_HOLDING));
 
-        //Wait till the object of TestImsCallSessionImpl for second call created.
-        waitUntilConditionIsTrueOrTimeout(
-                new Condition() {
-                    @Override
-                    public Object expected() {
-                        return true;
-                    }
-
-                    @Override
-                    public Object actual() {
-                        TestMmTelFeature mmtelfeatue = sServiceConnector.getCarrierService()
-                                .getMmTelFeature();
-                        return (mmtelfeatue.getImsCallsession() != mCallSession1) ? true : false;
-                    }
-                }, WAIT_FOR_CONDITION, "CallSession Created");
-
+        // Wait till the object of TestImsCallSessionImpl for second call created.
+        waitForCallSessionToNotBe(mCallSession1);
         mCallSession2 = sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
         isCallActive(mCall2, mCallSession2);
         assertTrue("Call is not in Active State", (mCall2.getDetails().getState()
@@ -1336,8 +1470,8 @@ public class ImsCallingTest extends ImsCallingBase {
         Bundle extras3 = new Bundle();
 
         telecomManager.placeCall(imsUri3, extras3);
-        ImsUtils.waitInCurrentState(WAIT_IN_CURRENT_STATE);
-        callingTestLatchCountdown(LATCH_IS_ON_CALL_ADDED, WAIT_FOR_CALL_STATE);
+        assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CALL_ADDED, WAIT_FOR_CALL_STATE));
+        waitNextCallAdded(String.valueOf(sCounter));
 
         mCall3 = getCall(mCurrentCallId);
         assertTrue(callingTestLatchCountdown(LATCH_IS_CALL_DIALING, WAIT_FOR_CALL_STATE));
@@ -1345,7 +1479,7 @@ public class ImsCallingTest extends ImsCallingBase {
         assertTrue("Call is not in Hold State", (mConferenceCall.getDetails().getState()
                 == Call.STATE_HOLDING));
 
-        waitNewCallCreated(mCallSession2);
+        waitForCallSessionToNotBe(mCallSession2);
         mCallSession3 =
                 sServiceConnector.getCarrierService().getMmTelFeature().getImsCallsession();
 
@@ -1354,7 +1488,7 @@ public class ImsCallingTest extends ImsCallingBase {
                 == Call.STATE_ACTIVE));
     }
 
-    private void waitNewCallCreated(TestImsCallSessionImpl previousCallSession) {
+    private void waitForCallSessionToNotBe(TestImsCallSessionImpl previousCallSession) {
         waitUntilConditionIsTrueOrTimeout(
                 new Condition() {
                     @Override
@@ -1372,13 +1506,64 @@ public class ImsCallingTest extends ImsCallingBase {
                 }, WAIT_FOR_CONDITION, "CallSession Created");
     }
 
+    private void waitNextCallAdded(String expectedUri) {
+        callingTestLatchCountdown(LATCH_IS_ON_CALL_ADDED, WAIT_FOR_CALL_STATE);
+        final String[] actualUri = {getCall(mCurrentCallId).getDetails().getHandle().toString()};
+        waitUntilConditionIsTrueOrTimeout(
+                new Condition() {
+                    @Override
+                    public Object expected() {
+                        return true;
+                    }
+
+                    @Override
+                    public Object actual() {
+                        if (!actualUri[0].contains(expectedUri)) {
+                            assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CALL_ADDED,
+                                    WAIT_FOR_CALL_STATE));
+                            actualUri[0] = getCall(
+                                    mCurrentCallId).getDetails().getHandle().toString();
+                            return false;
+                        }
+                        return true;
+                    }
+                }, WAIT_FOR_CONDITION, "Next Call added");
+    }
+
+    private void waitCallRenegotiating(TestImsCallSessionImpl callSession) {
+        waitUntilConditionIsTrueOrTimeout(
+                new Condition() {
+                    @Override
+                    public Object expected() {
+                        return true;
+                    }
+
+                    @Override
+                    public Object actual() {
+                        return callSession.isRenegotiating() ? true : false;
+                    }
+                }, WAIT_FOR_CONDITION, callSession.getState() + ", waitCallRenegotiating");
+    }
+
     private void makeConferenceCall() throws Exception {
         addOutgoingCalls();
         addConferenceCall(mCall1, mCall2);
 
-        assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CALL_ADDED, WAIT_FOR_CALL_STATE));
+        // Wait for merge start first and second call
+        callingTestLatchCountdown(LATCH_IS_ON_MERGE_START, WAIT_FOR_CALL_STATE);
+        callingTestLatchCountdown(LATCH_IS_ON_MERGE_START, WAIT_FOR_CALL_STATE);
+        // Wait for merge complete background call:
+        assertTrue(callingTestLatchCountdown(LATCH_IS_ON_MERGE_COMPLETE, WAIT_FOR_CALL_STATE));
+        // Wait for remove first call
+        callingTestLatchCountdown(LATCH_IS_ON_CALL_REMOVED, WAIT_FOR_CALL_STATE);
+        // Wait for merge complete foreground call:
+        assertTrue(callingTestLatchCountdown(LATCH_IS_ON_MERGE_COMPLETE, WAIT_FOR_CALL_STATE));
+        // Wait for conference call added
+        assertTrue(
+                callingTestLatchCountdown(LATCH_IS_ON_CONFERENCE_CALL_ADDED, WAIT_FOR_CALL_STATE));
+        // Wait for remove second call
+        callingTestLatchCountdown(LATCH_IS_ON_CALL_REMOVED, WAIT_FOR_CALL_STATE);
         // Wait to add participants in conference
-        ImsUtils.waitInCurrentState(WAIT_IN_CURRENT_STATE);
         assertTrue("Conference call is not added", mServiceCallBack.getService()
                 .getConferenceCallCount() > 0);
 
@@ -1397,6 +1582,7 @@ public class ImsCallingTest extends ImsCallingBase {
         assertParticiapantDisconnected(mCall2);
 
         //Verify conference participant connections are connected.
+        assertTrue(callingTestLatchCountdown(LATCH_IS_ON_CHILDREN_CHANGED, WAIT_FOR_CALL_STATE));
         assertParticiapantAddedToConference(2);
 
         // Since the conference call has been made, remove session1&2 from the confHelper session.
@@ -1407,6 +1593,9 @@ public class ImsCallingTest extends ImsCallingBase {
     private void resetCallSessionObjects() {
         mCall1 = mCall2 = mCall3 = mConferenceCall = null;
         mCallSession1 = mCallSession2 = mCallSession3 = mConfCallSession = null;
+        if (sServiceConnector.getCarrierService().getMmTelFeature() == null) {
+            return;
+        }
         ConferenceHelper confHelper = sServiceConnector.getCarrierService().getMmTelFeature()
                 .getConferenceHelper();
         if (confHelper != null) {

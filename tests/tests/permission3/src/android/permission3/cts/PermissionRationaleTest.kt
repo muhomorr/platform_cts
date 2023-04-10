@@ -23,11 +23,11 @@ import android.content.Intent
 import android.os.Build
 import android.provider.DeviceConfig
 import android.safetylabel.SafetyLabelConstants.PERMISSION_RATIONALE_ENABLED
-import android.support.test.uiautomator.By
 import android.text.Spanned
 import android.text.style.ClickableSpan
 import android.view.View
 import androidx.test.filters.SdkSuppress
+import androidx.test.uiautomator.By
 import com.android.compatibility.common.util.DeviceConfigStateChangerRule
 import com.android.compatibility.common.util.SystemUtil
 import com.android.compatibility.common.util.SystemUtil.eventually
@@ -79,20 +79,53 @@ class PermissionRationaleTest : BaseUsePermissionTest() {
     }
 
     @Test
+    fun startsPermissionRationaleActivity_failedByNullMetadata() {
+        installPackageWithInstallSourceAndNoMetadata(APP_APK_NAME_31)
+        navigateToPermissionRationaleActivity_failedShowPermissionRationaleContainer()
+    }
+
+    @Test
+    fun startsPermissionRationaleActivity_failedByEmptyMetadata() {
+        installPackageWithInstallSourceAndEmptyMetadata(APP_APK_NAME_31)
+        navigateToPermissionRationaleActivity_failedShowPermissionRationaleContainer()
+    }
+
+    @Test
+    fun startsPermissionRationaleActivity_failedByNoTopLevelVersion() {
+        installPackageWithInstallSourceAndMetadataWithoutTopLevelVersion(APP_APK_NAME_31)
+        navigateToPermissionRationaleActivity_failedShowPermissionRationaleContainer()
+    }
+
+    @Test
+    fun startsPermissionRationaleActivity_failedByInvalidTopLevelVersion() {
+        installPackageWithInstallSourceAndMetadataWithInvalidTopLevelVersion(APP_APK_NAME_31)
+        navigateToPermissionRationaleActivity_failedShowPermissionRationaleContainer()
+    }
+
+    @Test
+    fun startsPermissionRationaleActivity_failedByNoSafetyLabelVersion() {
+        installPackageWithInstallSourceAndMetadataWithoutSafetyLabelVersion(APP_APK_NAME_31)
+        navigateToPermissionRationaleActivity_failedShowPermissionRationaleContainer()
+    }
+
+    @Test
+    fun startsPermissionRationaleActivity_failedByInvalidSafetyLabelVersion() {
+        installPackageWithInstallSourceAndMetadataWithInvalidSafetyLabelVersion(APP_APK_NAME_31)
+        navigateToPermissionRationaleActivity_failedShowPermissionRationaleContainer()
+    }
+
+    @Test
     fun startsPermissionRationaleActivity() {
         navigateToPermissionRationaleActivity()
 
-        assertPermissionRationaleActivityTitleIsVisible(true)
-        assertPermissionRationaleActivityDataSharingSourceSectionVisible(true)
-        assertPermissionRationaleActivityPurposeSectionVisible(true)
-        assertPermissionRationaleActivityLearnMoreSectionVisible(true)
-        assertPermissionRationaleActivitySettingsSectionVisible(true)
+        assertPermissionRationaleDialogIsVisible(true)
     }
 
     @Test
     fun linksToInstallSource() {
         navigateToPermissionRationaleActivity()
-        assertPermissionRationaleActivityTitleIsVisible(true)
+
+        assertPermissionRationaleDialogIsVisible(true)
 
         clickInstallSourceLink()
 
@@ -102,29 +135,57 @@ class PermissionRationaleTest : BaseUsePermissionTest() {
     }
 
     @Test
+    fun clickLinkToHelpCenter_opensHelpCenter() {
+        Assume.assumeFalse(getPermissionControllerResString(HELP_CENTER_URL_ID).isNullOrEmpty())
+
+        navigateToPermissionRationaleActivity()
+
+        assertPermissionRationaleActivityTitleIsVisible(true)
+        assertHelpCenterLinkAvailable(true)
+
+        clickHelpCenterLink()
+
+        eventually {
+            assertHelpCenterLinkClickSuccessful()
+        }
+    }
+
+    @Test
+    fun noHelpCenterLinkAvailable_noHelpCenterClickAction() {
+        Assume.assumeTrue(getPermissionControllerResString(HELP_CENTER_URL_ID).isNullOrEmpty())
+
+        navigateToPermissionRationaleActivity()
+
+        assertPermissionRationaleActivityTitleIsVisible(true)
+        assertHelpCenterLinkAvailable(false)
+    }
+
+    @Test
     fun linksToSettings_noOp_dialogsNotClosed() {
         navigateToPermissionRationaleActivity()
-        assertPermissionRationaleActivityTitleIsVisible(true)
+
+        assertPermissionRationaleDialogIsVisible(true)
 
         clicksSettings_doesNothing_leaves()
 
         eventually {
-            assertPermissionRationaleActivityTitleIsVisible(true)
+            assertPermissionRationaleDialogIsVisible(true)
         }
     }
 
     @Test
     fun linksToSettings_grants_dialogsClose() {
         navigateToPermissionRationaleActivity()
-        assertPermissionRationaleActivityTitleIsVisible(true)
+
+        assertPermissionRationaleDialogIsVisible(true)
 
         clicksSettings_allowsForeground_leaves()
 
         // Setting, Permission rationale and Grant dialog should be dismissed
         eventually {
             assertPermissionSettingsVisible(false)
-            assertPermissionRationaleActivityTitleIsVisible(false)
-            assertPermissionRationaleOnGrantDialogIsVisible(false)
+            assertPermissionRationaleDialogIsVisible(false)
+            assertPermissionRationaleContainerOnGrantDialogIsVisible(false)
         }
 
         assertAppHasPermission(Manifest.permission.ACCESS_FINE_LOCATION, true)
@@ -133,23 +194,30 @@ class PermissionRationaleTest : BaseUsePermissionTest() {
     @Test
     fun linksToSettings_denies_dialogsClose() {
         navigateToPermissionRationaleActivity()
-        assertPermissionRationaleActivityTitleIsVisible(true)
+
+        assertPermissionRationaleDialogIsVisible(true)
 
         clicksSettings_denies_leaves()
 
         // Setting, Permission rationale and Grant dialog should be dismissed
         eventually {
             assertPermissionSettingsVisible(false)
-            assertPermissionRationaleActivityTitleIsVisible(false)
-            assertPermissionRationaleOnGrantDialogIsVisible(false)
+            assertPermissionRationaleDialogIsVisible(false)
+            assertPermissionRationaleContainerOnGrantDialogIsVisible(false)
         }
 
         assertAppHasPermission(Manifest.permission.ACCESS_FINE_LOCATION, false)
     }
 
+    private fun navigateToPermissionRationaleActivity_failedShowPermissionRationaleContainer() {
+        requestAppPermissionsForNoResult(Manifest.permission.ACCESS_FINE_LOCATION) {
+            assertPermissionRationaleContainerOnGrantDialogIsVisible(false)
+        }
+    }
+
     private fun navigateToPermissionRationaleActivity() {
         requestAppPermissionsForNoResult(Manifest.permission.ACCESS_FINE_LOCATION) {
-            assertPermissionRationaleOnGrantDialogIsVisible(true)
+            assertPermissionRationaleContainerOnGrantDialogIsVisible(true)
             clickPermissionRationaleViewInGrantDialog()
         }
     }
@@ -161,6 +229,23 @@ class PermissionRationaleTest : BaseUsePermissionTest() {
             // UiObject2 doesn't expose CharSequence.
             val node = uiAutomation.rootInActiveWindow.findAccessibilityNodeInfosByViewId(
                 DATA_SHARING_SOURCE_MESSAGE_ID
+            )[0]
+            assertTrue(node.isVisibleToUser)
+            val text = node.text as Spanned
+            val clickableSpan = text.getSpans(0, text.length, ClickableSpan::class.java)[0]
+            // We could pass in null here in Java, but we need an instance in Kotlin.
+            clickableSpan.onClick(View(context))
+        }
+        waitForIdle()
+    }
+
+    private fun clickHelpCenterLink() {
+        findView(By.res(LEARN_MORE_MESSAGE_ID), true)
+
+        eventually {
+            // UiObject2 doesn't expose CharSequence.
+            val node = uiAutomation.rootInActiveWindow.findAccessibilityNodeInfosByViewId(
+                LEARN_MORE_MESSAGE_ID
             )[0]
             assertTrue(node.isVisibleToUser)
             val text = node.text as Spanned
@@ -212,34 +297,27 @@ class PermissionRationaleTest : BaseUsePermissionTest() {
         pressBack()
     }
 
-    private fun assertPermissionRationaleOnGrantDialogIsVisible(expected: Boolean) {
-        findView(By.res(GRANT_DIALOG_PERMISSION_RATIONALE_CONTAINER_VIEW), expected = expected)
-    }
+    private fun assertHelpCenterLinkAvailable(expected: Boolean) {
+        // Message should always be visible
+        findView(By.res(LEARN_MORE_MESSAGE_ID), true)
 
-    private fun assertPermissionRationaleActivityTitleIsVisible(expected: Boolean) {
-        findView(By.res(PERMISSION_RATIONALE_ACTIVITY_TITLE_VIEW), expected = expected)
-    }
+        // Verify the link is (or isn't) in message
+        eventually {
+            // UiObject2 doesn't expose CharSequence.
+            val node = uiAutomation.rootInActiveWindow.findAccessibilityNodeInfosByViewId(
+                LEARN_MORE_MESSAGE_ID
+            )[0]
+            assertTrue(node.isVisibleToUser)
+            val text = node.text as Spanned
+            val clickableSpans = text.getSpans(0, text.length, ClickableSpan::class.java)
 
-    private fun assertPermissionRationaleActivityDataSharingSourceSectionVisible(
-        expected: Boolean
-    ) {
-        findView(By.res(DATA_SHARING_SOURCE_TITLE_ID), expected = expected)
-        findView(By.res(DATA_SHARING_SOURCE_MESSAGE_ID), expected = expected)
-    }
-
-    private fun assertPermissionRationaleActivityPurposeSectionVisible(expected: Boolean) {
-        findView(By.res(PURPOSE_TITLE_ID), expected = expected)
-        findView(By.res(PURPOSE_MESSAGE_ID), expected = expected)
-    }
-
-    private fun assertPermissionRationaleActivityLearnMoreSectionVisible(expected: Boolean) {
-        findView(By.res(LEARN_MORE_TITLE_ID), expected = expected)
-        findView(By.res(LEARN_MORE_MESSAGE_ID), expected = expected)
-    }
-
-    private fun assertPermissionRationaleActivitySettingsSectionVisible(expected: Boolean) {
-        findView(By.res(SETTINGS_TITLE_ID), expected = expected)
-        findView(By.res(SETTINGS_MESSAGE_ID), expected = expected)
+            if (expected) {
+                assertFalse("Expected help center link, but none found",
+                    clickableSpans.isEmpty())
+            } else {
+                assertTrue("Expected no links, but found one", clickableSpans.isEmpty())
+            }
+        }
     }
 
     private fun assertPermissionSettingsVisible(expected: Boolean) {
@@ -273,25 +351,39 @@ class PermissionRationaleTest : BaseUsePermissionTest() {
         }
     }
 
-    companion object {
-        private const val PRIVACY_PLACEHOLDER_SAFETY_LABEL_DATA_ENABLED =
-            "privacy_placeholder_safety_label_data_enabled"
+    private fun assertHelpCenterLinkClickSuccessful() {
+        SystemUtil.runWithShellPermissionIdentity {
+            val runningTasks = activityManager!!.getRunningTasks(1)
 
-        private const val DATA_SHARING_SOURCE_TITLE_ID =
-            "com.android.permissioncontroller:id/data_sharing_source_title"
+            assertFalse("Expected runningTasks to not be empty",
+                runningTasks.isEmpty())
+
+            val taskInfo = runningTasks[0]
+            val observedIntentAction = taskInfo.baseIntent.action
+            val observedIntentDataString = taskInfo.baseIntent.dataString
+            val observedIntentScheme: String? = taskInfo.baseIntent.scheme
+
+            assertEquals("Unexpected intent action",
+                Intent.ACTION_VIEW,
+                observedIntentAction)
+
+            val expectedUrl = getPermissionControllerResString(HELP_CENTER_URL_ID)!!
+            assertFalse(observedIntentDataString.isNullOrEmpty())
+            assertTrue(observedIntentDataString?.startsWith(expectedUrl) ?: false)
+
+            assertFalse(observedIntentScheme.isNullOrEmpty())
+            assertEquals("https", observedIntentScheme)
+        }
+    }
+
+    companion object {
         private const val DATA_SHARING_SOURCE_MESSAGE_ID =
             "com.android.permissioncontroller:id/data_sharing_source_message"
-        private const val PURPOSE_TITLE_ID =
-            "com.android.permissioncontroller:id/purpose_title"
-        private const val PURPOSE_MESSAGE_ID =
-            "com.android.permissioncontroller:id/purpose_message"
-        private const val LEARN_MORE_TITLE_ID =
-            "com.android.permissioncontroller:id/learn_more_title"
         private const val LEARN_MORE_MESSAGE_ID =
             "com.android.permissioncontroller:id/learn_more_message"
-        private const val SETTINGS_TITLE_ID =
-            "com.android.permissioncontroller:id/settings_title"
         private const val SETTINGS_MESSAGE_ID =
             "com.android.permissioncontroller:id/settings_message"
+
+        private const val HELP_CENTER_URL_ID = "data_sharing_help_center_link"
     }
 }

@@ -16,9 +16,21 @@
 
 package android.devicepolicy.cts;
 
+import static android.app.admin.DevicePolicyIdentifiers.getIdentifierForUserRestriction;
+import static android.app.admin.TargetUser.GLOBAL_USER_ID;
+
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeTrue;
 import static org.testng.Assert.assertThrows;
+
+import android.app.admin.PolicyUpdateResult;
+import android.content.Context;
+import android.devicepolicy.cts.utils.PolicySetResultUtils;
+import android.os.Bundle;
+import android.os.UserManager;
+import android.telephony.TelephonyManager;
 
 import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
@@ -26,11 +38,16 @@ import com.android.bedstead.harrier.annotations.Postsubmit;
 import com.android.bedstead.harrier.annotations.StringTestParameter;
 import com.android.bedstead.harrier.annotations.enterprise.CanSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.CannotSetPolicyTest;
+import com.android.bedstead.harrier.annotations.enterprise.CoexistenceFlagsOn;
+import com.android.bedstead.harrier.annotations.enterprise.EnsureHasDeviceOwner;
 import com.android.bedstead.harrier.annotations.enterprise.PolicyAppliesTest;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnDeviceOwnerUser;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnUnaffiliatedProfileOwnerSecondaryUser;
 import com.android.bedstead.harrier.policies.AffiliatedProfileOwnerOnlyUserRestrictions;
 import com.android.bedstead.harrier.policies.UserRestrictions;
+import com.android.bedstead.nene.TestApis;
+import com.android.bedstead.nene.devicepolicy.DeviceOwner;
+import com.android.bedstead.nene.devicepolicy.DeviceOwnerType;
 import com.android.bedstead.nene.userrestrictions.CommonUserRestrictions;
 import com.android.compatibility.common.util.BlockingBroadcastReceiver;
 
@@ -44,6 +61,7 @@ import java.lang.annotation.RetentionPolicy;
 
 @RunWith(BedsteadJUnit4.class)
 public final class UserRestrictionsTest {
+    private static final Context sContext = TestApis.context().instrumentedContext();
 
     @StringTestParameter({
             CommonUserRestrictions.DISALLOW_USB_FILE_TRANSFER,
@@ -327,6 +345,8 @@ public final class UserRestrictionsTest {
     @Postsubmit(reason = "new test")
     public void addUserRestriction_deviceOwnerOnlyRestriction_throwsSecurityException(
             @DeviceOwnerOnlyUserRestrictions String restriction) {
+        skipTestForFinancedDevice();
+
         try {
             assertThrows(SecurityException.class, () -> {
                 sDeviceState.dpc().devicePolicyManager().addUserRestriction(
@@ -369,6 +389,59 @@ public final class UserRestrictionsTest {
             sDeviceState.dpc().devicePolicyManager().clearUserRestriction(
                     sDeviceState.dpc().componentName(), ANY_USER_RESTRICTION);
             broadcastReceiver.awaitForBroadcastOrFail();
+        }
+    }
+
+
+    @Test
+    @EnsureHasDeviceOwner
+    @IncludeRunOnDeviceOwnerUser
+    // PolicySetResult broadcasts depend on the coexistence feature
+    @CoexistenceFlagsOn
+    public void addDisallowCellular2g_notTelephonyCapable_sendHardwareUnsupportedToAdmin() {
+        assumeFalse(isTelephonyCapableOfSettingNetworkTypes());
+
+        sDeviceState.dpc().devicePolicyManager().addUserRestrictionGlobally(
+                UserManager.DISALLOW_CELLULAR_2G);
+
+        PolicySetResultUtils.assertPolicySetResultReceived(sDeviceState,
+                getIdentifierForUserRestriction(UserManager.DISALLOW_CELLULAR_2G),
+                PolicyUpdateResult.RESULT_FAILURE_HARDWARE_LIMITATION, GLOBAL_USER_ID,
+                new Bundle());
+    }
+
+    @Test
+    @EnsureHasDeviceOwner
+    @IncludeRunOnDeviceOwnerUser
+    // PolicySetResult broadcasts depend on the coexistence feature
+    @CoexistenceFlagsOn
+    public void addDisallowCellular2g_telephonyCapable_sendSuccessToAdmin() {
+        assumeTrue(isTelephonyCapableOfSettingNetworkTypes());
+
+        sDeviceState.dpc().devicePolicyManager().addUserRestrictionGlobally(
+                UserManager.DISALLOW_CELLULAR_2G);
+
+        PolicySetResultUtils.assertPolicySetResultReceived(sDeviceState,
+                getIdentifierForUserRestriction(UserManager.DISALLOW_CELLULAR_2G),
+                PolicyUpdateResult.RESULT_POLICY_SET, GLOBAL_USER_ID, new Bundle());
+    }
+
+    private void skipTestForFinancedDevice() {
+        DeviceOwner deviceOwner = TestApis.devicePolicy().getDeviceOwner();
+
+        // TODO(): Determine a pattern to special case states so that they are not considered in
+        //  tests.
+        assumeFalse(deviceOwner != null && deviceOwner.getType() == DeviceOwnerType.FINANCED);
+    }
+
+    private boolean isTelephonyCapableOfSettingNetworkTypes() {
+        TelephonyManager tm = sContext.getSystemService(TelephonyManager.class);
+        try {
+            return (tm != null && tm.isRadioInterfaceCapabilitySupported(
+                    TelephonyManager.CAPABILITY_USES_ALLOWED_NETWORK_TYPES_BITMASK));
+
+        } catch (IllegalArgumentException e) {
+            return false;
         }
     }
 }

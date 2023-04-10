@@ -36,6 +36,7 @@ import static org.mockito.Mockito.verify;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.ColorSpace;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
@@ -82,6 +83,9 @@ import androidx.test.rule.ActivityTestRule;
 
 import com.android.compatibility.common.util.ApiTest;
 import com.android.compatibility.common.util.CddTest;
+
+import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeTrue;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -2035,6 +2039,10 @@ public class ExtendedCameraCharacteristicsTest extends Camera2AndroidTestCase {
             "android.hardware.camera2.params.ColorSpaceProfiles#getSupportedImageFormatsForColorSpace",
             "android.hardware.camera2.params.ColorSpaceProfiles#getSupportedDynamicRangeProfiles"})
     public void test8BitColorSpaceOutputCharacteristics() {
+        final Set<ColorSpace.Named> sdrColorSpaces = new ArraySet<>();
+        sdrColorSpaces.add(ColorSpace.Named.SRGB);
+        sdrColorSpaces.add(ColorSpace.Named.DISPLAY_P3);
+
         for (int i = 0; i < mAllCameraIds.length; i++) {
             Log.i(TAG, "test8BitColorSpaceOutputCharacteristics: Testing camera ID "
                     + mAllCameraIds[i]);
@@ -2059,6 +2067,11 @@ public class ExtendedCameraCharacteristicsTest extends Camera2AndroidTestCase {
                             ImageFormat.UNKNOWN, DynamicRangeProfiles.STANDARD);
             mCollector.expectTrue("8-bit color spaces not present!",
                     !supportedColorSpacesStandard.isEmpty());
+
+            for (ColorSpace.Named colorSpace : supportedColorSpacesStandard) {
+                mCollector.expectTrue("ColorSpace " + colorSpace.ordinal() + " is not in the set"
+                        + " of supported color spaces", sdrColorSpaces.contains(colorSpace));
+            }
 
             Set<ColorSpace.Named> supportedColorSpaces = colorSpaceProfiles.getSupportedColorSpaces(
                     ImageFormat.UNKNOWN);
@@ -2111,6 +2124,15 @@ public class ExtendedCameraCharacteristicsTest extends Camera2AndroidTestCase {
             "android.hardware.camera2.params.ColorSpaceProfiles#getSupportedImageFormatsForColorSpace",
             "android.hardware.camera2.params.ColorSpaceProfiles#getSupportedDynamicRangeProfiles"})
     public void test10BitColorSpaceOutputCharacteristics() {
+        final Set<ColorSpace.Named> sdrColorSpaces = new ArraySet<>();
+        sdrColorSpaces.add(ColorSpace.Named.SRGB);
+        sdrColorSpaces.add(ColorSpace.Named.DISPLAY_P3);
+
+        final Set<ColorSpace.Named> hdrColorSpaces = new ArraySet<>();
+        hdrColorSpaces.add(ColorSpace.Named.SRGB);
+        hdrColorSpaces.add(ColorSpace.Named.DISPLAY_P3);
+        hdrColorSpaces.add(ColorSpace.Named.BT2020_HLG);
+
         for (int i = 0; i < mAllCameraIds.length; i++) {
             Log.i(TAG, "test10BitColorSpaceOutputCharacteristics: Testing camera ID "
                     + mAllCameraIds[i]);
@@ -2167,10 +2189,16 @@ public class ExtendedCameraCharacteristicsTest extends Camera2AndroidTestCase {
                                         + "should return a set containing STANDARD for a supported"
                                         + "color space and image format!",
                                         compatibleColorSpaces.contains(colorSpace));
+                                mCollector.expectTrue("ColorSpace " + colorSpace.ordinal() + " is "
+                                        + "not in the set of supported color spaces for STANDARD",
+                                        sdrColorSpaces.contains(colorSpace));
                             } else {
                                 mCollector.expectTrue("getSupportedColorSpacesForDynamicRange "
                                         + "should return an empty set for HDR!",
                                         compatibleColorSpaces.isEmpty());
+                                mCollector.expectTrue("ColorSpace " + colorSpace.ordinal() + " is "
+                                        + "not in the set of supported color spaces for HDR",
+                                        hdrColorSpaces.contains(colorSpace));
                             }
                         }
                     }
@@ -2197,6 +2225,16 @@ public class ExtendedCameraCharacteristicsTest extends Camera2AndroidTestCase {
                             mCollector.expectTrue("Compatible dynamic range profile not reported in"
                                     + " DynamicRangeProfiles!",
                                     supportedDynamicRangeProfiles.contains(dynamicRangeProfile));
+
+                            if (dynamicRangeProfile == DynamicRangeProfiles.STANDARD) {
+                                mCollector.expectTrue("ColorSpace " + colorSpace.ordinal() + " is "
+                                        + "not in the set of supported color spaces for STANDARD",
+                                        sdrColorSpaces.contains(colorSpace));
+                            } else {
+                                mCollector.expectTrue("ColorSpace " + colorSpace.ordinal() + " is "
+                                        + "not in the set of supported color spaces for HDR",
+                                        hdrColorSpaces.contains(colorSpace));
+                            }
                         }
                     }
                 }
@@ -3010,6 +3048,8 @@ public class ExtendedCameraCharacteristicsTest extends Camera2AndroidTestCase {
     @CddTest(requirement = "7.5.5/C-1-1")
     @Test
     public void testCameraOrientationAlignedWithDevice() {
+        assumeFalse("Skip test: CDD 7.5.5/C-1-1 does not apply to automotive",
+                mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE));
         if (CameraUtils.isDeviceFoldable(mContext)) {
             // CDD 7.5.5/C-1-1 does not apply to devices with folding displays as the display aspect
             // ratios might change with the device's folding state.
@@ -3576,6 +3616,121 @@ public class ExtendedCameraCharacteristicsTest extends Camera2AndroidTestCase {
                 assertTrue("Lens pose rotation should not describe a direction toward the " +
                         "outside of the cabin",
                         angle <= Math.PI * 3 / 4);
+            }
+        }
+    }
+
+    private void testLandscapeToPortraitSensorOrientation(String cameraId) throws Exception {
+        CameraCharacteristics characteristics =
+                mCameraManager.getCameraCharacteristics(cameraId, false);
+        CameraCharacteristics characteristicsOverride =
+                mCameraManager.getCameraCharacteristics(cameraId, true);
+        int sensorOrientation = characteristics.get(
+                CameraCharacteristics.SENSOR_ORIENTATION);
+        int sensorOrientationOverride = characteristicsOverride.get(
+                CameraCharacteristics.SENSOR_ORIENTATION);
+
+        if (sensorOrientation == 0 || sensorOrientation == 180) {
+            int facing = characteristics.get(CameraCharacteristics.LENS_FACING);
+            if (facing == CameraMetadata.LENS_FACING_FRONT) {
+                assertEquals("SENSOR_ORIENTATION should be rotated 90 degrees"
+                        + " counter-clockwise for front-facing cameras.",
+                        (360 + sensorOrientation - 90) % 360, sensorOrientationOverride);
+            } else if (facing == CameraMetadata.LENS_FACING_BACK) {
+                assertEquals("SENSOR_ORIENTATION should be rotated 90 degrees clockwise"
+                        + " for back-facing cameras.",
+                        (360 + sensorOrientation + 90) % 360, sensorOrientationOverride);
+            } else {
+                assertEquals("SENSOR_ORIENTATION should be unchanged for external cameras.",
+                        sensorOrientation, sensorOrientationOverride);
+            }
+        } else {
+            assertEquals("SENSOR_ORIENTATION should be unchanged for non-landscape "
+                    + "sensors.", sensorOrientation, sensorOrientationOverride);
+        }
+    }
+
+    /**
+     * Test that the landscape to portrait override modifies SENSOR_ORIENTATION as expected.
+     * All cameras with SENSOR_ORIENTATION 0 or 180 should have SENSOR_ORIENTATION 90 or 270
+     * when the override is turned on. Cameras not accessible via openCamera ("constituent
+     * cameras") should not update their SENSOR_ORIENTATION values.
+     */
+    @Test
+    public void testLandscapeToPortraitOverride() throws Exception {
+        String[] cameraIdArr = mCameraManager.getCameraIdListNoLazy();
+        ArrayList<String> cameraIdList = new ArrayList<>(Arrays.asList(cameraIdArr));
+        for (String cameraId : mCameraIdsUnderTest) {
+            Log.i(TAG, "testLandscapeToPortraitOverride: Testing camera ID " + cameraId);
+            StaticMetadata staticMetadata = mAllStaticInfo.get(cameraId);
+
+            testLandscapeToPortraitSensorOrientation(cameraId);
+
+            if (staticMetadata.isLogicalMultiCamera()) {
+                Log.i(TAG, "Camera " + cameraId + " is a logical multi-camera.");
+
+                CameraCharacteristics characteristics =
+                        mCameraManager.getCameraCharacteristics(cameraId, false);
+
+                Set<String> physicalCameraIds = characteristics.getPhysicalCameraIds();
+                for (String physicalId : physicalCameraIds) {
+                    if (!cameraIdList.contains(physicalId)) {
+                        Log.i(TAG, "Testing constituent camera id: " + physicalId);
+
+                        CameraCharacteristics physicalCharacteristics =
+                                mCameraManager.getCameraCharacteristics(physicalId, false);
+                        CameraCharacteristics physicalCharacteristicsOverride =
+                                mCameraManager.getCameraCharacteristics(physicalId, true);
+                        int physicalSensorOrientation = physicalCharacteristics.get(
+                                CameraCharacteristics.SENSOR_ORIENTATION);
+                        int physicalSensorOrientationOverride = physicalCharacteristicsOverride.get(
+                                CameraCharacteristics.SENSOR_ORIENTATION);
+
+                        // Check that physical camera orientations have NOT been overridden.
+                        assertEquals("SENSOR_ORIENTATION should be unchanged for constituent "
+                                + "physical cameras.", physicalSensorOrientation,
+                                physicalSensorOrientationOverride);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Validate that the rear/world facing cameras in automotive devices are oriented so that the
+     * long dimension of the camera aligns with the X-Y plane of Android automotive sensor axes.
+     */
+    @CddTest(requirements = "7.5/A-1-1")
+    @Test
+    public void testAutomotiveCameraOrientation() throws Exception {
+        assumeTrue(mContext.getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_AUTOMOTIVE));
+        for (int i = 0; i < mAllCameraIds.length; i++) {
+            CameraCharacteristics c = mCharacteristics.get(i);
+            int facing = c.get(CameraCharacteristics.LENS_FACING);
+            if (facing == CameraMetadata.LENS_FACING_BACK) {
+                // Camera size
+                Size pixelArraySize = c.get(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE);
+                // Camera orientation
+                int sensorOrientation = c.get(CameraCharacteristics.SENSOR_ORIENTATION);
+                // For square sensor, test is guaranteed to pass.
+                if (pixelArraySize.getWidth() == pixelArraySize.getHeight()) {
+                    continue;
+                }
+                // Camera size adjusted for device native orientation.
+                Size adjustedSensorSize;
+                if (sensorOrientation == 90 || sensorOrientation == 270) {
+                    adjustedSensorSize = new Size(
+                            pixelArraySize.getHeight(), pixelArraySize.getWidth());
+                } else {
+                    adjustedSensorSize = pixelArraySize;
+                }
+                boolean isCameraLandscape =
+                        adjustedSensorSize.getWidth() > adjustedSensorSize.getHeight();
+                // Automotive camera orientation should be landscape for rear/world facing camera.
+                assertTrue("Automotive camera "  + mAllCameraIds[i] + " which is rear/world facing"
+                        + " must align with the X-Y plane of Android automotive sensor axes",
+                        isCameraLandscape);
             }
         }
     }

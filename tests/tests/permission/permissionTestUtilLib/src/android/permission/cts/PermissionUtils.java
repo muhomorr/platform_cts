@@ -52,9 +52,12 @@ import android.content.pm.ResolveInfo;
 import android.os.Build;
 import android.os.Process;
 import android.os.UserHandle;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.test.platform.app.InstrumentationRegistry;
+
+import com.android.modules.utils.build.SdkLevel;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -68,6 +71,7 @@ public class PermissionUtils {
             | FLAG_PERMISSION_REVOKE_ON_UPGRADE | FLAG_PERMISSION_REVIEW_REQUIRED
             | FLAG_PERMISSION_REVOKE_WHEN_REQUESTED;
 
+    private static final String LOG_TAG = PermissionUtils.class.getSimpleName();
     private static final Context sContext =
             InstrumentationRegistry.getInstrumentation().getTargetContext();
     private static final UiAutomation sUiAutomation =
@@ -102,6 +106,7 @@ public class PermissionUtils {
                 + (Build.VERSION.RELEASE_OR_CODENAME.equals("REL") ? 0 : 1);
         boolean forceQueryable = sdkVersion > Build.VERSION_CODES.Q;
         runShellCommand("pm install -r --force-sdk "
+                + (SdkLevel.isAtLeastU() ? "--bypass-low-target-sdk-block " : "")
                 + (forceQueryable ? "--force-queryable " : "")
                 + apkFile);
     }
@@ -335,7 +340,6 @@ public class PermissionUtils {
             @NonNull String packageName, int jobId, long timeout, @NonNull String intentAction,
             @NonNull String onBootReceiver) throws Exception {
         clearAppState(packageName);
-
         awaitJobUntilRequestedState(packageName, jobId, timeout, automation, "unknown");
         scheduleJob(automation, packageName, jobId, timeout, intentAction, onBootReceiver);
 
@@ -349,22 +353,23 @@ public class PermissionUtils {
      */
     public static void scheduleJob(@NonNull UiAutomation automation,
             @NonNull String packageName, int jobId, long timeout, @NonNull String intentAction,
-            @NonNull String onBootReceiver) throws Exception {
+            @NonNull String broadcastReceiver) throws Exception {
         long startTime = System.currentTimeMillis();
         String jobStatus = "";
 
         while ((System.currentTimeMillis() - startTime) < timeout
                 && !jobStatus.contains("waiting")) {
-            simulateReboot(packageName, intentAction, onBootReceiver);
+            simulateReboot(packageName, intentAction, broadcastReceiver);
             String cmd =
                     "cmd jobscheduler get-job-state -u " + Process.myUserHandle().getIdentifier()
                             + " " + packageName + " " + jobId;
             jobStatus = runShellCommand(automation, cmd).trim();
+            Log.v(LOG_TAG, "Job: " + jobId + ", job status " + jobStatus);
         }
     }
 
     private static void simulateReboot(@NonNull String packageName, @NonNull String intentAction,
-            @NonNull String onBootReceiver) {
+            @NonNull String broadcastReceiver) {
         Intent jobSetupReceiverIntent = new Intent(intentAction);
         jobSetupReceiverIntent.setPackage(packageName);
         jobSetupReceiverIntent.setFlags(Intent.FLAG_RECEIVER_FOREGROUND);
@@ -377,7 +382,7 @@ public class PermissionUtils {
             sContext.sendBroadcast(jobSetupReceiverIntent);
         } else {
             Intent intent = new Intent();
-            intent.setClassName(packageName, onBootReceiver);
+            intent.setClassName(packageName, broadcastReceiver);
             intent.setFlags(Intent.FLAG_RECEIVER_FOREGROUND);
             intent.setPackage(packageName);
             sContext.sendBroadcast(intent);

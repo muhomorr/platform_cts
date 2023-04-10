@@ -163,7 +163,6 @@ class AutoRevokeTest {
     @AppModeFull(reason = "Uses separate apps for testing")
     @Test
     @CddTest(requirement = "3.5.2/C-1-2")
-    @Ignore("b/201545116")
     fun testUnusedApp_getsPermissionRevoked() {
         assumeFalse(
                 "Watch doesn't provide a unified way to check notifications. it depends on UX",
@@ -196,7 +195,6 @@ class AutoRevokeTest {
     @AppModeFull(reason = "Uses separate apps for testing")
     @Test
     @CddTest(requirement = "3.5.1/C-1-1")
-    @Ignore("b/201545116")
     fun testUnusedApp_uninstallApp() {
         assumeFalse(
             "Unused apps screen may be unavailable on TV",
@@ -299,7 +297,6 @@ class AutoRevokeTest {
 
     @AppModeFull(reason = "Uses separate apps for testing")
     @Test
-    @Ignore("b/201545116")
     fun testPermissionEventCleanupService_scrubsEvents() {
         val unusedThreshold = 15_000L
         withUnusedThresholdMs(unusedThreshold) {
@@ -442,7 +439,6 @@ class AutoRevokeTest {
     @AppModeFull(reason = "Uses separate apps for testing")
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
     @Test
-    @Ignore("b/201545116")
     fun testAutoRevoke_showsUpInSafetyCenter() {
         withSafetyCenterEnabled {
             withUnusedThresholdMs(3L) {
@@ -480,7 +476,7 @@ class AutoRevokeTest {
     @AppModeFull(reason = "Uses separate apps for testing")
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
     @Test
-    @Ignore("b/201545116")
+    @Ignore
     fun testAutoRevoke_goToUnusedAppsPage_removesSafetyCenterIssue() {
         withSafetyCenterEnabled {
             withUnusedThresholdMs(3L) {

@@ -24,6 +24,7 @@ import sys
 import error_util
 import numpy
 from PIL import Image
+from PIL import ImageCms
 
 import capture_request_utils
 
@@ -41,6 +42,25 @@ DEFAULT_GAMMA_LUT = numpy.array([
 NUM_TRIES = 2
 NUM_FRAMES = 4
 TEST_IMG_DIR = os.path.join(os.environ['CAMERA_ITS_TOP'], 'test_images')
+
+EXPECTED_RX_P3 = 0.682
+EXPECTED_RY_P3 = 0.319
+EXPECTED_GX_P3 = 0.285
+EXPECTED_GY_P3 = 0.675
+EXPECTED_BX_P3 = 0.156
+EXPECTED_BY_P3 = 0.066
+
+EXPECTED_RX_SRGB = 0.648
+EXPECTED_RY_SRGB = 0.331
+EXPECTED_GX_SRGB = 0.321
+EXPECTED_GY_SRGB = 0.598
+EXPECTED_BX_SRGB = 0.156
+EXPECTED_BY_SRGB = 0.066
+
+
+def convert_image_to_uint8(image):
+  image *= 255
+  return image.astype(numpy.uint8)
 
 
 def assert_props_is_not_none(props):
@@ -239,6 +259,22 @@ def decompress_jpeg_to_rgb_image(jpeg_buffer):
      A numpy array for the RGB image, with pixels in [0,1].
   """
   img = Image.open(io.BytesIO(jpeg_buffer))
+  w = img.size[0]
+  h = img.size[1]
+  return numpy.array(img).reshape((h, w, 3)) / 255.0
+
+
+def decompress_jpeg_to_yuv_image(jpeg_buffer):
+  """Decompress a JPEG-compressed image, returning as a YUV image.
+
+  Args:
+    jpeg_buffer: The JPEG stream.
+
+  Returns:
+     A numpy array for the YUV image, with pixels in [0,1].
+  """
+  img = Image.open(io.BytesIO(jpeg_buffer))
+  img = img.convert('YCbCr')
   w = img.size[0]
   h = img.size[1]
   return numpy.array(img).reshape((h, w, 3)) / 255.0
@@ -480,13 +516,13 @@ def convert_y8_to_rgb_image(y_plane, w, h):
   return rgb.astype(numpy.float32) / 255.0
 
 
-def write_image(img, fname, apply_gamma=False):
+def write_image(img, fname, apply_gamma=False, is_yuv=False):
   """Save a float-3 numpy array image to a file.
 
   Supported formats: PNG, JPEG, and others; see PIL docs for more.
 
-  Image can be 3-channel, which is interpreted as RGB, or can be 1-channel,
-  which is greyscale.
+  Image can be 3-channel, which is interpreted as RGB or YUV, or can be
+  1-channel, which is greyscale.
 
   Can optionally specify that the image should be gamma-encoded prior to
   writing it out; this should be done if the image contains linear pixel
@@ -496,12 +532,16 @@ def write_image(img, fname, apply_gamma=False):
    img: Numpy image array data.
    fname: Path of file to save to; the extension specifies the format.
    apply_gamma: (Optional) apply gamma to the image prior to writing it.
+   is_yuv: Whether the image is in YUV format.
   """
   if apply_gamma:
     img = apply_lut_to_image(img, DEFAULT_GAMMA_LUT)
   (h, w, chans) = img.shape
   if chans == 3:
-    Image.fromarray((img * 255.0).astype(numpy.uint8), 'RGB').save(fname)
+    if not is_yuv:
+      Image.fromarray((img * 255.0).astype(numpy.uint8), 'RGB').save(fname)
+    else:
+      Image.fromarray((img * 255.0).astype(numpy.uint8), 'YCbCr').save(fname)
   elif chans == 1:
     img3 = (img * 255.0).astype(numpy.uint8).repeat(3).reshape(h, w, 3)
     Image.fromarray(img3, 'RGB').save(fname)
@@ -868,3 +908,228 @@ def compute_image_rms_difference_3d(rgb_x, rgb_y):
         mean_square_sum += pow(rgb_x[i][j][k] - rgb_y[i][j][k], 2.0)
   return (math.sqrt(mean_square_sum /
                     (shape_rgb_x[0] * shape_rgb_x[1] * shape_rgb_x[2])))
+
+
+def compute_image_sad(img_x, img_y):
+  """Calculate the sum of absolute differences between 2 images.
+
+  Args:
+    img_x: image array in the form of w * h * channels
+    img_y: image array in the form of w * h * channels
+
+  Returns:
+    sad
+  """
+  img_x = img_x[:, :, 1:].ravel()
+  img_y = img_y[:, :, 1:].ravel()
+  return numpy.sum(numpy.abs(numpy.subtract(img_x, img_y, dtype=float)))
+
+
+def get_img(buffer):
+  """Return a PIL.Image of the capture buffer.
+
+  Args:
+    buffer: data field from the capture result.
+
+  Returns:
+    A PIL.Image
+  """
+  return Image.open(io.BytesIO(buffer))
+
+
+def jpeg_has_icc_profile(jpeg_img):
+  """Checks if a jpeg PIL.Image has an icc profile attached.
+
+  Args:
+    jpeg_img: The PIL.Image.
+
+  Returns:
+    True if an icc profile is present, False otherwise.
+  """
+  return jpeg_img.info.get('icc_profile') is not None
+
+
+def get_primary_chromaticity(primary):
+  """Given an ImageCms primary, returns just the xy chromaticity coordinates.
+
+  Args:
+    primary: The primary from the ImageCms profile.
+
+  Returns:
+    (float, float): The xy chromaticity coordinates of the primary.
+  """
+  ((_, _, _), (x, y, _)) = primary
+  return x, y
+
+
+def is_jpeg_icc_profile_correct(jpeg_img, color_space, icc_profile_path=None):
+  """Compare a jpeg's icc profile to a color space's expected parameters.
+
+  Args:
+    jpeg_img: The PIL.Image.
+    color_space: 'DISPLAY_P3' or 'SRGB'
+    icc_profile_path: Optional path to an icc file to be created with the
+        raw contents.
+
+  Returns:
+    True if the icc profile matches expectations, False otherwise.
+  """
+  icc = jpeg_img.info.get('icc_profile')
+  f = io.BytesIO(icc)
+  icc_profile = ImageCms.getOpenProfile(f)
+
+  if icc_profile_path is not None:
+    raw_icc_bytes = f.getvalue()
+    f = open(icc_profile_path, 'wb')
+    f.write(raw_icc_bytes)
+    f.close()
+
+  cms_profile = icc_profile.profile
+  (rx, ry) = get_primary_chromaticity(cms_profile.red_primary)
+  (gx, gy) = get_primary_chromaticity(cms_profile.green_primary)
+  (bx, by) = get_primary_chromaticity(cms_profile.blue_primary)
+
+  if color_space == 'DISPLAY_P3':
+    # Expected primaries based on Apple's Display P3 primaries
+    expected_rx = EXPECTED_RX_P3
+    expected_ry = EXPECTED_RY_P3
+    expected_gx = EXPECTED_GX_P3
+    expected_gy = EXPECTED_GY_P3
+    expected_bx = EXPECTED_BX_P3
+    expected_by = EXPECTED_BY_P3
+  elif color_space == 'SRGB':
+    # Expected primaries based on Pixel sRGB profile
+    expected_rx = EXPECTED_RX_SRGB
+    expected_ry = EXPECTED_RY_SRGB
+    expected_gx = EXPECTED_GX_SRGB
+    expected_gy = EXPECTED_GY_SRGB
+    expected_bx = EXPECTED_BX_SRGB
+    expected_by = EXPECTED_BY_SRGB
+  else:
+    # Unsupported color space for comparison
+    return False
+
+  cmp_values = [
+      [rx, expected_rx],
+      [ry, expected_ry],
+      [gx, expected_gx],
+      [gy, expected_gy],
+      [bx, expected_bx],
+      [by, expected_by]
+  ]
+
+  for (actual, expected) in cmp_values:
+    if math.isclose(actual, expected, abs_tol=0.001):
+      # Values significantly differ
+      return False
+
+  return True
+
+
+def xyz_to_chromaticity(x, y, z):
+  """Converts an XYZ color to its chromaticity coordinates.
+
+  Args:
+    x (float): The X component of the color
+    y (float): The Y component of the color
+    z (float): The Z component of the color
+
+  Returns:
+    (float, float): xy chromaticity coordinates
+  """
+  chromaticity_x = x / (x + y + z)
+  chromaticity_y = y / (x + y + z)
+  return (chromaticity_x, chromaticity_y)
+
+
+def area_of_triangle(x1, y1, x2, y2, x3, y3):
+  """Calculates the area of a triangle formed by three points.
+
+  Args:
+    x1 (float): The x-coordinate of the first point.
+    y1 (float): The y-coordinate of the first point.
+    x2 (float): The x-coordinate of the second point.
+    y2 (float): The y-coordinate of the second point.
+    x3 (float): The x-coordinate of the third point.
+    y3 (float): The y-coordinate of the third point.
+
+  Returns:
+    float: The area of the triangle.
+  """
+  area = abs((x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2)) / 2.0)
+  return area
+
+
+def point_in_triangle(x1, y1, x2, y2, x3, y3, xp, yp):
+  """Checks if the point (xp, yp) is inside the triangle.
+
+  Args:
+    x1 (float): The x-coordinate of the first point.
+    y1 (float): The y-coordinate of the first point.
+    x2 (float): The x-coordinate of the second point.
+    y2 (float): The y-coordinate of the second point.
+    x3 (float): The x-coordinate of the third point.
+    y3 (float): The y-coordinate of the third point.
+    xp (float): The x-coordinate of the point to check.
+    yp (float): The y-coordinate of the point to check.
+
+  Returns:
+    bool: True if the point is inside the triangle, False otherwise.
+  """
+  a = area_of_triangle(x1, y1, x2, y2, x3, y3)
+  a1 = area_of_triangle(xp, yp, x2, y2, x3, y3)
+  a2 = area_of_triangle(x1, y1, xp, yp, x3, y3)
+  a3 = area_of_triangle(x1, y2, x2, y2, xp, yp)
+  return math.isclose(a, (a1 + a2 + a3), abs_tol=0.001)
+
+
+def img_has_wider_gamut(narrow_img, wide_img):
+  """Compare a narrow gamut image with a wide gamut image of the same contents.
+
+  Given two images with similar contents, determines whether the image with
+  the wider gamut actually makes use of that gamut.
+
+  Args:
+    narrow_img: The PIL.Image in a color space that is narrower.
+    wide_img: The PIL.Image in a color space that is wider.
+
+  Returns:
+    True if the gamut of wide_img is greater than that of narrow_img.
+    False otherwise.
+  """
+  f = io.BytesIO(narrow_img.info.get('icc_profile'))
+  narrow_icc_profile = ImageCms.getOpenProfile(f)
+  f = io.BytesIO(wide_img.info.get('icc_profile'))
+  wide_icc_profile = ImageCms.getOpenProfile(f)
+  xyz_profile = ImageCms.createProfile('XYZ')
+
+  # Convert the wide image to XYZ.
+  wide_xyz_img = ImageCms.profileToProfile(wide_img, wide_icc_profile,
+                                           xyz_profile)
+
+  w = wide_xyz_img.size[0]
+  h = wide_xyz_img.size[1]
+  wide_arr = numpy.array(wide_xyz_img)
+
+  narrow_cms_profile = narrow_icc_profile.profile
+  narrow_rx, narrow_ry = get_primary_chromaticity(
+      narrow_cms_profile.red_primary)
+  narrow_gx, narrow_gy = get_primary_chromaticity(
+      narrow_cms_profile.green_primary)
+  narrow_bx, narrow_by = get_primary_chromaticity(
+      narrow_cms_profile.blue_primary)
+
+  # Check if any pixel in the wide gamut image is outside the color space of
+  # the narrow gamut image.
+  count = 0
+  for y in range(h):
+    for x in range(w):
+      chromaticity_x, chromaticity_y = xyz_to_chromaticity(wide_arr[y][x][0],
+                                                           wide_arr[y][x][1],
+                                                           wide_arr[y][x][2])
+      if not point_in_triangle(narrow_rx, narrow_ry, narrow_gx, narrow_gy,
+                               narrow_bx, narrow_by, chromaticity_x,
+                               chromaticity_y):
+        count += 1
+
+  return count > 0

@@ -34,7 +34,8 @@ import android.app.Activity;
 import android.app.Instrumentation;
 import android.app.UiAutomation;
 import android.content.Context;
-import android.graphics.Region;
+import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.hardware.display.DisplayManager;
 import android.os.Binder;
 import android.platform.test.annotations.Presubmit;
@@ -44,8 +45,10 @@ import android.view.Display;
 import android.view.SurfaceControl;
 import android.view.SurfaceControlViewHost;
 import android.view.WindowManager;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
 import android.widget.Button;
+import android.widget.FrameLayout;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
@@ -192,7 +195,7 @@ public class AccessibilityOverlayTest {
     @Test
     public void testA11yServiceShowsWindowOverlayUsingSurfaceControl_shouldAppearAndDisappear()
             throws Exception {
-        // Show an activity on screen and get its accessibility window id
+        // Show an activity on screen.
         final Activity activity =
                 launchActivityOnSpecifiedDisplayAndWaitForItToBeOnscreen(
                         sInstrumentation,
@@ -200,62 +203,81 @@ public class AccessibilityOverlayTest {
                         AccessibilityWindowQueryActivity.class,
                         Display.DEFAULT_DISPLAY);
         try {
-            final AccessibilityWindowInfo activityWindowInfo =
-                    ActivityLaunchUtils.findWindowByTitle(sUiAutomation, activity.getTitle());
-            assertThat(activityWindowInfo).isNotNull();
-            Region activityRegion = new Region();
-            activityWindowInfo.getRegionInScreen(activityRegion);
-
-            // Set up the view that will be an accessibility overlay.
-            final String overlayTitle = "App Overlay title";
-            final Button button = new Button(mService);
-            button.setText("Button");
-            final WindowManager.LayoutParams params = new WindowManager.LayoutParams();
-            params.width = 1;
-            params.height = 1;
-            params.flags =
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                            | WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR;
-            params.type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY;
-            params.setTitle(overlayTitle);
-            params.accessibilityTitle = overlayTitle;
-            Display display =
+            final Display display =
                     mService.getSystemService(DisplayManager.class)
                             .getDisplay(Display.DEFAULT_DISPLAY);
-            Context context = mService.createDisplayContext(display);
-            final SurfaceControl sc;
+            final Context context = mService.createDisplayContext(display);
             final SurfaceControlViewHost viewHost =
                     mService.getOnService(
-                            () -> {
-                                return new SurfaceControlViewHost(context, display, new Binder());
-                            });
-            sc = viewHost.getSurfacePackage().getSurfaceControl();
-            SurfaceControl.Transaction t = new SurfaceControl.Transaction();
-            t.setVisibility(sc, true)
-                    .setLayer(sc, Integer.MAX_VALUE)
-                    .setPosition(
-                            sc,
-                            activityRegion.getBounds().centerX(),
-                            activityRegion.getBounds().centerY())
-                    .apply();
-            // Place the view inside a SurfaceControlViewHost
-            // and attach that object as an accessibility overlay to the activity window.
+                            () -> new SurfaceControlViewHost(context, display, new Binder()));
+            final SurfaceControl sc = viewHost.getSurfacePackage().getSurfaceControl();
+            final SurfaceControl.Transaction transaction = new SurfaceControl.Transaction();
+            transaction.setVisibility(sc, true).apply();
+
+            // Create an accessibility overlay hosting a FrameLayout with the same size
+            // as the activity's root node bounds.
+            final AccessibilityNodeInfo activityRootNode = sUiAutomation.getRootInActiveWindow();
+            final Rect activityRootNodeBounds = new Rect();
+            activityRootNode.getBoundsInWindow(activityRootNodeBounds);
+            final WindowManager.LayoutParams overlayParams = new WindowManager.LayoutParams();
+            final String overlayTitle = "App Overlay title";
+            overlayParams.type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY;
+            overlayParams.format = PixelFormat.TRANSLUCENT;
+            overlayParams.setTitle(overlayTitle);
+            overlayParams.accessibilityTitle = overlayTitle;
+            overlayParams.height = activityRootNodeBounds.height();
+            overlayParams.width = activityRootNodeBounds.width();
+            final FrameLayout overlayLayout = new FrameLayout(context);
+            mService.runOnServiceSync(() -> viewHost.setView(overlayLayout, overlayParams));
+
+            // Add a new Button view inside the overlay's FrameLayout, directly on top of
+            // the window-space bounds of a node within the activity.
+            final AccessibilityNodeInfo activityNodeToDrawOver =
+                    activityRootNode.findAccessibilityNodeInfosByViewId(
+                            "android.accessibilityservice.cts:id/button1").get(0);
+            final Rect activityNodeToDrawOverBounds = new Rect();
+            activityNodeToDrawOver.getBoundsInWindow(activityNodeToDrawOverBounds);
+            Button overlayButton = new Button(context);
+            final String buttonText = "overlay button";
+            overlayButton.setText(buttonText);
+            overlayButton.setX(activityNodeToDrawOverBounds.left);
+            overlayButton.setY(activityNodeToDrawOverBounds.top);
+            mService.runOnServiceSync(() ->
+                    overlayLayout.addView(overlayButton,
+                            new FrameLayout.LayoutParams(
+                                    activityNodeToDrawOverBounds.width(),
+                                    activityNodeToDrawOverBounds.height())));
+
+            // Attach the SurfaceControlViewHost as an accessibility overlay to the activity window.
             sUiAutomation.executeAndWaitForEvent(
                     () ->
                             mService.runOnServiceSync(
-                                    () -> {
-                                        viewHost.setView(button, params);
-                                        mService.attachAccessibilityOverlayToWindow(
-                                                activityWindowInfo.getId(), sc);
-                                    }),
+                                    () -> mService.attachAccessibilityOverlayToWindow(
+                                            activityRootNode.getWindowId(), sc)),
                     (event) -> {
-                        AccessibilityWindowInfo window =
+                        final AccessibilityWindowInfo overlayWindow =
                                 ActivityLaunchUtils.findWindowByTitle(sUiAutomation, overlayTitle);
-                        if (window == null) {
+                        if (overlayWindow == null) {
                             return false;
                         }
-                        if (window.getType()
+                        if (overlayWindow.getType()
                                 == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) {
+                            final AccessibilityNodeInfo overlayButtonNode =
+                                    overlayWindow.getRoot().findAccessibilityNodeInfosByText(
+                                            buttonText).get(0);
+                            final Rect expected = new Rect();
+                            final Rect actual = new Rect();
+
+                            // The overlay button should have the same window-space and screen-space
+                            // bounds as the view in the activity, as configured above.
+                            activityNodeToDrawOver.getBoundsInWindow(expected);
+                            overlayButtonNode.getBoundsInWindow(actual);
+                            assertThat(actual.isEmpty()).isFalse();
+                            assertThat(actual).isEqualTo(expected);
+                            activityNodeToDrawOver.getBoundsInScreen(expected);
+                            overlayButtonNode.getBoundsInScreen(actual);
+                            assertThat(actual.isEmpty()).isFalse();
+                            assertThat(actual).isEqualTo(expected);
                             return true;
                         }
                         return false;
@@ -267,8 +289,8 @@ public class AccessibilityOverlayTest {
                     () ->
                             mService.runOnServiceSync(
                                     () -> {
-                                        t.reparent(sc, null).apply();
-                                        t.close();
+                                        transaction.reparent(sc, null).apply();
+                                        transaction.close();
                                         sc.release();
                                     }),
                     (event) ->

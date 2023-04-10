@@ -35,6 +35,7 @@ import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.filters.LargeTest;
 
 import com.android.compatibility.common.util.ApiTest;
+import com.android.compatibility.common.util.CddTest;
 
 import org.junit.Assume;
 import org.junit.Before;
@@ -76,9 +77,9 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
         System.loadLibrary("ctsmediav2codecdecsurface_jni");
     }
 
-    public CodecDecoderSurfaceTest(String decoder, String mime, String testFile,
+    public CodecDecoderSurfaceTest(String decoder, String mediaType, String testFile,
             String reconfigFile, SupportClass supportRequirements, String allTestParams) {
-        super(decoder, mime, MEDIA_DIR + testFile, allTestParams);
+        super(decoder, mediaType, MEDIA_DIR + testFile, allTestParams);
         mReconfigFile = MEDIA_DIR + reconfigFile;
         mSupportRequirements = supportRequirements;
     }
@@ -130,13 +131,14 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
         } else {
             ArrayList<MediaFormat> formatList = new ArrayList<>();
             formatList.add(format);
-            checkFormatSupport(mCodecName, mMime, false, formatList, null, mSupportRequirements);
+            checkFormatSupport(mCodecName, mMediaType, false, formatList, null,
+                    mSupportRequirements);
         }
         mActivityRule.getScenario().onActivity(activity -> mActivity = activity);
         setUpSurface(mActivity);
     }
 
-    @Parameterized.Parameters(name = "{index}({0}_{1})")
+    @Parameterized.Parameters(name = "{index}_{0}_{1}")
     public static Collection<Object[]> input() {
         final boolean isEncoder = false;
         final boolean needAudio = false;
@@ -217,6 +219,7 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
      * timestamp list in all runs and this list to be identical to the reference list. The
      * reference list is obtained from the same decoder running in byte buffer mode
      */
+    @CddTest(requirements = {"2.2.2", "2.3.2", "2.5.2"})
     @ApiTest(apis = {"MediaCodecInfo.CodecCapabilities#COLOR_FormatSurface"})
     @LargeTest
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
@@ -397,7 +400,7 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
         mExtractor.release();
         ArrayList<MediaFormat> formatList = new ArrayList<>();
         formatList.add(newFormat);
-        checkFormatSupport(mCodecName, mMime, false, formatList, null, mSupportRequirements);
+        checkFormatSupport(mCodecName, mMediaType, false, formatList, null, mSupportRequirements);
         final long pts = 500000;
         final int mode = MediaExtractor.SEEK_TO_CLOSEST_SYNC;
         boolean[] boolStates = {true, false};
@@ -477,13 +480,14 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
         }
     }
 
-    private native boolean nativeTestSimpleDecode(String decoder, Surface surface, String mime,
+    private native boolean nativeTestSimpleDecode(String decoder, Surface surface, String mediaType,
             String testFile, String refFile, int colorFormat, float rmsError, long checksum,
             StringBuilder retMsg);
 
     /**
      * Tests is similar to {@link #testSimpleDecodeToSurface()} but uses ndk api
      */
+    @CddTest(requirements = {"2.2.2", "2.3.2", "2.5.2"})
     @ApiTest(apis = {"MediaCodecInfo.CodecCapabilities#COLOR_FormatSurface"})
     @LargeTest
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
@@ -491,13 +495,13 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
         MediaFormat format = setUpSource(mTestFile);
         mExtractor.release();
         mActivity.setScreenParams(getWidth(format), getHeight(format), false);
-        boolean isPass = nativeTestSimpleDecode(mCodecName, mSurface, mMime, mTestFile,
+        boolean isPass = nativeTestSimpleDecode(mCodecName, mSurface, mMediaType, mTestFile,
                 mReconfigFile, format.getInteger(MediaFormat.KEY_COLOR_FORMAT), -1.0f, 0L,
                 mTestConfig);
         assertTrue(mTestConfig.toString(), isPass);
     }
 
-    private native boolean nativeTestFlush(String decoder, Surface surface, String mime,
+    private native boolean nativeTestFlush(String decoder, Surface surface, String mediaType,
             String testFile, int colorFormat, StringBuilder retMsg);
 
     /**
@@ -510,7 +514,7 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
         MediaFormat format = setUpSource(mTestFile);
         mExtractor.release();
         mActivity.setScreenParams(getWidth(format), getHeight(format), true);
-        boolean isPass = nativeTestFlush(mCodecName, mSurface, mMime, mTestFile,
+        boolean isPass = nativeTestFlush(mCodecName, mSurface, mMediaType, mTestFile,
                 format.getInteger(MediaFormat.KEY_COLOR_FORMAT), mTestConfig);
         assertTrue(mTestConfig.toString(), isPass);
     }

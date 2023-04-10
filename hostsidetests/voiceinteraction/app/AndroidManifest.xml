@@ -17,8 +17,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           package="com.android.cts.voiceinteraction">
 
-    <!-- targetSdkVersion must be lower than T for testing IllegalDetectorStateException feature
-         with appcompat change -->
     <uses-sdk android:minSdkVersion="32" android:targetSdkVersion="32"/>
 
     <application android:debuggable="true">
@@ -47,9 +45,10 @@
                  android:exported="true"
                  android:visibleToInstantApps="true">
         </service>
-        <service android:name=".MainHotwordDetectionService"
+        <service android:name=".ControllableHotwordDetectionService"
                  android:permission="android.permission.BIND_HOTWORD_DETECTION_SERVICE"
                  android:isolatedProcess="true"
+                 android:allowSharedIsolatedProcess="true"
                  android:exported="true">
         </service>
         <service android:name=".ProxyVoiceInteractionService"

@@ -24,10 +24,12 @@ import android.content.Context;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.CallLog;
 import android.provider.Contacts;
 import android.telecom.Call;
 import android.telecom.CallAudioState;
 import android.telecom.Connection;
+import android.telecom.PhoneAccountHandle;
 import android.telecom.TelecomManager;
 import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
@@ -47,7 +49,6 @@ import java.util.concurrent.TimeUnit;
  */
 public class OutgoingCallTest extends BaseTelecomTestWithMockServices {
     private static final long STATE_CHANGE_DELAY = 1000;
-
     private static final String TEST_EMERGENCY_NUMBER = "9998887776655443210";
 
     Uri mPersonRecord = null;
@@ -87,18 +88,20 @@ public class OutgoingCallTest extends BaseTelecomTestWithMockServices {
 
     @Override
     protected void tearDown() throws Exception {
+        if (mShouldTestTelecom) {
+            ContentResolver resolver = getInstrumentation().getTargetContext().getContentResolver();
+
+            if (mPersonRecord != null) {
+                resolver.delete(mPersonRecord, null, null);
+            }
+            if (mPhoneRecord != null) {
+                resolver.delete(mPhoneRecord, null, null);
+            }
+
+            TestUtils.clearSystemDialerOverride(getInstrumentation());
+            TestUtils.removeTestEmergencyNumber(getInstrumentation(), TEST_EMERGENCY_NUMBER);
+        }
         super.tearDown();
-        ContentResolver resolver = getInstrumentation().getTargetContext().getContentResolver();
-
-        if (mPersonRecord != null) {
-            resolver.delete(mPersonRecord, null, null);
-        }
-        if(mPhoneRecord != null) {
-            resolver.delete(mPhoneRecord, null, null);
-        }
-
-        TestUtils.clearSystemDialerOverride(getInstrumentation());
-        TestUtils.removeTestEmergencyNumber(getInstrumentation(), TEST_EMERGENCY_NUMBER);
     }
 
     /* TODO: Need to send some commands to the UserManager via adb to do setup
@@ -268,10 +271,14 @@ public class OutgoingCallTest extends BaseTelecomTestWithMockServices {
 
         final Bundle extras1 = new Bundle();
         final Bundle extras2 = new Bundle();
+        final Uri testNumber1 = createTestNumber();
+        final Uri testNumber2 = createTestNumber();
         extras1.putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE,
                 TestUtils.TEST_PHONE_ACCOUNT_HANDLE);
+        extras1.putParcelable(TestUtils.EXTRA_PHONE_NUMBER, testNumber1);
         extras2.putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE,
                 TestUtils.TEST_PHONE_ACCOUNT_HANDLE_2);
+        extras2.putParcelable(TestUtils.EXTRA_PHONE_NUMBER, testNumber2);
 
         mTelecomManager.registerPhoneAccount(TestUtils.TEST_PHONE_ACCOUNT);
         TestUtils.enablePhoneAccount(
@@ -284,6 +291,8 @@ public class OutgoingCallTest extends BaseTelecomTestWithMockServices {
         assertCtsConnectionServiceUnbound();
         CtsConnectionService.tearDown();
         setupConnectionService(null, FLAG_REGISTER | FLAG_ENABLE);
+        verifyCallLogging(testNumber1, CallLog.Calls.OUTGOING_TYPE,
+                TestUtils.TEST_PHONE_ACCOUNT_HANDLE);
 
         mTelecomManager.registerPhoneAccount(TestUtils.TEST_PHONE_ACCOUNT_2);
         TestUtils.enablePhoneAccount(
@@ -292,12 +301,15 @@ public class OutgoingCallTest extends BaseTelecomTestWithMockServices {
         conn = verifyConnectionForOutgoingCall();
         assertEquals(TestUtils.TEST_PHONE_ACCOUNT_HANDLE_2, conn.getPhoneAccountHandle());
         conn.onDisconnect();
+        verifyCallLogging(testNumber2, CallLog.Calls.OUTGOING_TYPE,
+                TestUtils.TEST_PHONE_ACCOUNT_HANDLE_2);
     }
 
     public void testAccountSelectionAvailable() throws Exception {
         if (!mShouldTestTelecom) {
             return;
         }
+        PhoneAccountHandle cachedHandle = mTelecomManager.getUserSelectedOutgoingPhoneAccount();
 
         mTelecomManager.registerPhoneAccount(TestUtils.TEST_PHONE_ACCOUNT);
         TestUtils.enablePhoneAccount(getInstrumentation(), TestUtils.TEST_PHONE_ACCOUNT_HANDLE);
@@ -309,7 +321,13 @@ public class OutgoingCallTest extends BaseTelecomTestWithMockServices {
             @Override
             public void onCallAdded(Call call, int numCalls) {
                 if (call.getState() == STATE_SELECT_PHONE_ACCOUNT) {
-                    call.phoneAccountSelected(TestUtils.TEST_PHONE_ACCOUNT_HANDLE, true);
+                    call.phoneAccountSelected(TestUtils.TEST_PHONE_ACCOUNT_HANDLE, false);
+                }
+            }
+
+            public void onCallStateChanged(Call call, int state) {
+                if (TestUtils.TEST_PHONE_ACCOUNT_HANDLE.equals(
+                        call.getDetails().getAccountHandle())) {
                     latch.countDown();
                 }
             }
@@ -325,11 +343,12 @@ public class OutgoingCallTest extends BaseTelecomTestWithMockServices {
             mTelecomManager.placeCall(testNumber, null);
 
             assertTrue(latch.await(TestUtils.WAIT_FOR_CALL_ADDED_TIMEOUT_S, TimeUnit.SECONDS));
-            assertEquals(TestUtils.TEST_PHONE_ACCOUNT_HANDLE,
-                    mTelecomManager.getUserSelectedOutgoingPhoneAccount());
         } finally {
             mTelecomManager.unregisterPhoneAccount(TestUtils.TEST_PHONE_ACCOUNT_HANDLE);
             mTelecomManager.unregisterPhoneAccount(TestUtils.TEST_PHONE_ACCOUNT_HANDLE_2);
+            SystemUtil.runWithShellPermissionIdentity(() -> {
+                mTelecomManager.setUserSelectedOutgoingPhoneAccount(cachedHandle);
+            });
         }
     }
 }

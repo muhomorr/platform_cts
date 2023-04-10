@@ -27,6 +27,7 @@ import static junit.framework.TestCase.assertFalse;
 import static junit.framework.TestCase.assertNotNull;
 
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeFalse;
 
@@ -117,9 +118,9 @@ public class NotificationAssistantServiceTest {
                 REVOKE_POST_NOTIFICATIONS_WITHOUT_KILL,
                 REVOKE_RUNTIME_PERMISSIONS);
         if (mNotificationListenerService != null) mNotificationListenerService.resetData();
+        if (mNotificationAssistantService != null) mNotificationAssistantService.resetData();
 
-        toggleListenerAccess(false);
-        toggleAssistantAccess(false);
+        disconnectListeners();
         mUi.dropShellPermissionIdentity();
     }
 
@@ -129,7 +130,6 @@ public class NotificationAssistantServiceTest {
         Thread.sleep(SLEEP_TIME);
 
         mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE");
-        mNotificationManager.allowAssistantAdjustment(Adjustment.KEY_USER_SENTIMENT);
         mUi.dropShellPermissionIdentity();
 
         mNotificationListenerService = TestNotificationListener.getInstance();
@@ -164,7 +164,6 @@ public class NotificationAssistantServiceTest {
         setUpListeners();
 
         mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE");
-        mNotificationManager.allowAssistantAdjustment(Adjustment.KEY_USER_SENTIMENT);
         mUi.dropShellPermissionIdentity();
 
         sendNotification(1, ICON_ID);
@@ -195,7 +194,6 @@ public class NotificationAssistantServiceTest {
         setUpListeners();
 
         mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE");
-        mNotificationManager.allowAssistantAdjustment(Adjustment.KEY_IMPORTANCE_PROPOSAL);
         mUi.dropShellPermissionIdentity();
 
         sendNotification(1, ICON_ID);
@@ -219,11 +217,37 @@ public class NotificationAssistantServiceTest {
     }
 
     @Test
+    public void testAdjustNotification_sensitiveContentKey() throws Exception {
+        setUpListeners();
+
+        mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE");
+        mUi.dropShellPermissionIdentity();
+
+        sendNotification(1, ICON_ID);
+        StatusBarNotification sbn = getFirstNotificationFromPackage(TestNotificationListener.PKG);
+        NotificationListenerService.Ranking out = new NotificationListenerService.Ranking();
+        mNotificationListenerService.mRankingMap.getRanking(sbn.getKey(), out);
+
+        assertFalse(out.hasSensitiveContent());
+
+        Bundle signals = new Bundle();
+        signals.putBoolean(Adjustment.KEY_SENSITIVE_CONTENT, true);
+        Adjustment adjustment = new Adjustment(sbn.getPackageName(), sbn.getKey(), signals, "",
+                sbn.getUser());
+
+        mNotificationAssistantService.adjustNotification(adjustment);
+        Thread.sleep(SLEEP_TIME); // wait for adjustment to be processed
+
+        mNotificationListenerService.mRankingMap.getRanking(sbn.getKey(), out);
+
+        assertTrue(out.hasSensitiveContent());
+    }
+
+    @Test
     public void testAdjustNotification_importanceKey() throws Exception {
         setUpListeners();
 
         mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE");
-        mNotificationManager.allowAssistantAdjustment(Adjustment.KEY_IMPORTANCE);
         mUi.dropShellPermissionIdentity();
 
         sendNotification(1, ICON_ID);
@@ -254,7 +278,6 @@ public class NotificationAssistantServiceTest {
 
         try {
             mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE");
-            mNotificationManager.allowAssistantAdjustment(Adjustment.KEY_RANKING_SCORE);
             mUi.dropShellPermissionIdentity();
 
             sendNotification(1, ICON_ID);
@@ -300,7 +323,6 @@ public class NotificationAssistantServiceTest {
             }
         } finally {
             mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE");
-            mNotificationManager.disallowAssistantAdjustment(Adjustment.KEY_RANKING_SCORE);
             mUi.dropShellPermissionIdentity();
         }
     }
@@ -308,10 +330,6 @@ public class NotificationAssistantServiceTest {
     @Test
     public void testAdjustNotification_smartActionKey() throws Exception {
         setUpListeners();
-
-        mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE");
-        mNotificationManager.allowAssistantAdjustment(Adjustment.KEY_CONTEXTUAL_ACTIONS);
-        mUi.dropShellPermissionIdentity();
 
         PendingIntent sendIntent = PendingIntent.getActivity(mContext, 0,
                 new Intent(Intent.ACTION_SEND), PendingIntent.FLAG_MUTABLE_UNAUDITED);
@@ -357,10 +375,6 @@ public class NotificationAssistantServiceTest {
         setUpListeners();
         CharSequence smartReply = "Smart Reply!";
 
-        mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE");
-        mNotificationManager.allowAssistantAdjustment(Adjustment.KEY_TEXT_REPLIES);
-        mUi.dropShellPermissionIdentity();
-
         sendNotification(1, ICON_ID);
         StatusBarNotification sbn = getFirstNotificationFromPackage(TestNotificationListener.PKG);
         NotificationListenerService.Ranking out = new NotificationListenerService.Ranking();
@@ -396,90 +410,7 @@ public class NotificationAssistantServiceTest {
     }
 
     @Test
-    public void testAdjustNotification_importanceKey_notAllowed() throws Exception {
-        setUpListeners();
-
-        mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE");
-        mNotificationManager.disallowAssistantAdjustment(Adjustment.KEY_IMPORTANCE);
-        mUi.dropShellPermissionIdentity();
-
-        sendNotification(1, ICON_ID);
-        StatusBarNotification sbn = getFirstNotificationFromPackage(
-                TestNotificationListener.PKG);
-        NotificationListenerService.Ranking out = new NotificationListenerService.Ranking();
-        mNotificationListenerService.mRankingMap.getRanking(sbn.getKey(), out);
-
-        int currentImportance = out.getImportance();
-        int newImportance = currentImportance == NotificationManager.IMPORTANCE_DEFAULT
-                ? NotificationManager.IMPORTANCE_HIGH : NotificationManager.IMPORTANCE_DEFAULT;
-
-        Bundle signals = new Bundle();
-        signals.putInt(Adjustment.KEY_IMPORTANCE, newImportance);
-        Adjustment adjustment = new Adjustment(sbn.getPackageName(), sbn.getKey(), signals, "",
-                sbn.getUser());
-
-        mNotificationAssistantService.adjustNotification(adjustment);
-        Thread.sleep(SLEEP_TIME); // wait for adjustment to be processed
-
-        mNotificationListenerService.mRankingMap.getRanking(sbn.getKey(), out);
-
-        assertEquals(currentImportance, out.getImportance());
-
-    }
-
-    @Test
-    public void testAdjustNotification_rankingScoreKey_notAllowed() throws Exception {
-        setUpListeners();
-
-        mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE");
-        mNotificationManager.cancelAll();
-        mNotificationManager.disallowAssistantAdjustment(Adjustment.KEY_RANKING_SCORE);
-        mUi.dropShellPermissionIdentity();
-
-        sendNotification(1, ICON_ID);
-        StatusBarNotification sbn1 = getFirstNotificationFromPackage(TestNotificationListener.PKG);
-        NotificationListenerService.Ranking out1 = new NotificationListenerService.Ranking();
-
-        sendNotification(2, ICON_ID);
-        StatusBarNotification sbn2 = getFirstNotificationFromPackage(TestNotificationListener.PKG);
-        NotificationListenerService.Ranking out2 = new NotificationListenerService.Ranking();
-
-        mNotificationListenerService.mRankingMap.getRanking(sbn1.getKey(), out1);
-        mNotificationListenerService.mRankingMap.getRanking(sbn2.getKey(), out2);
-
-        int currentRank1 = out1.getRank();
-        int currentRank2 = out2.getRank();
-
-        float rankingScore1 = (currentRank1 > currentRank2) ? 1f: 0;
-        float rankingScore2 = (currentRank1 > currentRank2) ? 0: 1f;
-
-        Bundle signals = new Bundle();
-        signals.putFloat(Adjustment.KEY_RANKING_SCORE, rankingScore1);
-        Adjustment adjustment = new Adjustment(sbn1.getPackageName(), sbn1.getKey(), signals, "",
-                sbn1.getUser());
-        mNotificationAssistantService.adjustNotification(adjustment);
-        signals = new Bundle();
-        signals.putFloat(Adjustment.KEY_RANKING_SCORE, rankingScore2);
-        adjustment = new Adjustment(sbn2.getPackageName(), sbn2.getKey(), signals, "",
-                sbn2.getUser());
-        mNotificationAssistantService.adjustNotification(adjustment);
-        Thread.sleep(SLEEP_TIME); // wait for adjustments to be processed
-
-        mNotificationListenerService.mRankingMap.getRanking(sbn1.getKey(), out1);
-        mNotificationListenerService.mRankingMap.getRanking(sbn2.getKey(), out2);
-
-        // verify the relative ordering remains the same
-        int newRank1 = out1.getRank();
-        int newRank2 = out2.getRank();
-        if (currentRank1 > currentRank2) {
-            assertTrue(newRank1 > newRank2);
-        } else {
-            assertTrue(newRank1 < newRank2);
-        }
-    }
-
-    @Test
-    public void testGetAllowedAssistantCapabilities_permission() throws Exception {
+    public void testGetAllowedAssistantAdjustments_permission() throws Exception {
         toggleAssistantAccess(false);
 
         try {
@@ -491,30 +422,43 @@ public class NotificationAssistantServiceTest {
     }
 
     @Test
-    public void testGetAllowedAssistantCapabilities() throws Exception {
+    public void testGetAllowedAssistantAdjustments() throws Exception {
         toggleAssistantAccess(true);
         Thread.sleep(SLEEP_TIME); // wait for assistant to be allowed
         mNotificationAssistantService = TestNotificationAssistant.getInstance();
-        mNotificationAssistantService.onAllowedAdjustmentsChanged();
-        assertNotNull(mNotificationAssistantService.currentCapabilities);
+        assertNotNull(mNotificationAssistantService.allowedAdjustments);
 
         mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE");
-        mNotificationManager.allowAssistantAdjustment(Adjustment.KEY_SNOOZE_CRITERIA);
-
-        Thread.sleep(SLEEP_TIME);
-        assertTrue(mNotificationAssistantService.currentCapabilities.contains(
-                Adjustment.KEY_SNOOZE_CRITERIA));
-
-        mNotificationManager.disallowAssistantAdjustment(Adjustment.KEY_SNOOZE_CRITERIA);
-        Thread.sleep(SLEEP_TIME);
-        assertFalse(mNotificationAssistantService.currentCapabilities.contains(
-                Adjustment.KEY_SNOOZE_CRITERIA));
-
-        // just in case KEY_SNOOZE_CRITERIA was included in the original set, test adding again
-        mNotificationManager.allowAssistantAdjustment(Adjustment.KEY_SNOOZE_CRITERIA);
-        Thread.sleep(SLEEP_TIME);
-        assertTrue(mNotificationAssistantService.currentCapabilities.contains(
-                Adjustment.KEY_SNOOZE_CRITERIA));
+        assertTrue(
+                mNotificationAssistantService.allowedAdjustments.contains(
+                        Adjustment.KEY_PEOPLE));
+        assertTrue(
+                mNotificationAssistantService.allowedAdjustments.contains(
+                        Adjustment.KEY_SNOOZE_CRITERIA));
+        assertTrue(
+                mNotificationAssistantService.allowedAdjustments.contains(
+                        Adjustment.KEY_USER_SENTIMENT));
+        assertTrue(
+                mNotificationAssistantService.allowedAdjustments.contains(
+                        Adjustment.KEY_CONTEXTUAL_ACTIONS));
+        assertTrue(
+                mNotificationAssistantService.allowedAdjustments.contains(
+                        Adjustment.KEY_TEXT_REPLIES));
+        assertTrue(
+                mNotificationAssistantService.allowedAdjustments.contains(
+                        Adjustment.KEY_IMPORTANCE));
+        assertTrue(
+                mNotificationAssistantService.allowedAdjustments.contains(
+                        Adjustment.KEY_IMPORTANCE_PROPOSAL));
+        assertTrue(
+                mNotificationAssistantService.allowedAdjustments.contains(
+                        Adjustment.KEY_SENSITIVE_CONTENT));
+        assertTrue(
+                mNotificationAssistantService.allowedAdjustments.contains(
+                        Adjustment.KEY_RANKING_SCORE));
+        assertTrue(
+                mNotificationAssistantService.allowedAdjustments.contains(
+                        Adjustment.KEY_NOT_CONVERSATION));
 
         mUi.dropShellPermissionIdentity();
     }
@@ -538,9 +482,10 @@ public class NotificationAssistantServiceTest {
         assertTrue(String.format("snoozed notification <%s> was not removed", sbn.getKey()),
                 mNotificationListenerService.checkRemovedKey(sbn.getKey()));
 
-        assertEquals(String.format("snoozed notification <%s> was not observed by NAS", sbn.getKey()),
-                sbn.getKey(), mNotificationAssistantService.snoozedKey);
+        assertEquals(String.format("snoozed notification <%s> was not observed by NAS",
+                        sbn.getKey()), sbn.getKey(), mNotificationAssistantService.snoozedKey);
         assertEquals(snoozeContext, mNotificationAssistantService.snoozedUntilContext);
+        mNotificationAssistantService.unsnoozeNotification(sbn.getKey());
     }
 
     @Test
@@ -582,7 +527,8 @@ public class NotificationAssistantServiceTest {
                 | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         intent.setAction(Intent.ACTION_MAIN);
 
-        final PendingIntent pendingIntent = PendingIntent.getActivity(mContext, 0, intent, PendingIntent.FLAG_MUTABLE_UNAUDITED);
+        final PendingIntent pendingIntent = PendingIntent.getActivity(
+                mContext, 0, intent, PendingIntent.FLAG_IMMUTABLE);
         Notification.Action action = new Notification.Action.Builder(null, "",
                 pendingIntent).build();
         // This method has to exist and the call cannot fail
@@ -700,7 +646,8 @@ public class NotificationAssistantServiceTest {
 
         setUpListeners();
         turnScreenOn();
-        mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE", "android.permission.EXPAND_STATUS_BAR");
+        mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE",
+                "android.permission.EXPAND_STATUS_BAR");
 
         mNotificationAssistantService.resetNotificationClickCount();
 
@@ -725,7 +672,8 @@ public class NotificationAssistantServiceTest {
         assumeFalse("Status bar service not supported", isWatch());
 
         setUpListeners(); // also enables assistant
-        mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE", "android.permission.EXPAND_STATUS_BAR");
+        mUi.adoptShellPermissionIdentity("android.permission.STATUS_BAR_SERVICE",
+                "android.permission.EXPAND_STATUS_BAR");
 
         sendNotification(1, ICON_ID);
         StatusBarNotification sbn = getFirstNotificationFromPackage(TestNotificationListener.PKG);
@@ -780,6 +728,18 @@ public class NotificationAssistantServiceTest {
         assertNotNull(mNotificationAssistantService);
     }
 
+    private void disconnectListeners() throws Exception {
+        toggleListenerAccess(false);
+        toggleAssistantAccess(false);
+        Thread.sleep(2 * SLEEP_TIME); // wait for listener and assistant to be disconnected
+
+        mNotificationListenerService = TestNotificationListener.getInstance();
+        mNotificationAssistantService = TestNotificationAssistant.getInstance();
+
+        assertNull(mNotificationListenerService);
+        assertNull(mNotificationAssistantService);
+    }
+
     private void sendNotification(final int id, final int icon) throws Exception {
         sendNotification(id, null, icon);
     }
@@ -791,7 +751,8 @@ public class NotificationAssistantServiceTest {
                 | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         intent.setAction(Intent.ACTION_MAIN);
 
-        final PendingIntent pendingIntent = PendingIntent.getActivity(mContext, 0, intent, PendingIntent.FLAG_MUTABLE_UNAUDITED);
+        final PendingIntent pendingIntent = PendingIntent.getActivity(
+                mContext, 0, intent, PendingIntent.FLAG_IMMUTABLE);
         final Notification notification =
                 new Notification.Builder(mContext, NOTIFICATION_CHANNEL_ID)
                         .setSmallIcon(icon)
@@ -808,7 +769,8 @@ public class NotificationAssistantServiceTest {
         Person person = new Person.Builder()
                 .setName("test")
                 .build();
-        final Notification notification = new Notification.Builder(mContext, NOTIFICATION_CHANNEL_ID)
+        final Notification notification = new Notification.Builder(
+                mContext, NOTIFICATION_CHANNEL_ID)
                 .setContentTitle("foo")
                 .setShortcutId("shareShortcut")
                 .setStyle(new Notification.MessagingStyle(person)

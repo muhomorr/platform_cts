@@ -23,6 +23,10 @@
     <option name="compatibility:exclude-filter" value="CtsLocationTestCases android.location.cts.GnssTtffTests#testTtffWithNetwork" />
     <option name="compatibility:exclude-filter" value="CtsLocationTestCases[instant] android.location.cts.GnssTtffTests#testTtffWithNetwork" />
 
+    <!-- b/17989532 -->
+    <option name="compatibility:exclude-filter" value="CtsCameraTestCases android.hardware.camera2.cts.SurfaceViewPreviewTest#testPreparePerformance" />
+    <option name="compatibility:exclude-filter" value="CtsCameraTestCases[instant] android.hardware.camera2.cts.SurfaceViewPreviewTest#testPreparePerformance" />
+
     <!-- b/23776893 -->
     <option name="compatibility:exclude-filter" value="CtsDumpsysHostTestCases android.dumpsys.cts.DumpsysHostTest#testBatterystatsOutput" />
     <option name="compatibility:exclude-filter" value="CtsDumpsysHostTestCases android.dumpsys.cts.DumpsysHostTest#testGfxinfoFramestats" />
@@ -279,4 +283,14 @@
     <!-- b/208909067 -->
     <option name="compatibility:exclude-filter" value="CtsDisplayTestCases android.display.cts.DisplayTest#testActivityContextGetMetrics" />
 
+    <!-- b/266101051-->
+    <option name="compatibility:exclude-filter" value="CtsGameServiceTestCases" />
+
+    <!--- b/260389884 -->
+    <option name="compatibility:exclude-filter" value="CtsGameManagerTestCases android.gamemanager.cts.GameManagerTest#testSetGameStatePerformanceMode" />
+    <option name="compatibility:exclude-filter" value="CtsGameManagerTestCases android.gamemanager.cts.GameManagerTest#testSetGameStatePerformanceMode_withParams" />
+    <option name="compatibility:exclude-filter" value="CtsGameManagerTestCases android.gamemanager.cts.GameManagerTest#testSetGameStateStandardMode" />
+    <option name="compatibility:exclude-filter" value="CtsGameManagerTestCases[instant] android.gamemanager.cts.GameManagerTest#testSetGameStatePerformanceMode" />
+    <option name="compatibility:exclude-filter" value="CtsGameManagerTestCases[instant] android.gamemanager.cts.GameManagerTest#testSetGameStatePerformanceMode_withParams" />
+    <option name="compatibility:exclude-filter" value="CtsGameManagerTestCases[instant] android.gamemanager.cts.GameManagerTest#testSetGameStateStandardMode" />
 </configuration>

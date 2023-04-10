@@ -29,9 +29,11 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
+import android.graphics.RectF;
 import android.inputmethodservice.InputMethodService;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CancellationSignal;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -54,6 +56,7 @@ import android.view.ViewConfiguration;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowManager;
+import android.view.inputmethod.CancellableHandwritingGesture;
 import android.view.inputmethod.CompletionInfo;
 import android.view.inputmethod.CorrectionInfo;
 import android.view.inputmethod.CursorAnchorInfo;
@@ -71,6 +74,7 @@ import android.view.inputmethod.InputMethodManager;
 import android.view.inputmethod.InputMethodSubtype;
 import android.view.inputmethod.PreviewableHandwritingGesture;
 import android.view.inputmethod.TextAttribute;
+import android.view.inputmethod.TextBoundsInfoResult;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
@@ -111,6 +115,7 @@ public final class MockIme extends InputMethodService {
     private static final String TAG = "MockIme";
 
     private static final String PACKAGE_NAME = "com.android.cts.mockime";
+    private static final long DELAY_CANCELLATION_SIGNAL_MILLIS = 500;
     private ArrayList<MotionEvent> mEvents;
 
     private View mExtractView;
@@ -390,8 +395,17 @@ public final class MockIme extends InputMethodService {
                                 (PreviewableHandwritingGesture) HandwritingGesture.fromByteArray(
                                         command.getExtras().getByteArray("gesture"));
 
-                        getMemorizedOrCurrentInputConnection()
-                                .previewHandwritingGesture(gesture, null /* cancellationSignal */);
+                        boolean useDelayedCancellation =
+                                command.getExtras().getBoolean("useDelayedCancellation");
+                        final CancellationSignal cs =
+                                useDelayedCancellation ? new CancellationSignal() : null;
+                        if (useDelayedCancellation) {
+                            new Handler().postDelayed(() -> cs.cancel(),
+                                    DELAY_CANCELLATION_SIGNAL_MILLIS);
+                        }
+
+                        getMemorizedOrCurrentInputConnection().previewHandwritingGesture(
+                                gesture, cs);
                         return ImeEvent.RETURN_VALUE_UNAVAILABLE;
                     }
                     case "performHandwritingGesture": {
@@ -399,24 +413,38 @@ public final class MockIme extends InputMethodService {
                                 HandwritingGesture.fromByteArray(
                                         command.getExtras().getByteArray("gesture"));
 
+                        boolean useDelayedCancellation =
+                                command.getExtras().getBoolean("useDelayedCancellation");
+                        if (useDelayedCancellation
+                                && gesture instanceof CancellableHandwritingGesture) {
+                            final CancellationSignal cs = new CancellationSignal();
+                            ((CancellableHandwritingGesture) gesture).setCancellationSignal(cs);
+                            new Handler().postDelayed(() -> cs.cancel(),
+                                    DELAY_CANCELLATION_SIGNAL_MILLIS);
+                        }
+
                         IntConsumer consumer = value ->
                                 getTracer().onPerformHandwritingGestureResult(
                                         value, command.getId(), () -> {});
                         getMemorizedOrCurrentInputConnection()
-                                .performHandwritingGesture(gesture, Runnable::run, consumer);
+                                .performHandwritingGesture(gesture, mMainHandler::post, consumer);
+                        return ImeEvent.RETURN_VALUE_UNAVAILABLE;
+                    }
+                    case "requestTextBoundsInfo": {
+                        var rectF = command.getExtras().getParcelable("rectF", RectF.class);
+                        Consumer<TextBoundsInfoResult> consumer = value ->
+                                getTracer().onRequestTextBoundsInfoResult(
+                                        value, command.getId());
+                        getMemorizedOrCurrentInputConnection().requestTextBoundsInfo(
+                                rectF, mMainHandler::post, consumer);
                         return ImeEvent.RETURN_VALUE_UNAVAILABLE;
                     }
                     case "requestCursorUpdates": {
                         final int cursorUpdateMode = command.getExtras().getInt("cursorUpdateMode");
                         final int cursorUpdateFilter =
-                                command.getExtras().getInt("cursorUpdateFilter", -1);
-                        if (cursorUpdateFilter == -1) {
-                            return getMemorizedOrCurrentInputConnection().requestCursorUpdates(
-                                    cursorUpdateMode);
-                        } else {
-                            return getMemorizedOrCurrentInputConnection().requestCursorUpdates(
-                                    cursorUpdateMode, cursorUpdateFilter);
-                        }
+                                command.getExtras().getInt("cursorUpdateFilter", 0);
+                        return getMemorizedOrCurrentInputConnection().requestCursorUpdates(
+                                cursorUpdateMode, cursorUpdateFilter);
                     }
                     case "getHandler":
                         return getMemorizedOrCurrentInputConnection().getHandler();
@@ -456,11 +484,24 @@ public final class MockIme extends InputMethodService {
                                 .setExplicitlyEnabledInputMethodSubtypes(imeId, subtypeHashCodes);
                         return ImeEvent.RETURN_VALUE_UNAVAILABLE;
                     }
+                    case "switchInputMethod": {
+                        final String id = command.getExtras().getString("id");
+                        try {
+                            switchInputMethod(id);
+                        } catch (Exception e) {
+                            return e;
+                        }
+                        return ImeEvent.RETURN_VALUE_UNAVAILABLE;
+                    }
                     case "switchInputMethod(String,InputMethodSubtype)": {
                         final String id = command.getExtras().getString("id");
                         final InputMethodSubtype subtype = command.getExtras().getParcelable(
                                 "subtype", InputMethodSubtype.class);
-                        switchInputMethod(id, subtype);
+                        try {
+                            switchInputMethod(id, subtype);
+                        } catch (Exception e) {
+                            return e;
+                        }
                         return ImeEvent.RETURN_VALUE_UNAVAILABLE;
                     }
                     case "setBackDisposition": {
@@ -1657,6 +1698,14 @@ public final class MockIme extends InputMethodService {
             arguments.putInt("result", result);
             arguments.putLong("requestId", requestId);
             recordEventInternal("onPerformHandwritingGestureResult", runnable, arguments);
+        }
+
+        public void onRequestTextBoundsInfoResult(TextBoundsInfoResult result, long requestId) {
+            final Bundle arguments = new Bundle();
+            arguments.putInt("resultCode", result.getResultCode());
+            arguments.putParcelable("boundsInfo", result.getTextBoundsInfo());
+            arguments.putLong("requestId", requestId);
+            recordEventInternal("onRequestTextBoundsInfoResult", () -> {}, arguments);
         }
 
         void getWindowLayoutInfo(@NonNull WindowLayoutInfo windowLayoutInfo,

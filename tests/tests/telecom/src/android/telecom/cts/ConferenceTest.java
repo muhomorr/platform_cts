@@ -23,6 +23,7 @@ import static com.android.compatibility.common.util.SystemUtil.runWithShellPermi
 import android.net.Uri;
 import android.os.Bundle;
 import android.telecom.Call;
+import android.telecom.CallEndpoint;
 import android.telecom.Conference;
 import android.telecom.Connection;
 import android.telecom.ConnectionRequest;
@@ -62,7 +63,7 @@ public class ConferenceTest extends BaseTelecomTestWithMockServices {
     private MockConnection mConnection1, mConnection2;
     MockInCallService mInCallService;
     Conference mConferenceObject;
-    MockConference mConferenceVerficationObject;
+    MockConference mConferenceVerificationObject;
 
     @Override
     protected void setUp() throws Exception {
@@ -70,9 +71,9 @@ public class ConferenceTest extends BaseTelecomTestWithMockServices {
         if (mShouldTestTelecom) {
             addOutgoingCalls();
             addConferenceCall(mCall1, mCall2);
-            mConferenceVerficationObject = verifyConferenceForOutgoingCall();
+            mConferenceVerificationObject = verifyConferenceForOutgoingCall();
             // Use vanilla conference object so that the CTS coverage tool detects the usage.
-            mConferenceObject = mConferenceVerficationObject;
+            mConferenceObject = mConferenceVerificationObject;
             verifyConferenceObject(mConferenceObject, mConnection1, mConnection2);
         }
     }
@@ -425,7 +426,7 @@ public class ConferenceTest extends BaseTelecomTestWithMockServices {
         extras.putString(TEST_EXTRA_KEY_1, TEST_EXTRA_VALUE_1);
         extras.putInt(TEST_EXTRA_KEY_2, TEST_EXTRA_VALUE_2);
         conf.putExtras(extras);
-        mConferenceVerficationObject.mOnExtrasChanged.waitForCount(1);
+        mConferenceVerificationObject.mOnExtrasChanged.waitForCount(1);
 
         Bundle changedExtras = mConferenceObject.getExtras();
         assertTrue(changedExtras.containsKey(TEST_EXTRA_KEY_1));
@@ -488,6 +489,24 @@ public class ConferenceTest extends BaseTelecomTestWithMockServices {
         Bundle extras = (Bundle) (mOnConnectionEventCounter.getArgs(0)[2]);
         assertEquals("TEST", event);
         assertNull(extras);
+    }
+
+    /**
+     * Verifies {@link Conference#getCurrentCallEndpoint()} call endpoint is notified as
+     * {@link #onCallEndpointChanged(CallEndpoint)}.
+     */
+    public void testGetCurrentCallEndpoint() {
+        if (!mShouldTestTelecom) {
+            return;
+        }
+        final Call conf = mInCallService.getLastConferenceCall();
+        assertCallState(conf, Call.STATE_ACTIVE);
+
+        mConferenceVerificationObject.mCurrentCallEndpoint
+                .waitForCount(WAIT_FOR_STATE_CHANGE_TIMEOUT_MS);
+        CallEndpoint endpoint = (CallEndpoint) mConferenceVerificationObject
+                .mCurrentCallEndpoint.getArgs(0)[0];
+        assertEquals(endpoint, mConferenceObject.getCurrentCallEndpoint());
     }
 
     private void verifyConferenceObject(Conference mConferenceObject, MockConnection connection1,

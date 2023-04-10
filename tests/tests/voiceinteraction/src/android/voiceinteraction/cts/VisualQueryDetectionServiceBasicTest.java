@@ -19,7 +19,7 @@ package android.voiceinteraction.cts;
 
 import static android.Manifest.permission.CAMERA;
 import static android.Manifest.permission.RECORD_AUDIO;
-import static android.service.voice.SandboxedDetectionServiceBase.INITIALIZATION_STATUS_SUCCESS;
+import static android.service.voice.SandboxedDetectionInitializer.INITIALIZATION_STATUS_SUCCESS;
 import static android.voiceinteraction.cts.testcore.Helper.CTS_SERVICE_PACKAGE;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
@@ -33,19 +33,20 @@ import static org.junit.Assume.assumeTrue;
 
 import android.app.UiAutomation;
 import android.content.ComponentName;
+import android.content.pm.PackageManager;
 import android.os.PersistableBundle;
 import android.os.SystemClock;
 import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.RequiresDevice;
-import android.service.voice.HotwordDetector;
 import android.service.voice.VisualQueryDetector;
 import android.util.Log;
+import android.voiceinteraction.cts.services.BaseVoiceInteractionService;
 import android.voiceinteraction.cts.services.CtsBasicVoiceInteractionService;
 import android.voiceinteraction.cts.testcore.Helper;
 import android.voiceinteraction.cts.testcore.VoiceInteractionServiceConnectedRule;
 import android.voiceinteraction.service.MainVisualQueryDetectionService;
 
-import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.DisableAnimationRule;
 import com.android.compatibility.common.util.SystemUtil;
@@ -68,6 +69,8 @@ public class VisualQueryDetectionServiceBasicTest {
             "android.voiceinteraction.cts.services.CtsBasicVoiceInteractionService";
     private static final long SETUP_WAIT_MS = 10_000;
     private static final long TEST_WAIT_TIMEOUT_MS = 2_000;
+
+    private PackageManager mPackageManager;
 
     private CtsBasicVoiceInteractionService mService;
 
@@ -97,9 +100,11 @@ public class VisualQueryDetectionServiceBasicTest {
 
     @Before
     public void setup() {
+        mPackageManager = getInstrumentation().getContext().getPackageManager();
+
         // VoiceInteractionServiceConnectedRule handles the service connected,
         // the test should be able to get service
-        mService = (CtsBasicVoiceInteractionService) CtsBasicVoiceInteractionService.getService();
+        mService = (CtsBasicVoiceInteractionService) BaseVoiceInteractionService.getService();
         // Check the test can get the service
         Objects.requireNonNull(mService);
 
@@ -123,6 +128,19 @@ public class VisualQueryDetectionServiceBasicTest {
         // Assertion is done in the private method.
         VisualQueryDetector visualQueryDetector = createVisualQueryDetector();
         visualQueryDetector.destroy();
+    }
+
+    @Test
+    public void testVoiceInteractionService_withoutManageHotwordDetectionPermission_triggerFailure()
+            throws Throwable {
+        // Create VisualQueryDetector and wait result
+        mService.createVisualQueryDetectorWithoutManageHotwordDetectionPermission();
+
+        // Wait the result and verify expected result
+        mService.waitSandboxedDetectionServiceInitializedCalledOrException();
+
+        // Verify IllegalStateException throws
+        assertThat(mService.isCreateDetectorSecurityExceptionThrow()).isTrue();
     }
 
     @Test
@@ -161,19 +179,49 @@ public class VisualQueryDetectionServiceBasicTest {
     @Test
     public void testVisualQueryDetectionService_destroyVisualQueryDetector_activeDetectorRemoved()
             throws Throwable {
-        // Create SoftwareHotwordDetector
+        // Create VisualQueryDetector
         VisualQueryDetector visualQueryDetector = createVisualQueryDetector();
 
-        // Destroy SoftwareHotwordDetector
+        // Destroy VisualQueryDetector
         visualQueryDetector.destroy();
 
         try {
             adoptShellPermissionIdentityForVisualQueryDetection();
             // Can no longer use the detector because it is in an invalid state
-            assertThrows(HotwordDetector.IllegalDetectorStateException.class,
-                    visualQueryDetector::startRecognition);
+            assertThrows(IllegalStateException.class, visualQueryDetector::startRecognition);
         } finally {
             // Drop identity adopted.
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
+        }
+    }
+
+    @Test
+    @RequiresDevice
+    public void testVisualQueryDetectionService_startRecogintion_testCameraOpen()
+            throws Throwable {
+        assumeTrue(hasFeature(PackageManager.FEATURE_CAMERA));
+
+        // Create VisualQueryDetector
+        VisualQueryDetector visualQueryDetector = createVisualQueryDetector();
+        runWithShellPermissionIdentity(() -> {
+            PersistableBundle options = Helper.createFakePersistableBundleData();
+            options.putInt(MainVisualQueryDetectionService.KEY_VQDS_TEST_SCENARIO,
+                    MainVisualQueryDetectionService.SCENARIO_TEST_PERCEPTION_MODULES);
+            visualQueryDetector.updateState(options, Helper.createFakeSharedMemoryData());
+        });
+        try {
+            adoptShellPermissionIdentityForVisualQueryDetection();
+            visualQueryDetector.startRecognition();
+            SystemClock.sleep(TEST_WAIT_TIMEOUT_MS); // reduce flakiness
+            // verify results
+            ArrayList<String> streamedQueries = mService.getStreamedQueriesResult();
+            assertThat(streamedQueries.get(0)).isEqualTo(
+                    MainVisualQueryDetectionService.PERCEPTION_MODULE_SUCCESS);
+            assertThat(streamedQueries.size()).isEqualTo(1);
+        } finally {
+            // Drop identity adopted.
+            visualQueryDetector.destroy();
             InstrumentationRegistry.getInstrumentation().getUiAutomation()
                     .dropShellPermissionIdentity();
         }
@@ -425,10 +473,15 @@ public class VisualQueryDetectionServiceBasicTest {
         assertThat(mService.getSandboxedDetectionServiceInitializedResult()).isEqualTo(
                 INITIALIZATION_STATUS_SUCCESS);
 
-        // The AlwaysOnHotwordDetector should be created correctly
+        // The VisualQueryDetector should be created correctly
         VisualQueryDetector visualQueryDetector = mService.getVisualQueryDetector();
         Objects.requireNonNull(visualQueryDetector);
 
         return visualQueryDetector;
     }
+
+    private boolean hasFeature(String feature) {
+        return mPackageManager.hasSystemFeature(feature);
+    }
+
 }

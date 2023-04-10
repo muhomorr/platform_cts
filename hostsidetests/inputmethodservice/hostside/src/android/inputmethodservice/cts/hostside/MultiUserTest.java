@@ -34,6 +34,8 @@ import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.CommandStatus;
+import com.android.tradefed.util.RunInterruptedException;
+import com.android.tradefed.util.RunUtil;
 
 import org.junit.After;
 import org.junit.Before;
@@ -111,7 +113,7 @@ public class MultiUserTest extends BaseHostJUnit4Test {
         getDevice().switchUser(getDevice().getPrimaryUserId());
         // We suspect that the optimization made for Bug 38143512 was a bit unstable.  Let's see
         // if adding a sleep improves the stability or not.
-        Thread.sleep(WAIT_AFTER_USER_SWITCH);
+        RunUtil.getDefault().sleep(WAIT_AFTER_USER_SWITCH);
 
         final ArrayList<Integer> newUsers = getDevice().listUsers();
         for (int userId : newUsers) {
@@ -281,6 +283,8 @@ public class MultiUserTest extends BaseHostJUnit4Test {
         // check getCurrentInputMethodInfoAsUser(userId)
         assertIme1NotCurrentInputMethodInfo(profileUserId);
         assertIme2InCurrentInputMethodInfo(profileUserId);
+        // Check isStylusHandwritingAvailable() for profile user.
+        assertIsStylusHandwritingAvailable(profileUserId);
 
         // Make sure that IME switches depending on the target user.
         runTestAsUser(DeviceTestConstants.TEST_CONNECTING_TO_THE_SAME_USER_IME, primaryUserId);
@@ -342,8 +346,8 @@ public class MultiUserTest extends BaseHostJUnit4Test {
             }
             // InputMethodManagerService did not receive onSwitchUser() yet.
             try {
-                Thread.sleep(USER_SWITCH_POLLING_INTERVAL);
-            } catch (InterruptedException e) {
+                RunUtil.getDefault().sleep(USER_SWITCH_POLLING_INTERVAL);
+            } catch (RunInterruptedException e) {
                 throw new IllegalStateException("Sleep interrupted while obtaining last SwitchUser"
                         + " ID from InputMethodManagerService.");
             }
@@ -405,6 +409,11 @@ public class MultiUserTest extends BaseHostJUnit4Test {
 
     private void assertIme2InCurrentInputMethodInfo(int userId) throws Exception {
         runTestAsUser(DeviceTestConstants.TEST_IME2_IN_CURRENT_INPUT_METHOD_INFO, userId);
+    }
+
+    private void assertIsStylusHandwritingAvailable(int profileUserId) throws Exception {
+        runTestAsUser(DeviceTestConstants.TEST_IS_STYLUS_HANDWRITING_AVAILABLE_FOR_PROFILE_USER,
+                profileUserId);
     }
 
     private void assertIme2NotCurrentInputMethodInfo(int userId) throws Exception {

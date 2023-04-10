@@ -36,6 +36,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Build;
+import android.os.PersistableBundle;
 import android.os.UserHandle;
 import android.util.Log;
 
@@ -106,11 +107,17 @@ public final class DevicePolicy {
         try {
             Retry.logic(command::execute)
                     .terminalException((ex) -> {
+
                         if (!Versions.meetsMinimumSdkVersionRequirement(Build.VERSION_CODES.S)) {
                             return false; // Just retry on old versions as we don't have stderr
                         }
                         if (ex instanceof AdbException) {
                             String error = ((AdbException) ex).error();
+                            if (error.contains("is already set")) {
+                                // This can happen for a while when it is being tidied up
+                                return false;
+                            }
+
                             if (error.contains("is being removed")) {
                                 return false;
                             }
@@ -135,6 +142,21 @@ public final class DevicePolicy {
                 TestApis.packages().find(
                         profileOwnerComponent.getPackageName()), profileOwnerComponent);
     }
+
+    /**
+     * Get the organization owned profile owner for the device, if any, otherwise null.
+     */
+    public ProfileOwner getOrganizationOwnedProfileOwner() {
+        for (UserReference user : TestApis.users().all()) {
+            ProfileOwner profileOwner = getProfileOwner(user);
+            if (profileOwner != null && profileOwner.isOrganizationOwned()) {
+                return profileOwner;
+            }
+        }
+
+        return null;
+    }
+
 
     /**
      * Get the profile owner for the instrumented user.
@@ -199,7 +221,7 @@ public final class DevicePolicy {
                     .timeout(Duration.ofMinutes(5))
                     .run();
         } catch (Throwable e) {
-            throw new NeneException("Error setting device owner", e);
+            throw new NeneException("Error setting device owner.", e);
         }
 
         Package deviceOwnerPackage = TestApis.packages().find(
@@ -649,10 +671,7 @@ public final class DevicePolicy {
         if (!Versions.meetsMinimumSdkVersionRequirement(31)) {
             return true;
         }
-        try (PermissionContext p =
-                     TestApis.permissions().withPermission(INTERACT_ACROSS_USERS_FULL)) {
-            return devicePolicyManager(TestApis.users().system()).canAdminGrantSensorsPermissions();
-        }
+        return sDevicePolicyManager.canAdminGrantSensorsPermissions();
     }
 
     /**
@@ -669,8 +688,127 @@ public final class DevicePolicy {
     @Experimental
     public int getUserProvisioningState(UserReference user) {
         try (PermissionContext p =
-                     TestApis.permissions().withPermission(INTERACT_ACROSS_USERS_FULL)) {
+                     TestApis.permissions().withPermission(INTERACT_ACROSS_USERS)) {
             return devicePolicyManager(user).getUserProvisioningState();
         }
+    }
+
+    /**
+     * Get password expiration timeout for the instrumented user.
+     */
+    @Experimental
+    public long getPasswordExpirationTimeout() {
+        return getPasswordExpirationTimeout(TestApis.users().instrumented());
+    }
+
+    /**
+     * See {@link DevicePolicyManager#getPasswordExpirationTimeout}.
+     */
+    @Experimental
+    public long getPasswordExpirationTimeout(UserReference user) {
+        try (PermissionContext p =
+                     TestApis.permissions().withPermission(INTERACT_ACROSS_USERS)) {
+            return devicePolicyManager(user)
+                    .getPasswordExpirationTimeout(/* componentName= */ null);
+        }
+    }
+
+    /**
+     * Get maximum time to lock for the instrumented user.
+     */
+    @Experimental
+    public long getMaximumTimeToLock() {
+        return getMaximumTimeToLock(TestApis.users().instrumented());
+    }
+
+    /**
+     * See {@link DevicePolicyManager#getMaximumTimeToLock}.
+     */
+    @Experimental
+    public long getMaximumTimeToLock(UserReference user) {
+        try (PermissionContext p =
+                     TestApis.permissions().withPermission(INTERACT_ACROSS_USERS)) {
+            return devicePolicyManager(user)
+                    .getMaximumTimeToLock(/* componentName= */ null);
+        }
+    }
+
+    /**
+     * Get strong auth timeout for the instrumented user.
+     */
+    @Experimental
+    public long getRequiredStrongAuthTimeout() {
+        return getRequiredStrongAuthTimeout(TestApis.users().instrumented());
+    }
+
+    /**
+     * See {@link DevicePolicyManager#getRequiredStrongAuthTimeout}.
+     */
+    @Experimental
+    public long getRequiredStrongAuthTimeout(UserReference user) {
+        try (PermissionContext p =
+                     TestApis.permissions().withPermission(INTERACT_ACROSS_USERS)) {
+            return devicePolicyManager(user)
+                    .getRequiredStrongAuthTimeout(/* componentName= */ null);
+        }
+    }
+
+    // TODO: Consider wrapping keyguard disabled features with a bedstead concept instead of flags
+
+    /**
+     * Get keyguard disabled features for the instrumented user.
+     */
+    @Experimental
+    public int getKeyguardDisabledFeatures() {
+        return getKeyguardDisabledFeatures(TestApis.users().instrumented());
+    }
+
+    /**
+     * See {@link DevicePolicyManager#getKeyguardDisabledFeatures}.
+     */
+    @Experimental
+    public int getKeyguardDisabledFeatures(UserReference user) {
+        try (PermissionContext p =
+                     TestApis.permissions().withPermission(INTERACT_ACROSS_USERS)) {
+            return devicePolicyManager(user)
+                    .getKeyguardDisabledFeatures(/* componentName= */ null);
+        }
+    }
+
+    /**
+     * Get keyguard disabled features for the instrumented user.
+     */
+    @Experimental
+    public Set<PersistableBundle> getTrustAgentConfiguration(ComponentName trustAgent) {
+        return getTrustAgentConfiguration(trustAgent, TestApis.users().instrumented());
+    }
+
+    /**
+     * See {@link DevicePolicyManager#getTrustAgentConfiguration}.
+     */
+    @Experimental
+    public Set<PersistableBundle> getTrustAgentConfiguration(
+            ComponentName trustAgent, UserReference user) {
+        try (PermissionContext p =
+                     TestApis.permissions().withPermission(INTERACT_ACROSS_USERS)) {
+            List<PersistableBundle> configurations = devicePolicyManager(user)
+                    .getTrustAgentConfiguration(/* componentName= */ null, trustAgent);
+            return configurations == null ? Set.of() : Set.copyOf(configurations);
+        }
+    }
+
+    /**
+     * True if either this is the system user or the user is affiliated with a device owner on
+     * the device.
+     */
+    @Experimental
+    public boolean isAffiliated() {
+        return isAffiliated(TestApis.users().instrumented());
+    }
+
+    // TODO(276248451): Make user handle aware so it'll work cross-user
+    @Experimental
+    private boolean isAffiliated(UserReference user) {
+        return devicePolicyManager(user).isAffiliatedUser();
     }
 }

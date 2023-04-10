@@ -97,7 +97,7 @@ public class VideoEncoderPsnrTest extends VideoEncoderValidationTestBase {
 
     private static void addParams(int bitRate, int width, int height, CompressedResource res) {
         final String[] mediaTypes = new String[]{MediaFormat.MIMETYPE_VIDEO_AVC,
-                MediaFormat.MIMETYPE_VIDEO_HEVC};
+                MediaFormat.MIMETYPE_VIDEO_HEVC, MediaFormat.MIMETYPE_VIDEO_AV1};
         final int[] bitRateModes = new int[]{BITRATE_MODE_CBR, BITRATE_MODE_VBR};
         for (String mediaType : mediaTypes) {
             for (int bitRateMode : bitRateModes) {
@@ -110,7 +110,7 @@ public class VideoEncoderPsnrTest extends VideoEncoderValidationTestBase {
         }
     }
 
-    @Parameterized.Parameters(name = "{index}({0}_{1}_{4})")
+    @Parameterized.Parameters(name = "{index}_{0}_{1}_{4}")
     public static Collection<Object[]> input() {
         addParams(25000000, 1920, 1080, BIRTHDAY_FULLHD_LANDSCAPE);
         addParams(25000000, 1080, 1920, SELFIEGROUP_FULLHD_PORTRAIT);
@@ -138,7 +138,7 @@ public class VideoEncoderPsnrTest extends VideoEncoderValidationTestBase {
         ArrayList<MediaFormat> formats = new ArrayList<>();
         formats.add(format);
         Assume.assumeTrue("Encoder: " + mCodecName + " doesn't support format: " + format,
-                areFormatsSupported(mCodecName, mMime, formats));
+                areFormatsSupported(mCodecName, mMediaType, formats));
         RawResource res = RES_YUV_MAP.getOrDefault(mCRes.uniqueLabel(), null);
         assertNotNull("no raw resource found for testing config : " + mEncCfgParams[0] + mTestConfig
                 + mTestEnv, res);
@@ -147,7 +147,7 @@ public class VideoEncoderPsnrTest extends VideoEncoderValidationTestBase {
         StringBuilder msg = new StringBuilder();
         boolean isOk = true;
         try {
-            cs = new CompareStreams(res, mMime, mMuxedOutputFile, true, mIsLoopBack);
+            cs = new CompareStreams(res, mMediaType, mMuxedOutputFile, true, mIsLoopBack);
             final ArrayList<double[]> framesPSNR = cs.getFramesPSNR();
             for (int j = 0; j < framesPSNR.size(); j++) {
                 double[] framePSNR = framesPSNR.get(j);
@@ -171,7 +171,6 @@ public class VideoEncoderPsnrTest extends VideoEncoderValidationTestBase {
         } finally {
             if (cs != null) cs.cleanUp();
         }
-        new File(mMuxedOutputFile).delete();
         assertEquals("encoder did not encode the requested number of frames \n"
                 + mTestConfig + mTestEnv, FRAME_LIMIT, mOutputCount);
         assertTrue("Encountered frames with PSNR less than configured threshold "

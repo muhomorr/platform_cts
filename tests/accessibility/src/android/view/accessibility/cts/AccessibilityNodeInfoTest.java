@@ -301,7 +301,8 @@ public class AccessibilityNodeInfoTest {
     private void fullyPopulateAccessibilityNodeInfo(AccessibilityNodeInfo info) {
         // Populate 10 fields
         info.setBoundsInParent(new Rect(1,1,1,1));
-        info.setBoundsInScreen(new Rect(2,2,2,2));
+        info.setBoundsInScreen(new Rect(3, 3, 3, 3));
+        info.setBoundsInWindow(new Rect(2, 2, 2, 2));
         info.setClassName("foo.bar.baz.Class");
         info.setContentDescription("content description");
         info.setStateDescription("state description");
@@ -386,12 +387,13 @@ public class AccessibilityNodeInfoTest {
         info.setImportantForAccessibility(true);
         info.setScreenReaderFocusable(true);
 
-        // 4 Boolean properties
+        // 6 Boolean properties
         info.setShowingHintText(true);
         info.setHeading(true);
         info.setTextEntryKey(true);
         info.setTextSelectable(true);
         info.setRequestInitialAccessibilityFocus(true);
+        info.setAccessibilityDataSensitive(true);
     }
 
     /**
@@ -438,7 +440,7 @@ public class AccessibilityNodeInfoTest {
      */
     public static void assertEqualsAccessibilityNodeInfo(AccessibilityNodeInfo expectedInfo,
             AccessibilityNodeInfo receivedInfo) {
-        // Check 9 fields
+        // Check 10 fields
         Rect expectedBounds = new Rect();
         Rect receivedBounds = new Rect();
         expectedInfo.getBoundsInParent(expectedBounds);
@@ -447,6 +449,9 @@ public class AccessibilityNodeInfoTest {
         expectedInfo.getBoundsInScreen(expectedBounds);
         receivedInfo.getBoundsInScreen(receivedBounds);
         assertEquals("boundsInScreen has incorrect value", expectedBounds, receivedBounds);
+        expectedInfo.getBoundsInWindow(expectedBounds);
+        receivedInfo.getBoundsInWindow(receivedBounds);
+        assertEquals("boundsInWindow has incorrect value", expectedBounds, receivedBounds);
         assertEquals("className has incorrect value", expectedInfo.getClassName(),
                 receivedInfo.getClassName());
         assertEquals("contentDescription has incorrect value", expectedInfo.getContentDescription(),
@@ -628,7 +633,7 @@ public class AccessibilityNodeInfoTest {
         assertSame("isScreenReaderFocusable has incorrect value",
                 expectedInfo.isScreenReaderFocusable(), receivedInfo.isScreenReaderFocusable());
 
-        // 3 Boolean properties
+        // 6 Boolean properties
         assertSame("isShowingHint has incorrect value",
                 expectedInfo.isShowingHintText(), receivedInfo.isShowingHintText());
         assertSame("isHeading has incorrect value",
@@ -640,6 +645,9 @@ public class AccessibilityNodeInfoTest {
         assertSame("hasRequestInitialAccessibilityFocus has incorrect value",
                 expectedInfo.hasRequestInitialAccessibilityFocus(),
                 receivedInfo.hasRequestInitialAccessibilityFocus());
+        assertSame("isAccessibilityDataSensitive has incorrect value",
+                expectedInfo.isAccessibilityDataSensitive(),
+                receivedInfo.isAccessibilityDataSensitive());
     }
 
     /**
@@ -731,14 +739,15 @@ public class AccessibilityNodeInfoTest {
                 info.isImportantForAccessibility());
         assertFalse("ScreenReaderFocusable not properly recycled", info.isScreenReaderFocusable());
 
-        // 3 Boolean properties
+        // 6 Boolean properties
         assertFalse("isShowingHint not properly reset", info.isShowingHintText());
         assertFalse("isHeading not properly reset", info.isHeading());
         assertFalse("isTextEntryKey not properly reset", info.isTextEntryKey());
         assertFalse("isTextSelectable not properly reset", info.isTextSelectable());
         assertFalse("hasRequestInitialAccessibilityFocus not properly reset",
                 info.hasRequestInitialAccessibilityFocus());
-
+        assertFalse("isAccessibilityDataSensitive not properly reset",
+                info.isAccessibilityDataSensitive());
     }
 
     private static void replaceSpan(

@@ -131,10 +131,7 @@ public class BluetoothCsipSetCoordinatorTest extends AndroidTestCase {
                 mTestCallback = null;
                 mTestExecutor = null;
             }
-            if (mAdapter != null ) {
-                assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
-                mAdapter = null;
-            }
+            mAdapter = null;
             TestUtils.dropPermissionAsShellUid();
         }
     }
@@ -177,6 +174,18 @@ public class BluetoothCsipSetCoordinatorTest extends AndroidTestCase {
         List<BluetoothDevice> connectedDevices =
                 mBluetoothCsipSetCoordinator.getDevicesMatchingConnectionStates(null);
         assertTrue(connectedDevices.isEmpty());
+    }
+
+    public void testGetConnectionState() {
+        if (!(mHasBluetooth && mIsCsipSetCoordinatorSupported)) return;
+
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mBluetoothCsipSetCoordinator);
+
+        mTestDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
+
+        int state = mBluetoothCsipSetCoordinator.getConnectionState(mTestDevice);
+        assertEquals(BluetoothProfile.STATE_DISCONNECTED, state);
     }
 
     public void testGetGroupUuidMapByDevice() {

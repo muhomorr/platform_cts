@@ -18,17 +18,18 @@ package android.permission.cts
 
 import android.accessibility.cts.common.InstrumentedAccessibilityService
 import android.accessibility.cts.common.InstrumentedAccessibilityServiceTestRule
+import android.app.ActivityOptions
 import android.app.Instrumentation
 import android.app.UiAutomation
 import android.content.ComponentName
 import android.content.Context
 import android.os.Build
 import android.os.Process
-import android.permission.cts.NotificationListenerUtils.assertEmptyNotification
-import android.permission.cts.NotificationListenerUtils.assertNotificationExist
-import android.permission.cts.NotificationListenerUtils.cancelNotification
-import android.permission.cts.NotificationListenerUtils.cancelNotifications
-import android.permission.cts.NotificationListenerUtils.getNotification
+import android.permission.cts.CtsNotificationListenerServiceUtils.assertEmptyNotification
+import android.permission.cts.CtsNotificationListenerServiceUtils.assertNotificationExist
+import android.permission.cts.CtsNotificationListenerServiceUtils.cancelNotification
+import android.permission.cts.CtsNotificationListenerServiceUtils.cancelNotifications
+import android.permission.cts.CtsNotificationListenerServiceUtils.getNotification
 import android.permission.cts.SafetyCenterUtils.assertSafetyCenterIssueDoesNotExist
 import android.permission.cts.SafetyCenterUtils.assertSafetyCenterIssueExist
 import android.permission.cts.SafetyCenterUtils.assertSafetyCenterStarted
@@ -44,6 +45,7 @@ import androidx.test.runner.AndroidJUnit4
 import com.android.compatibility.common.util.DeviceConfigStateChangerRule
 import com.android.compatibility.common.util.SystemUtil.runShellCommand
 import com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity
+import com.android.modules.utils.build.SdkLevel
 import org.junit.After
 import org.junit.Assert
 import org.junit.Assume
@@ -237,7 +239,17 @@ class AccessibilityPrivacySourceTest {
             getNotification(permissionControllerPackage, ACCESSIBILITY_NOTIFICATION_ID)
         Assert.assertNotNull(statusBarNotification)
         val contentIntent = statusBarNotification!!.notification.contentIntent
-        contentIntent.send()
+        if (SdkLevel.isAtLeastU()) {
+            val options = ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(
+                ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+            )
+            contentIntent.send(/* context = */ null, /* code = */ 0, /* intent = */ null,
+                /* onFinished = */ null, /* handler = */ null, /* requiredPermission = */ null,
+                /* options = */ options.toBundle()
+            )
+        } else {
+            contentIntent.send()
+        }
         assertSafetyCenterStarted()
     }
 

@@ -124,7 +124,7 @@ public class ImageReaderDecoderTest {
         mTestId = testId;
     }
 
-    @Parameterized.Parameters(name = "{index}({0}_{1}_{4})")
+    @Parameterized.Parameters(name = "{index}_{0}_{1}_{4}")
     public static Collection<Object[]> input() {
         final List<Object[]> argsList = new ArrayList<>();
         for (MediaAssets assets : ASSETS) {
@@ -506,7 +506,7 @@ public class ImageReaderDecoderTest {
                 if (VERBOSE) Log.v(TAG, "decoder output format changed: " + outFormat);
             } else if (res < 0) {
                 // Should be decoding error.
-                fail("unexpected result from deocder.dequeueOutputBuffer: " + res);
+                fail("unexpected result from decoder.dequeueOutputBuffer: " + res);
             } else {
                 if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
                     sawOutputEOS = true;

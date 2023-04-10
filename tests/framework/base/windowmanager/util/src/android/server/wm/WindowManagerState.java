@@ -979,7 +979,7 @@ public class WindowManagerState {
                 .collect(Collectors.toList());
     }
 
-    private Stream<WindowState> getMatchingWindows(Predicate<WindowState> condition) {
+    public Stream<WindowState> getMatchingWindows(Predicate<WindowState> condition) {
         return mWindowStates.stream().filter(condition);
     }
 
@@ -1631,6 +1631,13 @@ public class WindowManagerState {
         int getActivityType() {
             return mTaskType;
         }
+
+        @Override
+        public String toString() {
+            return "Task[id=" + mTaskId + ", display=" + mDisplayId
+                    + ", mOrigActivity=" + mOrigActivity + ", realActivity=" + mRealActivity
+                    + ", activities=" + mActivities + "]";
+        }
     }
 
     public static class TaskFragment extends ActivityContainer {
@@ -1683,10 +1690,16 @@ public class WindowManagerState {
         float minAspectRatio;
         boolean providesMaxBounds;
         int procId = -1;
+        boolean isAnimating;
         public boolean translucent;
         private WindowContainer mParent;
         private boolean mEnableRecentsScreenshot;
         private int mLastDropInputMode;
+        private boolean mShouldSendCompatFakeFocus;
+        private int mOverrideOrientation;
+        private boolean mShouldForceRotateForCameraCompat;
+        private boolean mShouldRefreshActivityForCameraCompat;
+        private boolean mShouldRefreshActivityViaPauseForCameraCompat;
 
         Activity(ActivityRecordProto proto, WindowContainer parent) {
             super(proto.windowToken.windowContainer);
@@ -1700,10 +1713,17 @@ public class WindowManagerState {
             if (proto.procId != 0) {
                 procId = proto.procId;
             }
+            isAnimating = proto.isAnimating;
             translucent = proto.translucent;
             mEnableRecentsScreenshot = proto.enableRecentsScreenshot;
             mLastDropInputMode = proto.lastDropInputMode;
+            mShouldSendCompatFakeFocus = proto.shouldSendCompatFakeFocus;
+            mOverrideOrientation = proto.overrideOrientation;
             mParent = parent;
+            mShouldForceRotateForCameraCompat = proto.shouldForceRotateForCameraCompat;
+            mShouldRefreshActivityForCameraCompat = proto.shouldRefreshActivityForCameraCompat;
+            mShouldRefreshActivityViaPauseForCameraCompat =
+                    proto.shouldRefreshActivityViaPauseForCameraCompat;
         }
 
         @NonNull
@@ -1734,6 +1754,10 @@ public class WindowManagerState {
             return inSizeCompatMode;
         }
 
+        public boolean isAnimating() {
+            return isAnimating;
+        }
+
         public float getMinAspectRatio() {
             return minAspectRatio;
         }
@@ -1750,6 +1774,30 @@ public class WindowManagerState {
             return mLastDropInputMode;
         }
 
+        public boolean getShouldSendCompatFakeFocus() {
+            return mShouldSendCompatFakeFocus;
+        }
+
+        public int getUiMode() {
+            return mFullConfiguration.uiMode;
+        }
+
+        public int getOverrideOrientation() {
+            return mOverrideOrientation;
+        }
+
+        public boolean getShouldForceRotateForCameraCompat() {
+            return mShouldForceRotateForCameraCompat;
+        }
+
+        public boolean getShouldRefreshActivityForCameraCompat() {
+            return mShouldRefreshActivityForCameraCompat;
+        }
+
+        public boolean getShouldRefreshActivityViaPauseForCameraCompat() {
+            return mShouldRefreshActivityViaPauseForCameraCompat;
+        }
+
         @Override
         public Rect getBounds() {
             if (mBounds == null) {
@@ -1764,6 +1812,11 @@ public class WindowManagerState {
 
         public Rect getAppBounds() {
             return mFullConfiguration.windowConfiguration.getAppBounds();
+        }
+
+        @Override
+        public String toString() {
+            return "Activity[name=" + name + ", state=" + state + ", visible=" + visible + "]";
         }
     }
 
@@ -2129,7 +2182,7 @@ public class WindowManagerState {
             } else if (proto.animatingExit) {
                 mWindowType = WINDOW_TYPE_EXITING;
             } else if (mName.startsWith(DEBUGGER_WINDOW_PREFIX)) {
-                mWindowType = WINDOW_TYPE_STARTING;
+                mWindowType = WINDOW_TYPE_DEBUGGER;
                 mName = mName.substring(DEBUGGER_WINDOW_PREFIX.length());
             } else {
                 mWindowType = 0;

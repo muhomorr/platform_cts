@@ -24,6 +24,7 @@ import android.hardware.radio.RadioResponseInfo;
 import android.hardware.radio.modem.IRadioModem;
 import android.hardware.radio.modem.IRadioModemIndication;
 import android.hardware.radio.modem.IRadioModemResponse;
+import android.hardware.radio.modem.ImeiInfo;
 import android.hardware.radio.modem.RadioState;
 import android.os.AsyncResult;
 import android.os.Handler;
@@ -50,6 +51,7 @@ public class IRadioModemImpl extends IRadioModem.Stub {
     static final int EVENT_BASEBAND_VERSION_CHANGED = 1;
     static final int EVENT_DEVICE_IDENTITY_CHANGED = 2;
     static final int EVENT_RADIO_STATE_CHANGED = 3;
+    static final int EVENT_DEVICE_IMEI_INFO_CHANGED = 4;
 
     // ***** Cache of modem attributes/status
     private String mBasebandVer;
@@ -57,6 +59,7 @@ public class IRadioModemImpl extends IRadioModem.Stub {
     private String mImeiSv;
     private String mEsn;
     private String mMeid;
+    private int mImeiType;
     private int mRadioState;
 
     public IRadioModemImpl(
@@ -77,6 +80,8 @@ public class IRadioModemImpl extends IRadioModem.Stub {
                 mSubId, mHandler, EVENT_DEVICE_IDENTITY_CHANGED, null);
         mMockModemConfigInterface.registerForRadioStateChanged(
                 mSubId, mHandler, EVENT_RADIO_STATE_CHANGED, null);
+        mMockModemConfigInterface.registerForDeviceImeiInfoChanged(
+                mSubId, mHandler, EVENT_DEVICE_IMEI_INFO_CHANGED, null);
     }
 
     /** Handler class to handle callbacks */
@@ -135,6 +140,20 @@ public class IRadioModemImpl extends IRadioModem.Stub {
                             Log.i(mTag, "Radio state: " + mRadioState);
                         } else {
                             Log.e(mTag, msg.what + " failure. Exception: " + ar.exception);
+                        }
+                        break;
+                    case EVENT_DEVICE_IMEI_INFO_CHANGED:
+                        Log.d(mTag, "Received EVENT_DEVICE_IMEIINFO_CHANGED");
+                        ar = (AsyncResult) msg.obj;
+                        if (ar != null && ar.exception == null) {
+                            ImeiInfo imeiInfo = (ImeiInfo) ar.result;
+                            mImei = imeiInfo.imei;
+                            mImeiSv = imeiInfo.svn;
+                            mImeiType = imeiInfo.type;
+                            Log.i(mTag, "IMEIInfo : ImeiType = " + mImeiType);
+                        } else {
+                            Log.e(mTag, msg.what + " failure. Not update device ImeiInfo."
+                                    + ar.exception);
                         }
                         break;
                 }
@@ -207,10 +226,14 @@ public class IRadioModemImpl extends IRadioModem.Stub {
     @Override
     public void getImei(int serial) {
         Log.d(mTag, "getImei");
-
         android.hardware.radio.modem.ImeiInfo imeiInfo =
                 new android.hardware.radio.modem.ImeiInfo();
-        RadioResponseInfo rsp = mService.makeSolRsp(serial, RadioError.REQUEST_NOT_SUPPORTED);
+        synchronized (mCacheUpdateMutex) {
+            imeiInfo.type = mImeiType;
+            imeiInfo.imei = mImei;
+            imeiInfo.svn = mImeiSv;
+        }
+        RadioResponseInfo rsp = mService.makeSolRsp(serial);
         try {
             mRadioModemResponse.getImeiResponse(rsp, imeiInfo);
         } catch (RemoteException ex) {

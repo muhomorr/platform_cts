@@ -37,7 +37,6 @@ import android.content.IntentFilter;
 import android.os.SystemClock;
 import android.platform.test.annotations.AppModeFull;
 import android.provider.DeviceConfig;
-import android.provider.Settings;
 import android.support.test.uiautomator.UiDevice;
 import android.util.Log;
 
@@ -51,6 +50,7 @@ import com.android.compatibility.common.util.SystemUtil;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -109,7 +109,7 @@ public class BackgroundRestrictedAlarmsTest {
         mActivityManagerDeviceConfigStateHelper
                 .set("bg_auto_restricted_bucket_on_bg_restricted", "false");
         SystemUtil.runWithShellPermissionIdentity(() ->
-                DeviceConfig.setSyncDisabledMode(Settings.Config.SYNC_DISABLED_MODE_UNTIL_REBOOT));
+                DeviceConfig.setSyncDisabledMode(DeviceConfig.SYNC_DISABLED_MODE_UNTIL_REBOOT));
         AppOpsUtils.setOpMode(TEST_APP_PACKAGE, OPSTR_RUN_ANY_IN_BACKGROUND, MODE_IGNORED);
         makeUidIdle();
         setAppStandbyBucket("active");
@@ -159,9 +159,10 @@ public class BackgroundRestrictedAlarmsTest {
                 + " times when restrictions were lifted", waitForAlarms(minCount, DEFAULT_WAIT));
     }
 
+    @Ignore("Feature auto_restricted_bucket_on_bg_restricted is disabled right now")
     @Test
     public void testRepeatingAlarmAllowedWhenAutoRestrictedBucketFeatureOn() throws Exception {
-        mTareDeviceConfigStateHelper.set("enable_tare", "false"); // Test requires app standby
+        mTareDeviceConfigStateHelper.set("enable_tare_mode", "0"); // Test requires app standby
         final long interval = MIN_REPEATING_INTERVAL;
         final long triggerElapsed = SystemClock.elapsedRealtime() + interval;
         toggleAutoRestrictedBucketOnBgRestricted(false);
@@ -197,7 +198,7 @@ public class BackgroundRestrictedAlarmsTest {
     @After
     public void tearDown() throws Exception {
         SystemUtil.runWithShellPermissionIdentity(() ->
-                DeviceConfig.setSyncDisabledMode(Settings.Config.SYNC_DISABLED_MODE_NONE));
+                DeviceConfig.setSyncDisabledMode(DeviceConfig.SYNC_DISABLED_MODE_NONE));
         deleteAlarmManagerConstants();
         AppOpsUtils.reset(TEST_APP_PACKAGE);
         mActivityManagerDeviceConfigStateHelper.restoreOriginalValues();

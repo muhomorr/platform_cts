@@ -79,6 +79,17 @@ public class MediaRouter2HostSideTest extends BaseHostJUnit4Test {
                 "deduplicationIds_propagateAcrossApps");
     }
 
+    @ApiTest(apis = {"android.media.RouteDiscoveryPreference, android.media.MediaRouter2"})
+    @AppModeFull
+    @RequiresDevice
+    @Test
+    public void testDeviceType_propagatesAcrossApps() throws Exception {
+        runDeviceTests(
+                MEDIA_ROUTER_TEST_PACKAGE,
+                DEVICE_SIDE_TEST_CLASS,
+                "deviceType_propagatesAcrossApps");
+    }
+
     @ApiTest(apis = {"android.media.RouteListingPreference, android.media.MediaRouter2"})
     @AppModeFull
     @RequiresDevice
@@ -120,6 +131,29 @@ public class MediaRouter2HostSideTest extends BaseHostJUnit4Test {
                 MEDIA_ROUTER_TEST_PACKAGE,
                 DEVICE_SIDE_TEST_CLASS,
                 "visibilityAndAllowedPackages_propagateAcrossApps");
+    }
+
+    @ApiTest(apis = {"android.media.RouteDiscoveryPreference, android.media.MediaRouter2"})
+    @AppModeFull
+    @RequiresDevice
+    @Test
+    public void setRouteListingPreference_withCustomDisableReason_propagatesCorrectly()
+            throws Exception {
+        runDeviceTests(
+                MEDIA_ROUTER_TEST_PACKAGE,
+                DEVICE_SIDE_TEST_CLASS,
+                "setRouteListingPreference_withCustomDisableReason_propagatesCorrectly");
+    }
+
+    @ApiTest(apis = {"android.media.RouteDiscoveryPreference, android.media.MediaRouter2"})
+    @AppModeFull
+    @RequiresDevice
+    @Test
+    public void newRouteListingPreference_withInvalidCustomSubtext_throws() throws Exception {
+        runDeviceTests(
+                MEDIA_ROUTER_TEST_PACKAGE,
+                DEVICE_SIDE_TEST_CLASS,
+                "newRouteListingPreference_withInvalidCustomSubtext_throws");
     }
 
     private static void installTestApp(TestInformation testInfo, String apkName)

@@ -21,11 +21,15 @@ import android.content.IntentFilter;
 import android.util.Log;
 
 import com.android.bedstead.nene.TestApis;
+import com.android.queryable.annotations.Query;
 import com.android.queryable.info.ActivityInfo;
 import com.android.queryable.info.ServiceInfo;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -37,9 +41,8 @@ public final class TestAppProvider {
 
     // Must be instrumentation context to access resources
     private static final Context sContext = TestApis.context().instrumentationContext();
-
     private boolean mTestAppsInitialised = false;
-    private final Set<TestAppDetails> mTestApps = new HashSet<>();
+    private final List<TestAppDetails> mTestApps = new ArrayList<>();
     private Set<TestAppDetails> mTestAppsSnapshot = null;
 
     public TestAppProvider() {
@@ -51,6 +54,21 @@ public final class TestAppProvider {
         return new TestAppQueryBuilder(this);
     }
 
+    /** Create a query for a {@link TestApp} starting with a {@link Query}. */
+    public TestAppQueryBuilder query(Query query) {
+        TestAppQueryBuilder queryBuilder = query();
+
+        if (query == null) {
+            return queryBuilder;
+        }
+
+        queryBuilder = queryBuilder.whereTargetSdkVersion().matchesAnnotation(query.targetSdkVersion());
+        queryBuilder = queryBuilder.whereMinSdkVersion().matchesAnnotation(query.minSdkVersion());
+        queryBuilder = queryBuilder.whereMaxSdkVersion().matchesAnnotation(query.maxSdkVersion());
+        queryBuilder = queryBuilder.wherePackageName().matchesAnnotation(query.packageName());
+        return queryBuilder;
+    }
+
     /** Get any {@link TestApp}. */
     public TestApp any() {
         TestApp testApp = query().get();
@@ -58,7 +76,7 @@ public final class TestAppProvider {
         return testApp;
     }
 
-    Set<TestAppDetails> testApps() {
+    List<TestAppDetails> testApps() {
         return mTestApps;
     }
 
@@ -93,6 +111,8 @@ public final class TestAppProvider {
             for (int i = 0; i < index.getAppsCount(); i++) {
                 loadApk(index.getApps(i));
             }
+            Collections.sort(mTestApps,
+                    Comparator.comparing((testAppDetails) -> testAppDetails.mApp.getPackageName()));
         } catch (IOException e) {
             throw new RuntimeException("Error loading testapp index", e);
         }

@@ -16,6 +16,7 @@
 
 package com.android.cts.devicepolicy;
 
+import com.android.tradefed.util.RunUtil;
 import static com.android.cts.devicepolicy.metrics.DevicePolicyEventLogVerifier.assertMetricsLogged;
 
 import static org.junit.Assert.assertFalse;
@@ -437,19 +438,6 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     }
 
     @Test
-    public void testPersistentIntentResolving() throws Exception {
-        executeDeviceTestClass(".PersistentIntentResolvingTest");
-        assertMetricsLogged(getDevice(), () -> {
-            executeDeviceTestMethod(".PersistentIntentResolvingTest",
-                    "testAddPersistentPreferredActivityYieldsReceptionAtTarget");
-        }, new DevicePolicyEventWrapper.Builder(EventId.ADD_PERSISTENT_PREFERRED_ACTIVITY_VALUE)
-                .setAdminPackageName(DEVICE_ADMIN_PKG)
-                .setStrings(DEVICE_ADMIN_PKG,
-                        "com.android.cts.deviceandprofileowner.EXAMPLE_ACTION")
-                .build());
-    }
-
-    @Test
     public void testScreenCaptureDisabled_assist() throws Exception {
         try {
             // Install and enable assistant, notice that profile can't have assistant.
@@ -829,24 +817,6 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
 
         executeDeviceTestClass(".TrustAgentInfoTest");
     }
-
-    @FlakyTest(bugId = 141161038)
-    @Test
-    public void testCannotRemoveUserIfRestrictionSet() throws Exception {
-        assumeCanCreateAdditionalUsers(1);
-        assumeTrue("Outside of the primary user, setting DISALLOW_REMOVE_USER would not work",
-                mUserId == getPrimaryUser());
-
-        final int userId = createUser();
-        try {
-            changeUserRestrictionOrFail(DISALLOW_REMOVE_USER, true, mUserId);
-            assertFalse(getDevice().removeUser(userId));
-        } finally {
-            changeUserRestrictionOrFail(DISALLOW_REMOVE_USER, false, mUserId);
-            assertTrue(getDevice().removeUser(userId));
-        }
-    }
-
     @Test
     public void testCannotEnableOrDisableDeviceOwnerOrProfileOwner() throws Exception {
         // Try to disable a component in device owner/ profile owner.
@@ -961,7 +931,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
             executeDeviceTestMethod(".GetPasswordExpirationTest",
                     "testGetPasswordExpirationUpdatedAfterPasswordReset_beforeReset");
             // Wait for 20 seconds so we can make sure that the expiration date is refreshed later.
-            Thread.sleep(20000);
+            RunUtil.getDefault().sleep(20000);
             changeUserCredential(TEST_PASSWORD, null, mUserId);
             executeDeviceTestMethod(".GetPasswordExpirationTest",
                     "testGetPasswordExpirationUpdatedAfterPasswordReset_afterReset");

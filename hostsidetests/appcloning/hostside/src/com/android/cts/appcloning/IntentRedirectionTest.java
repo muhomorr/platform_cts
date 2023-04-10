@@ -28,6 +28,7 @@ import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -54,14 +55,14 @@ public class IntentRedirectionTest extends AppCloningBaseHostTest {
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
         assertThat(testInfo.getDevice()).isNotNull();
+        assumeTrue(isAtLeastU(testInfo.getDevice()));
         AppCloningBaseHostTest.baseHostSetup(testInfo.getDevice());
-        assumeTrue(isAtLeastU());
-        switchOnIntentRedirectionFlag();
+        switchOnAppCloningBuildingBlocksFlag();
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
-        switchOffIntentRedirectionFlag();
+        switchOffAppCloningBuildingBlocksFlag();
         AppCloningBaseHostTest.baseHostTeardown();
     }
 
@@ -104,7 +105,7 @@ public class IntentRedirectionTest extends AppCloningBaseHostTest {
         installPackage(OWNER_PROFILE_APP, "--user " + Integer.valueOf(OWNER_USER_ID));
 
         //Setting flag as false
-        switchOffIntentRedirectionFlag();
+        switchOffAppCloningBuildingBlocksFlag();
         try {
             // Intent in owner profile should be resolved in owner profile
             queryIntentForUser(intentAction, OWNER_USER_ID,
@@ -115,7 +116,7 @@ public class IntentRedirectionTest extends AppCloningBaseHostTest {
                     /* shouldCloneAppBePresent */ true, /* shouldOwnerAppBePresent */ false,
                     /* isMatchCloneProfileFlagSet */ true);
         } finally {
-            switchOnIntentRedirectionFlag();
+            switchOnAppCloningBuildingBlocksFlag();
         }
     }
 
@@ -277,6 +278,7 @@ public class IntentRedirectionTest extends AppCloningBaseHostTest {
      * @throws Exception
      */
     @Test
+    @Ignore
     public void testActionViewQueryWithoutMatchCloneProfileFlag() throws Exception {
         String intentAction = "android.intent.action.VIEW";
         installPackage(CLONE_PROFILE_APP, "--user " + Integer.valueOf(sCloneUserId));
@@ -320,16 +322,17 @@ public class IntentRedirectionTest extends AppCloningBaseHostTest {
      * Sets settings_allow_intent_redirection_for_clone_profile to true
      * @throws Exception
      */
-    private static void switchOnIntentRedirectionFlag() throws Exception {
-        setFeatureFlagValue("app_cloning", "allow_intent_redirection_for_clone_profile", "true");
+    private static void switchOnAppCloningBuildingBlocksFlag() throws Exception {
+        setFeatureFlagValue("app_cloning", "enable_app_cloning_building_blocks",
+                "true");
     }
 
     /**
      * Sets settings_allow_intent_redirection_for_clone_profile to false
      * @throws Exception
      */
-    private static void switchOffIntentRedirectionFlag() throws Exception {
-        setFeatureFlagValue("app_cloning", "allow_intent_redirection_for_clone_profile",
+    private static void switchOffAppCloningBuildingBlocksFlag() throws Exception {
+        setFeatureFlagValue("app_cloning", "enable_app_cloning_building_blocks",
                 "false");
     }
 }

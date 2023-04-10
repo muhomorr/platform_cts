@@ -77,6 +77,10 @@ public class Utils {
 
     /** Indicate which test scenario for testing. */
     public static final int EXTRA_HOTWORD_DETECTION_SERVICE_ON_UPDATE_STATE_CRASH = 1;
+    public static final int EXTRA_HOTWORD_DETECTION_SERVICE_ON_UPDATE_STATE_UNEXPECTED_CALLBACK = 2;
+    public static final int EXTRA_HOTWORD_DETECTION_SERVICE_SEND_OVER_MAX_INIT_STATUS = 3;
+    public static final int EXTRA_HOTWORD_DETECTION_SERVICE_SEND_CUSTOM_INIT_STATUS = 4;
+
 
     /** Indicate to start a new activity for testing. */
     public static final int ACTIVITY_NEW = 0;
@@ -161,6 +165,7 @@ public class Utils {
     public static final String KEY_TEST_RESULT = "testResult";
     public static final String KEY_TEST_SCENARIO = "testScenario";
     public static final String KEY_DETECTION_DELAY_MS = "detectionDelayMs";
+    public static final String KEY_INITIALIZATION_STATUS = "initialization_status";
 
     public static final String VOICE_INTERACTION_KEY_CALLBACK = "callback";
     public static final String VOICE_INTERACTION_KEY_CONTROL = "control";
@@ -169,6 +174,10 @@ public class Utils {
     public static final String VOICE_INTERACTION_DIRECT_ACTIONS_KEY_ACTION = "action";
     public static final String VOICE_INTERACTION_KEY_ARGUMENTS = "arguments";
     public static final String VOICE_INTERACTION_KEY_CLASS = "class";
+
+    public static final String VOICE_INTERACTION_KEY_REMOTE_CALLBACK_FOR_NEW_SESSION =
+            "remoteCallbackForNewSession";
+    public static final String VOICE_INTERACTION_KEY_USE_ACTIVITY_OPTIONS = "useActivityOptions";
     public static final String VOICE_INTERACTION_SESSION_CMD_FINISH = "hide";
     public static final String VOICE_INTERACTION_ACTIVITY_CMD_FINISH = "finish";
     public static final String VOICE_INTERACTION_ACTIVITY_CMD_CRASH = "crash";

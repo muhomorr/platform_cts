@@ -46,6 +46,20 @@
         return false;                          \
     }
 
+#define RETURN_IF_FALSE(cond, msg)             \
+    if (!(cond)) {                             \
+        ALOGE("%s", (msg).c_str());            \
+        mErrorLogs.append((msg)).append("\n"); \
+        return false;                          \
+    }
+
+#define RETURN_IF_NULL(var, msg)               \
+    if ((var) == nullptr) {                    \
+        ALOGE("%s", (msg).c_str());            \
+        mErrorLogs.append((msg)).append("\n"); \
+        return false;                          \
+    }
+
 struct callbackObject {
     AMediaCodecBufferInfo bufferInfo;
     int32_t bufferIndex;
@@ -135,12 +149,12 @@ class OutputManager {
     float getRmsError(uint8_t* refData, int length);
     std::string getErrorMsg() { return mErrorLogs + *mSharedErrorLogs; }
     int getOutStreamSize() { return memory.size(); }
-    std::shared_ptr<std::string> getSharedErrorLogs()  { return mSharedErrorLogs; }
+    std::shared_ptr<std::string> getSharedErrorLogs() { return mSharedErrorLogs; }
 };
 
 class CodecTestBase {
   protected:
-    const char* mMime;
+    const char* mMediaType;
     bool mIsAudio;
     bool mIsVideo;
     CodecAsyncHandler mAsyncHandle;
@@ -165,7 +179,7 @@ class CodecTestBase {
     std::string mTestEnv;
     std::string mErrorLogs;
 
-    CodecTestBase(const char* mime);
+    CodecTestBase(const char* mediaType);
     ~CodecTestBase();
     virtual bool configureCodec(AMediaFormat* format, bool isAsync, bool signalEOSWithLastFrame,
                                 bool isEncoder);
@@ -187,9 +201,9 @@ class CodecTestBase {
   public:
     std::string getErrorMsg() {
         return mTestEnv +
-               "###################       Error Details         #####################\n" +
-               mErrorLogs;
+                "###################       Error Details         #####################\n" +
+                mErrorLogs;
     }
 };
 
-#endif  // MEDIACTSNATIVE_NATIVE_CODEC_TEST_BASE_H
+#endif // MEDIACTSNATIVE_NATIVE_CODEC_TEST_BASE_H

@@ -73,6 +73,9 @@ public class SearchSpecCtsTest {
                         .addProjection("schemaType2", expectedPropertyPaths2)
                         .setPropertyWeights("schemaType1", expectedPropertyWeights)
                         .setPropertyWeightPaths("schemaType2", expectedPropertyWeightPaths)
+                        .setNumericSearchEnabled(true)
+                        .setVerbatimSearchEnabled(true)
+                        .setListFilterQueryLanguageEnabled(true)
                         .build();
 
         assertThat(searchSpec.getTermMatch()).isEqualTo(SearchSpec.TERM_MATCH_PREFIX);
@@ -114,6 +117,9 @@ public class SearchSpecCtsTest {
                         new PropertyPath("property1"), 1.0, new PropertyPath("property2"), 2.0);
         assertThat(searchSpec.getPropertyWeightPaths().get("schemaType2"))
                 .containsExactly(new PropertyPath("property1.nested"), 1.0);
+        assertThat(searchSpec.isNumericSearchEnabled()).isTrue();
+        assertThat(searchSpec.isVerbatimSearchEnabled()).isTrue();
+        assertThat(searchSpec.isListFilterQueryLanguageEnabled()).isTrue();
     }
 
     @Test
@@ -130,6 +136,27 @@ public class SearchSpecCtsTest {
         assertThat(typePropertyPathMap.keySet()).containsExactly("TypeA", "TypeB", "TypeC");
         assertThat(typePropertyPathMap.get("TypeA")).containsExactly("field1", "field2.subfield2");
         assertThat(typePropertyPathMap.get("TypeB")).containsExactly("field7");
+        assertThat(typePropertyPathMap.get("TypeC")).isEmpty();
+    }
+
+    @Test
+    public void testGetProjectionObjects() {
+        PropertyPath path1 = new PropertyPath("field1");
+        PropertyPath path2 = new PropertyPath("field2.subfield2");
+        PropertyPath path3 = new PropertyPath("field7");
+
+        SearchSpec searchSpec =
+                new SearchSpec.Builder()
+                        .setTermMatch(SearchSpec.TERM_MATCH_PREFIX)
+                        .addProjectionPaths("TypeA", ImmutableList.of(path1, path2))
+                        .addProjectionPaths("TypeB", ImmutableList.of(path3))
+                        .addProjectionPaths("TypeC", ImmutableList.of())
+                        .build();
+
+        Map<String, List<PropertyPath>> typePropertyPathMap = searchSpec.getProjectionPaths();
+        assertThat(typePropertyPathMap.keySet()).containsExactly("TypeA", "TypeB", "TypeC");
+        assertThat(typePropertyPathMap.get("TypeA")).containsExactly(path1, path2);
+        assertThat(typePropertyPathMap.get("TypeB")).containsExactly(path3);
         assertThat(typePropertyPathMap.get("TypeC")).isEmpty();
     }
 
@@ -289,7 +316,11 @@ public class SearchSpecCtsTest {
                         .setMaxJoinedResultCount(20)
                         .build();
 
-        SearchSpec searchSpec = new SearchSpec.Builder().setJoinSpec(joinSpec).build();
+        SearchSpec searchSpec =
+                new SearchSpec.Builder()
+                        .setRankingStrategy(SearchSpec.RANKING_STRATEGY_JOIN_AGGREGATE_SCORE)
+                        .setJoinSpec(joinSpec)
+                        .build();
 
         assertThat(searchSpec.getJoinSpec()).isNotNull();
         assertThat(searchSpec.getJoinSpec().getNestedQuery()).isEqualTo("joe");
@@ -336,6 +367,28 @@ public class SearchSpecCtsTest {
     }
 
     @Test
+    public void testSetFeatureEnabledToFalse() {
+        SearchSpec.Builder builder = new SearchSpec.Builder();
+        SearchSpec searchSpec =
+                builder.setNumericSearchEnabled(true)
+                        .setVerbatimSearchEnabled(true)
+                        .setListFilterQueryLanguageEnabled(true)
+                        .build();
+        assertThat(searchSpec.isNumericSearchEnabled()).isTrue();
+        assertThat(searchSpec.isVerbatimSearchEnabled()).isTrue();
+        assertThat(searchSpec.isListFilterQueryLanguageEnabled()).isTrue();
+
+        searchSpec =
+                builder.setNumericSearchEnabled(false)
+                        .setVerbatimSearchEnabled(false)
+                        .setListFilterQueryLanguageEnabled(false)
+                        .build();
+        assertThat(searchSpec.isNumericSearchEnabled()).isFalse();
+        assertThat(searchSpec.isVerbatimSearchEnabled()).isFalse();
+        assertThat(searchSpec.isListFilterQueryLanguageEnabled()).isFalse();
+    }
+
+    @Test
     public void testInvalidAdvancedRanking() {
         assertThrows(
                 IllegalArgumentException.class,
@@ -363,6 +416,26 @@ public class SearchSpecCtsTest {
                 .isEqualTo(
                         "Attempting to rank based on joined documents, but"
                                 + " no JoinSpec provided");
+
+        JoinSpec joinSpec =
+                new JoinSpec.Builder("childProp")
+                        .setAggregationScoringStrategy(
+                                JoinSpec.AGGREGATION_SCORING_SUM_RANKING_SIGNAL)
+                        .build();
+        e =
+                assertThrows(
+                        IllegalStateException.class,
+                        () ->
+                                new SearchSpec.Builder()
+                                        .setRankingStrategy(
+                                                SearchSpec.RANKING_STRATEGY_CREATION_TIMESTAMP)
+                                        .setJoinSpec(joinSpec)
+                                        .build());
+        assertThat(e.getMessage())
+                .isEqualTo(
+                        "Aggregate scoring strategy has been set in the "
+                                + "nested JoinSpec, but ranking strategy is not "
+                                + "RANKING_STRATEGY_JOIN_AGGREGATE_SCORE");
     }
 
     @Test

@@ -95,11 +95,16 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
     // Don't accidently use emergency number.
     private static int sCounter = 5553638;
 
+    //Smaller timeout for checking outgoing connection
+    //Since this called after placeAndVerifyCall
+    private static final long WAIT_FOR_OUTGOING_CONNECTION_TIMEOUT_MS = 2000;
+
     public static final String TEST_EMERGENCY_NUMBER = "5553637";
     public static final Uri TEST_EMERGENCY_URI = Uri.fromParts("tel", TEST_EMERGENCY_NUMBER, null);
     public static final String PKG_NAME = "android.telecom.cts";
     public static final String PERMISSION_PROCESS_OUTGOING_CALLS =
             "android.permission.PROCESS_OUTGOING_CALLS";
+    public static final String PERMISSION_PACKAGE_USAGE_STATS = "android.permission.PACKAGE_USAGE_STATS";
 
     Context mContext;
     TelecomManager mTelecomManager;
@@ -325,6 +330,8 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
                 InstrumentationRegistry.getInstrumentation().getUiAutomation();
         uiAutomation.grantRuntimePermissionAsUser(PKG_NAME, PERMISSION_PROCESS_OUTGOING_CALLS,
                 UserHandle.CURRENT);
+        uiAutomation.grantRuntimePermissionAsUser(PKG_NAME, PERMISSION_PACKAGE_USAGE_STATS,
+                UserHandle.CURRENT);
     }
 
     @Override
@@ -406,6 +413,8 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
             }
 
         } catch (Exception e) {
+            // Clear static cts connection service state: its ok to do this if setUp itself throws.
+            CtsConnectionService.tearDown();
             unregisterTelephonyCallbacks();
             throw e;
         }
@@ -935,9 +944,8 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
 
     void verifyNoConnectionForOutgoingCall() {
         try {
-            if (!connectionService.lock.tryAcquire(TestUtils.WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
+            if (!connectionService.lock.tryAcquire(WAIT_FOR_OUTGOING_CONNECTION_TIMEOUT_MS,
                     TimeUnit.MILLISECONDS)) {
-                //fail("No outgoing call connection requested by Telecom");
             }
         } catch (InterruptedException e) {
             Log.i(TAG, "Test interrupted!");
@@ -1256,22 +1264,27 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
         return changeLatch;
     }
 
-
-    public void verifyCallLogging(CountDownLatch logLatch, boolean isCallLogged, Uri testNumber) {
-        Cursor logCursor = getLatestCallLogCursorIfMatchesUri(logLatch, isCallLogged, testNumber);
-        if (isCallLogged) {
-            assertNotNull("Call log entry not found for test number", logCursor);
-        }
-    }
-
-    public void verifyCallLogging(Uri testNumber, int expectedLogType) {
+    public void verifyCallLogging(
+            Uri testNumber, int expectedLogType, PhoneAccountHandle handle) {
         CountDownLatch logLatch = getCallLogEntryLatch();
         Cursor logCursor = getLatestCallLogCursorIfMatchesUri(logLatch, true /*isCallLogged*/,
                 testNumber);
         assertNotNull("Call log entry not found for test number", logCursor);
+
         int typeIndex = logCursor.getColumnIndex(CallLog.Calls.TYPE);
         int type = logCursor.getInt(typeIndex);
         assertEquals("recorded type does not match expected", expectedLogType, type);
+
+        int phoneAccountIdIndex = logCursor.getColumnIndex(CallLog.Calls.PHONE_ACCOUNT_ID);
+        String phoneAccountId = logCursor.getString(phoneAccountIdIndex);
+        assertEquals("recorded account ID does not match expected",
+                handle.getId(), phoneAccountId);
+
+        int phoneAccountComponentNameIndex = logCursor.getColumnIndex(
+                CallLog.Calls.PHONE_ACCOUNT_COMPONENT_NAME);
+        String phoneAccountComponentName = logCursor.getString(phoneAccountComponentNameIndex);
+        assertEquals("recorded account component name does not match expected",
+                handle.getComponentName().flattenToString(), phoneAccountComponentName);
     }
 
     public Cursor getLatestCallLogCursorIfMatchesUri(CountDownLatch latch, boolean newLogExpected,

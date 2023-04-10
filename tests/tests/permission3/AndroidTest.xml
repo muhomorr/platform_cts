@@ -33,6 +33,9 @@
     <!-- Keep screen on for Bluetooth scanning -->
     <target_preparer class="com.android.tradefed.targetprep.DeviceSetup">
         <option name="force-skip-system-props" value="true" /> <!-- avoid restarting device -->
+        <option name="set-global-setting" key="verifier_verify_adb_installs" value="0" />
+        <option name="restore-settings" value="true" />
+        <option name="disable-device-config-sync" value="true" />
         <option name="screen-always-on" value="on" />
     </target_preparer>
 
@@ -45,7 +48,6 @@
         <option name="push" value="CtsAccessMicrophoneApp.apk->/data/local/tmp/cts/permission3/CtsAccessMicrophoneApp.apk" />
         <option name="push" value="CtsAccessMicrophoneApp2.apk->/data/local/tmp/cts/permission3/CtsAccessMicrophoneApp2.apk" />
         <option name="push" value="CtsAccessMicrophoneAppLocationProvider.apk->/data/local/tmp/cts/permission3/CtsAccessMicrophoneAppLocationProvider.apk" />
-        <option name="push" value="CtsAppLocationProviderWithSummary.apk->/data/local/tmp/cts/permission3/CtsAppLocationProviderWithSummary.apk" />
         <option name="push" value="CtsPermissionPolicyApp25.apk->/data/local/tmp/cts/permission3/CtsPermissionPolicyApp25.apk" />
         <option name="push" value="CtsUsePermissionApp22.apk->/data/local/tmp/cts/permission3/CtsUsePermissionApp22.apk" />
         <option name="push" value="CtsUsePermissionApp22CalendarOnly.apk->/data/local/tmp/cts/permission3/CtsUsePermissionApp22CalendarOnly.apk" />
@@ -69,10 +71,12 @@
         <option name="push" value="CtsDifferentPkgNameApp.apk->/data/local/tmp/cts/permission3/CtsDifferentPkgNameApp.apk" />
         <option name="push" value="CtsMediaPermissionApp33WithStorage.apk->/data/local/tmp/cts/permission3/CtsMediaPermissionApp33WithStorage.apk" />
         <option name="push" value="CtsUsePermissionAppImplicitUserSelectStorage.apk->/data/local/tmp/cts/permission3/CtsUsePermissionAppImplicitUserSelectStorage.apk" />
+        <option name="push" value="CtsAppThatAccessesMicAndCameraPermission.apk->/data/local/tmp/cts/permission3/CtsAppThatAccessesMicAndCameraPermission.apk" />
     </target_preparer>
 
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
         <option name="run-command" value="appops set android.permission3.cts REQUEST_INSTALL_PACKAGES allow" />
+        <option name="run-command" value="am wait-for-broadcast-barrier"  />
     </target_preparer>
 
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >

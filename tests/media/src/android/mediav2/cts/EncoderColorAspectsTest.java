@@ -28,9 +28,10 @@ import android.media.MediaCodec;
 import android.media.MediaCodecList;
 import android.media.MediaFormat;
 import android.mediav2.common.cts.CodecDecoderTestBase;
+import android.mediav2.common.cts.CodecEncoderTestBase;
 import android.mediav2.common.cts.CodecTestBase;
 import android.mediav2.common.cts.EncoderConfigParams;
-import android.mediav2.common.cts.EncoderTestBase;
+import android.mediav2.common.cts.InputSurface;
 import android.mediav2.common.cts.OutputManager;
 import android.opengl.GLES20;
 import android.os.Build;
@@ -73,11 +74,11 @@ import java.util.List;
  * restricted to HLG/HDR profiles.
  */
 @RunWith(Parameterized.class)
-public class EncoderColorAspectsTest extends EncoderTestBase {
+public class EncoderColorAspectsTest extends CodecEncoderTestBase {
     private static final String LOG_TAG = EncoderColorAspectsTest.class.getSimpleName();
 
     private Surface mInpSurface;
-    private EGLWindowSurface mEGLWindowInpSurface;
+    private InputSurface mEGLWindowInpSurface;
 
     private int mLatency;
     private boolean mReviseLatency;
@@ -85,6 +86,7 @@ public class EncoderColorAspectsTest extends EncoderTestBase {
     private static final ArrayList<String> IGNORE_COLOR_BOX_LIST = new ArrayList<>();
 
     static {
+        IGNORE_COLOR_BOX_LIST.add(MediaFormat.MIMETYPE_VIDEO_AV1);
         IGNORE_COLOR_BOX_LIST.add(MediaFormat.MIMETYPE_VIDEO_AVC);
         IGNORE_COLOR_BOX_LIST.add(MediaFormat.MIMETYPE_VIDEO_HEVC);
     }
@@ -109,7 +111,7 @@ public class EncoderColorAspectsTest extends EncoderTestBase {
                     for (int transfer : transfers) {
                         for (int maxBFrame : maxBFrames) {
                             if (!mediaType.equals(MediaFormat.MIMETYPE_VIDEO_AVC)
-                                    && !mediaType.equals((MediaFormat.MIMETYPE_VIDEO_HEVC))
+                                    && !mediaType.equals(MediaFormat.MIMETYPE_VIDEO_HEVC)
                                     && maxBFrame != 0) {
                                 continue;
                             }
@@ -124,7 +126,7 @@ public class EncoderColorAspectsTest extends EncoderTestBase {
                                     .setInputBitDepth(bitDepth)
                                     .build();
                             testArgs[1] = cfg;
-                            testArgs[2] = String.format("%s:%s:%s:%s:%d-bframes",
+                            testArgs[2] = String.format("%s_%s_%s_%s_%d-bframes",
                                     rangeToString(range),
                                     colorStandardToString(standard),
                                     colorTransferToString(transfer),
@@ -138,7 +140,7 @@ public class EncoderColorAspectsTest extends EncoderTestBase {
         }
     }
 
-    @Parameterized.Parameters(name = "{index}({0}_{1}_{3})")
+    @Parameterized.Parameters(name = "{index}_{0}_{1}_{3}")
     public static Collection<Object[]> input() {
         final boolean isEncoder = true;
         final boolean needAudio = false;
@@ -146,7 +148,8 @@ public class EncoderColorAspectsTest extends EncoderTestBase {
 
         List<Object[]> exhaustiveArgsList = new ArrayList<>();
 
-        String[] mediaTypes = {MediaFormat.MIMETYPE_VIDEO_AVC,
+        String[] mediaTypes = {MediaFormat.MIMETYPE_VIDEO_AV1,
+                MediaFormat.MIMETYPE_VIDEO_AVC,
                 MediaFormat.MIMETYPE_VIDEO_HEVC,
                 MediaFormat.MIMETYPE_VIDEO_VP8,
                 MediaFormat.MIMETYPE_VIDEO_VP9};
@@ -173,7 +176,8 @@ public class EncoderColorAspectsTest extends EncoderTestBase {
         // above
         if (IS_AT_LEAST_T) {
             // ColorAspects for HDR profiles
-            String[] mediaTypesHighBitDepth = {MediaFormat.MIMETYPE_VIDEO_AVC,
+            String[] mediaTypesHighBitDepth = {MediaFormat.MIMETYPE_VIDEO_AV1,
+                    MediaFormat.MIMETYPE_VIDEO_AVC,
                     MediaFormat.MIMETYPE_VIDEO_HEVC,
                     MediaFormat.MIMETYPE_VIDEO_VP9};
             int[] standardsHighBitDepth = {-1,
@@ -285,27 +289,24 @@ public class EncoderColorAspectsTest extends EncoderTestBase {
     public void testColorAspects() throws IOException, InterruptedException {
         Assume.assumeTrue("Test introduced with Android 11", sIsAtLeastR);
 
-        if (mCodecName.equals("OMX.google.h264.encoder")) {  // TODO(b/189883530)
-            Log.d(LOG_TAG, "test skipped due to b/189883530");
-            return;
-        }
-
         mActiveEncCfg = mEncCfgParams[0];
         if (mActiveEncCfg.mInputBitDepth > 8) {
             // Check if encoder is capable of supporting HDR profiles.
             // Previous check doesn't verify this as profile isn't set in the format
             Assume.assumeTrue(mCodecName + " doesn't support HDR encoding",
-                    CodecTestBase.doesCodecSupportHDRProfile(mCodecName, mMime));
+                    CodecTestBase.doesCodecSupportHDRProfile(mCodecName, mMediaType));
 
             // Encoder surface mode tests are to be enabled only if an encoder supports
             // COLOR_Format32bitABGR2101010
             if (mActiveEncCfg.mColorFormat == COLOR_FormatSurface) {
                 Assume.assumeTrue(mCodecName + " doesn't support RGBA1010102",
-                        hasSupportForColorFormat(mCodecName, mMime, COLOR_Format32bitABGR2101010));
+                        hasSupportForColorFormat(mCodecName, mMediaType,
+                                                 COLOR_Format32bitABGR2101010));
             } else {
                 Assume.assumeTrue(mCodecName + " doesn't support " + colorFormatToString(
                                 mActiveEncCfg.mColorFormat, mActiveEncCfg.mInputBitDepth),
-                        hasSupportForColorFormat(mCodecName, mMime, mActiveEncCfg.mColorFormat));
+                        hasSupportForColorFormat(mCodecName, mMediaType,
+                                                 mActiveEncCfg.mColorFormat));
             }
         }
 
@@ -324,6 +325,12 @@ public class EncoderColorAspectsTest extends EncoderTestBase {
             setUpSource(mActiveRawRes.mFileName);
         }
 
+        /* TODO(b/181126614, b/268175825) */
+        if (MediaUtils.isPc()) {
+            Log.d(LOG_TAG, "test skipped due to b/181126614, b/268175825");
+            return;
+        }
+
         {
             mSaveToMem = true;
             mOutputBuff = new OutputManager();
@@ -338,7 +345,7 @@ public class EncoderColorAspectsTest extends EncoderTestBase {
                 assertTrue("Surface is not valid \n" + mTestConfig + mTestEnv,
                         mInpSurface.isValid());
                 mEGLWindowInpSurface =
-                        new EGLWindowSurface(mInpSurface, mActiveEncCfg.mInputBitDepth == 10);
+                        new InputSurface(mInpSurface, false, mActiveEncCfg.mInputBitDepth == 10);
                 if (mCodec.getInputFormat().containsKey(MediaFormat.KEY_LATENCY)) {
                     mReviseLatency = true;
                     mLatency = mCodec.getInputFormat().getInteger(MediaFormat.KEY_LATENCY);
@@ -365,7 +372,7 @@ public class EncoderColorAspectsTest extends EncoderTestBase {
             mCodec.stop();
             mCodec.release();
 
-            int muxerFormat = getMuxerFormatForMediaType(mMime);
+            int muxerFormat = getMuxerFormatForMediaType(mMediaType);
             String tmpPath = getTempFilePath((mActiveEncCfg.mInputBitDepth == 10) ? "10bit" : "");
             muxOutput(tmpPath, muxerFormat, fmt, mOutputBuff.getBuffer(), mInfoList);
 
@@ -374,14 +381,14 @@ public class EncoderColorAspectsTest extends EncoderTestBase {
             String decoder = codecList.findDecoderForFormat(mActiveEncCfg.getFormat());
             assertNotNull("Device advertises support for encoding " + mActiveEncCfg.getFormat()
                     + " but not decoding it. \n" + mTestConfig + mTestEnv, decoder);
-            CodecDecoderTestBase cdtb = new CodecDecoderTestBase(decoder, mMime, tmpPath,
+            CodecDecoderTestBase cdtb = new CodecDecoderTestBase(decoder, mMediaType, tmpPath,
                     mAllTestParams);
             cdtb.validateColorAspects(mActiveEncCfg.mRange, mActiveEncCfg.mStandard,
                     mActiveEncCfg.mTransfer, false);
 
             // if color metadata can also be signalled via elementary stream then verify if the
             // elementary stream contains color aspects as expected
-            if (IGNORE_COLOR_BOX_LIST.contains(mMime)) {
+            if (IGNORE_COLOR_BOX_LIST.contains(mMediaType)) {
                 cdtb.validateColorAspects(mActiveEncCfg.mRange, mActiveEncCfg.mStandard,
                         mActiveEncCfg.mTransfer, true);
             }

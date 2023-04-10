@@ -16,35 +16,26 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-cc_test {
+android_test {
     name: "CtsNativeResourcesTestCases",
-    sdk_version: "current",
+    defaults: ["cts_defaults"],
+    // Include both the 32 and 64 bit versions
     compile_multilib: "both",
-    multilib: {
-        lib32: {
-            suffix: "32",
-        },
-        lib64: {
-            suffix: "64",
-        },
-    },
-    srcs: ["src/AConfigurationTest.cpp"],
-    shared_libs: [
-        "libandroid",
-    ],
-    static_libs: [
-        "libgtest_ndk_c++",
-    ],
-    whole_static_libs: [
-        "libnativetesthelper_jni",
-    ],
+    // Tag this module as a cts test artifact
     test_suites: [
         "cts",
         "general-tests",
     ],
-    stl: "c++_static",
-    cflags: [
-        "-Werror",
-        "-Wall",
+    libs: [
+        "platform-test-annotations",
+        "android.test.base",
     ],
+    static_libs: [
+        "compatibility-device-util-axt",
+        "ctstestrunner-axt",
+        "nativetesthelper",
+    ],
+    jni_libs: ["libnativeresourcestest"],
+    srcs: ["src/**/*.java"],
+    sdk_version: "test_current",
 }

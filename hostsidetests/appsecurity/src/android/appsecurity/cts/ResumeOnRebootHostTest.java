@@ -16,6 +16,7 @@
 
 package android.appsecurity.cts;
 
+import com.android.tradefed.util.RunUtil;
 import static android.appsecurity.cts.Utils.waitForBootCompleted;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -98,6 +99,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
     @Test
     public void resumeOnReboot_ManagedProfile_Success() throws Exception {
         assumeTrue("Device isn't at least S or has no lock screen", isSupportedSDevice());
+        assumeTrue("Device does not support file-based encryption", supportFileBasedEncryption());
 
         if (!getDevice().hasFeature("android.software.managed_users")) {
             CLog.v(TAG, "Device doesn't support managed users; skipping test");
@@ -139,6 +141,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
     @Test
     public void resumeOnReboot_TwoUsers_SingleUserUnlock_Success() throws Exception {
         assumeTrue("Device isn't at least S or has no lock screen", isSupportedSDevice());
+        assumeTrue("Device does not support file-based encryption", supportFileBasedEncryption());
 
         if (!mSupportsMultiUser) {
             CLog.v(TAG, "Device doesn't support multi-user; skipping test");
@@ -191,6 +194,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
     @Test
     public void resumeOnReboot_TwoUsers_BothUserUnlock_Success() throws Exception {
         assumeTrue("Device isn't at least S or has no lock screen", isSupportedSDevice());
+        assumeTrue("Device does not support file-based encryption", supportFileBasedEncryption());
 
         if (!mSupportsMultiUser) {
             CLog.v(TAG, "Device doesn't support multi-user; skipping test");
@@ -245,6 +249,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
     @Test
     public void resumeOnReboot_SingleUser_ServerBased_Success() throws Exception {
         assumeTrue("Device isn't at least S or has no lock screen", isSupportedSDevice());
+        assumeTrue("Device does not support file-based encryption", supportFileBasedEncryption());
 
         int[] users = Utils.prepareSingleUser(getDevice());
         int initialUser = users[0];
@@ -278,6 +283,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
     @Test
     public void resumeOnReboot_SingleUser_MultiClient_ClientASuccess() throws Exception {
         assumeTrue("Device isn't at least S or has no lock screen", isSupportedSDevice());
+        assumeTrue("Device does not support file-based encryption", supportFileBasedEncryption());
 
         int[] users = Utils.prepareSingleUser(getDevice());
         int initialUser = users[0];
@@ -318,6 +324,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
     @Test
     public void resumeOnReboot_SingleUser_MultiClient_ClientBSuccess() throws Exception {
         assumeTrue("Device isn't at least S or has no lock screen", isSupportedSDevice());
+        assumeTrue("Device does not support file-based encryption", supportFileBasedEncryption());
 
         int[] users = Utils.prepareSingleUser(getDevice());
         int initialUser = users[0];
@@ -398,12 +405,12 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
                 + " -c android.intent.category.LAUNCHER com.android.cts.splitapp/.MyActivity");
 
         // Give enough time for PackageManager to persist stopped state
-        Thread.sleep(15000);
+        RunUtil.getDefault().sleep(15000);
 
         runDeviceTestsAsUser("testSetUp", userId);
 
         // Give enough time for vold to update keys
-        Thread.sleep(15000);
+        RunUtil.getDefault().sleep(15000);
     }
 
     private void deviceRequestLskf() throws Exception {
@@ -434,9 +441,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
         do {
             if (retry) {
                 CLog.i("Retrying to summon lockscreen...");
-                try {
-                    Thread.sleep(500);
-                } catch (InterruptedException ignored) {}
+                RunUtil.getDefault().sleep(500);
             }
             runDeviceTestsAsUser("testLockScreen", userId);
             retry = !LockScreenInspector.newInstance(getDevice()).isDisplayedAndNotOccluded();
@@ -511,7 +516,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
         getDevice().switchUser(userId);
         HostSideTestUtils.waitUntil("Could not switch users", USER_SWITCH_TIMEOUT_SECONDS,
                 () -> getDevice().getCurrentUser() == userId);
-        Thread.sleep(USER_SWITCH_WAIT);
+        RunUtil.getDefault().sleep(USER_SWITCH_WAIT);
     }
 
     private void stopUserAsync(int userId) throws Exception {
@@ -568,6 +573,10 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
                 || ApiLevelUtil.codenameEquals(getDevice(), "S");
 
         return isAtleastS && getDevice().hasFeature(FEATURE_SECURE_LOCK_SCREEN);
+    }
+
+    private boolean supportFileBasedEncryption() throws Exception {
+        return "file".equals(getDevice().getProperty("ro.crypto.type"));
     }
 
     private class InstallMultiple extends BaseInstallMultiple<InstallMultiple> {

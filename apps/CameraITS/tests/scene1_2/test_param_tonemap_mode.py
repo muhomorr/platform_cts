@@ -85,13 +85,15 @@ class ParamTonemapModeTest(its_base_test.ItsBaseTest):
       props = cam.override_with_hidden_physical_camera_props(props)
       camera_properties_utils.skip_unless(
           camera_properties_utils.compute_target_exposure(props) and
-          camera_properties_utils.per_frame_control(props))
+          camera_properties_utils.per_frame_control(props) and
+          camera_properties_utils.tonemap_mode(props, 0))
       log_path = self.log_path
       name_with_log_path = os.path.join(log_path, _NAME)
 
       # Load chart for scene
       its_session_utils.load_scene(
-          cam, props, self.scene, self.tablet, self.chart_distance)
+          cam, props, self.scene, self.tablet,
+          its_session_utils.CHART_DISTANCE_NO_SCALING)
 
       # Determine format, exposure and gain for requests
       largest_yuv = capture_request_utils.get_largest_yuv_format(props)

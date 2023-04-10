@@ -16,30 +16,39 @@
 
 package android.jobscheduler.cts;
 
-import static android.Manifest.permission.RUN_LONG_JOBS;
+import static android.Manifest.permission.RUN_USER_INITIATED_JOBS;
 import static android.app.AppOpsManager.MODE_ALLOWED;
 import static android.app.AppOpsManager.MODE_DEFAULT;
 import static android.app.AppOpsManager.MODE_ERRORED;
 import static android.app.AppOpsManager.MODE_IGNORED;
-import static android.app.AppOpsManager.OP_RUN_LONG_JOBS;
+import static android.app.AppOpsManager.OPSTR_RUN_USER_INITIATED_JOBS;
+import static android.app.AppOpsManager.OP_RUN_USER_INITIATED_JOBS;
 import static android.app.AppOpsManager.opToPermission;
+import static android.jobscheduler.cts.JobThrottlingTest.setTestPackageStandbyBucket;
+import static android.jobscheduler.cts.TestAppInterface.TEST_APP_PACKAGE;
 import static android.text.format.DateUtils.HOUR_IN_MILLIS;
 
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 import android.annotation.TargetApi;
-import android.app.AppOpsManager;
 import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
 import android.jobscheduler.MockJobService.TestEnvironment;
 import android.jobscheduler.MockJobService.TestEnvironment.Event;
+import android.jobscheduler.cts.jobtestapp.TestJobSchedulerReceiver;
 import android.provider.DeviceConfig;
 import android.text.TextUtils;
 
+import androidx.test.InstrumentationRegistry;
+import androidx.test.uiautomator.UiDevice;
+
+import com.android.compatibility.common.util.AnrMonitor;
 import com.android.compatibility.common.util.AppOpsUtils;
 import com.android.compatibility.common.util.BatteryUtils;
 import com.android.compatibility.common.util.SystemUtil;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -48,6 +57,7 @@ import java.util.Map;
  */
 @TargetApi(30)
 public class JobSchedulingTest extends BaseJobSchedulerTest {
+    private static final long DEFAULT_WAIT_TIMEOUT_MS = 2_000;
     private static final int MIN_SCHEDULE_QUOTA = 250;
     private static final int JOB_ID = JobSchedulingTest.class.hashCode();
     // The maximum number of jobs that can run concurrently.
@@ -58,29 +68,163 @@ public class JobSchedulingTest extends BaseJobSchedulerTest {
         mJobScheduler.cancel(JOB_ID);
         SystemUtil.runShellCommand(getInstrumentation(), "cmd jobscheduler reset-schedule-quota");
         BatteryUtils.runDumpsysBatteryReset();
-        AppOpsUtils.setOpMode(MY_PACKAGE, AppOpsManager.OPSTR_RUN_LONG_JOBS, MODE_DEFAULT);
+        AppOpsUtils.setOpMode(MY_PACKAGE, OPSTR_RUN_USER_INITIATED_JOBS, MODE_DEFAULT);
 
         // The super method should be called at the end.
         super.tearDown();
     }
 
-    public void testCanRunLongJobs() throws Exception {
-        final boolean isAppOpPermission = isLongBackgroundTaskPermissionAppOp();
+    /** Tests that an ANR happens if the job is blocked in onStartJob. */
+    public void testAnr_onStartJob_disabled() throws Exception {
+        try (TestAppInterface mTestAppInterface = new TestAppInterface(mContext, JOB_ID);
+             AnrMonitor monitor = AnrMonitor.start(InstrumentationRegistry.getInstrumentation(),
+                     TEST_APP_PACKAGE)) {
+
+            setTestPackageStandbyBucket(
+                    UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()),
+                    JobThrottlingTest.Bucket.ACTIVE);
+            SystemUtil.runShellCommand(getInstrumentation(),
+                    "am compat disable ANR_PRE_UDC_APIS_ON_SLOW_RESPONSES " + TEST_APP_PACKAGE);
+
+            mTestAppInterface.scheduleJob(
+                    Map.of(
+                            TestJobSchedulerReceiver.EXTRA_AS_EXPEDITED, true,
+                            TestJobSchedulerReceiver.EXTRA_SLOW_START, true
+                    ),
+                    Collections.emptyMap());
+
+            mTestAppInterface.forceRunJob();
+            assertTrue("Job did not start after scheduling",
+                    mTestAppInterface.awaitJobStart(DEFAULT_WAIT_TIMEOUT_MS));
+
+            // Confirm no ANR
+            monitor.assertNoAnr(30_000);
+        }
+    }
+
+    /** Tests that an ANR happens if the job is blocked in onStopJob. */
+    public void testAnr_onStopJob_disabled() throws Exception {
+        try (TestAppInterface mTestAppInterface = new TestAppInterface(mContext, JOB_ID);
+             AnrMonitor monitor = AnrMonitor.start(InstrumentationRegistry.getInstrumentation(),
+                     TEST_APP_PACKAGE)) {
+
+            setTestPackageStandbyBucket(
+                    UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()),
+                    JobThrottlingTest.Bucket.ACTIVE);
+            SystemUtil.runShellCommand(getInstrumentation(),
+                    "am compat disable ANR_PRE_UDC_APIS_ON_SLOW_RESPONSES " + TEST_APP_PACKAGE);
+
+            mTestAppInterface.scheduleJob(
+                    Map.of(
+                            TestJobSchedulerReceiver.EXTRA_AS_EXPEDITED, true,
+                            TestJobSchedulerReceiver.EXTRA_SLOW_STOP, true
+                    ),
+                    Collections.emptyMap());
+
+            mTestAppInterface.forceRunJob();
+            assertTrue("Job did not start after scheduling",
+                    mTestAppInterface.awaitJobStart(DEFAULT_WAIT_TIMEOUT_MS));
+
+            mTestAppInterface.cancelJob();
+
+            // Confirm no ANR
+            monitor.assertNoAnr(30_000);
+        }
+    }
+
+    /** Tests that an ANR happens if the job is blocked in onStartJob. */
+    public void testAnr_onStartJob_enabled() throws Exception {
+        try (TestAppInterface mTestAppInterface = new TestAppInterface(mContext, JOB_ID);
+             AnrMonitor monitor = AnrMonitor.start(InstrumentationRegistry.getInstrumentation(),
+                     TEST_APP_PACKAGE)) {
+
+            setTestPackageStandbyBucket(
+                    UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()),
+                    JobThrottlingTest.Bucket.ACTIVE);
+            SystemUtil.runShellCommand(getInstrumentation(),
+                    "am compat enable ANR_PRE_UDC_APIS_ON_SLOW_RESPONSES " + TEST_APP_PACKAGE);
+
+            mTestAppInterface.scheduleJob(
+                    Map.of(
+                            TestJobSchedulerReceiver.EXTRA_AS_EXPEDITED, true,
+                            TestJobSchedulerReceiver.EXTRA_SLOW_START, true
+                    ),
+                    Collections.emptyMap());
+
+            mTestAppInterface.forceRunJob();
+            assertTrue("Job did not start after scheduling",
+                    mTestAppInterface.awaitJobStart(DEFAULT_WAIT_TIMEOUT_MS));
+
+            // Confirm ANR
+            monitor.waitForAnrAndReturnUptime(30_000);
+        }
+    }
+
+    /** Tests that an ANR happens if the job is blocked in onStopJob. */
+    public void testAnr_onStopJob_enabled() throws Exception {
+        try (TestAppInterface mTestAppInterface = new TestAppInterface(mContext, JOB_ID);
+             AnrMonitor monitor = AnrMonitor.start(InstrumentationRegistry.getInstrumentation(),
+                     TEST_APP_PACKAGE)) {
+
+            setTestPackageStandbyBucket(
+                    UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()),
+                    JobThrottlingTest.Bucket.ACTIVE);
+            SystemUtil.runShellCommand(getInstrumentation(),
+                    "am compat enable ANR_PRE_UDC_APIS_ON_SLOW_RESPONSES " + TEST_APP_PACKAGE);
+
+            mTestAppInterface.scheduleJob(
+                    Map.of(
+                            TestJobSchedulerReceiver.EXTRA_AS_EXPEDITED, true,
+                            TestJobSchedulerReceiver.EXTRA_SLOW_STOP, true
+                    ),
+                    Collections.emptyMap());
+
+            mTestAppInterface.forceRunJob();
+            assertTrue("Job did not start after scheduling",
+                    mTestAppInterface.awaitJobStart(DEFAULT_WAIT_TIMEOUT_MS));
+
+            mTestAppInterface.cancelJob();
+
+            // Confirm ANR
+            monitor.waitForAnrAndReturnUptime(30_000);
+        }
+    }
+
+    public void testCancel_runningJob() throws Exception {
+        JobInfo jobInfo = new JobInfo.Builder(JOB_ID, kJobServiceComponent)
+                .setExpedited(true)
+                .build();
+
+        kTestEnvironment.setExpectedExecutions(1);
+        kTestEnvironment.setContinueAfterStart();
+        kTestEnvironment.setExpectedStopped();
+        kTestEnvironment.setRequestReschedule();
+        mJobScheduler.schedule(jobInfo);
+        assertTrue("Job didn't start", kTestEnvironment.awaitExecution());
+
+        mJobScheduler.cancelAll();
+        assertTrue("Job didn't start", kTestEnvironment.awaitStopped());
+        Thread.sleep(5000); // Give some time for JS to finish its internal processing.
+        assertEquals(0, mJobScheduler.getAllPendingJobs().size());
+    }
+
+    public void testCanRunUserInitiatedJobs() throws Exception {
+        final boolean isAppOpPermission = isRunUserInitiatedJobsPermissionAppOp();
 
         // Default is allowed.
-        AppOpsUtils.setOpMode(MY_PACKAGE, AppOpsManager.OPSTR_RUN_LONG_JOBS, MODE_DEFAULT);
-        assertTrue(mJobScheduler.canRunLongJobs());
+        AppOpsUtils.setOpMode(MY_PACKAGE, OPSTR_RUN_USER_INITIATED_JOBS, MODE_DEFAULT);
+        assertTrue(mJobScheduler.canRunUserInitiatedJobs());
 
-        // Toggle the appop won't make a change of JobScheduler#canRunLongJobs if it's not
+        // Toggle the appop won't make a change of JobScheduler#canRunUserInitiatedJobs if it's not
         // an appop permission.
-        AppOpsUtils.setOpMode(MY_PACKAGE, AppOpsManager.OPSTR_RUN_LONG_JOBS, MODE_ERRORED);
-        assertTrue(isAppOpPermission ^ mJobScheduler.canRunLongJobs());
+        AppOpsUtils.setOpMode(MY_PACKAGE, OPSTR_RUN_USER_INITIATED_JOBS, MODE_ERRORED);
+        assertTrue(isAppOpPermission ^ mJobScheduler.canRunUserInitiatedJobs());
 
-        AppOpsUtils.setOpMode(MY_PACKAGE, AppOpsManager.OPSTR_RUN_LONG_JOBS, MODE_ALLOWED);
-        assertTrue(mJobScheduler.canRunLongJobs());
+        AppOpsUtils.setOpMode(MY_PACKAGE, OPSTR_RUN_USER_INITIATED_JOBS, MODE_ALLOWED);
+        assertTrue(mJobScheduler.canRunUserInitiatedJobs());
 
-        AppOpsUtils.setOpMode(MY_PACKAGE, AppOpsManager.OPSTR_RUN_LONG_JOBS, MODE_IGNORED);
-        assertTrue(isAppOpPermission ^ mJobScheduler.canRunLongJobs());
+        AppOpsUtils.setOpMode(MY_PACKAGE, OPSTR_RUN_USER_INITIATED_JOBS, MODE_IGNORED);
+        assertTrue(isAppOpPermission ^ mJobScheduler.canRunUserInitiatedJobs());
     }
 
     /**
@@ -225,6 +369,25 @@ public class JobSchedulingTest extends BaseJobSchedulerTest {
 
         js = getContext().getSystemService(JobScheduler.class);
         assertNull(js.getNamespace());
+
+        try {
+            js.forNamespace(null);
+            fail("Successfully retrieved instance with null namespace");
+        } catch (NullPointerException expected) {
+            // Expected
+        }
+        try {
+            js.forNamespace("");
+            fail("Successfully retrieved instance with empty namespace");
+        } catch (IllegalArgumentException expected) {
+            // Expected
+        }
+        try {
+            js.forNamespace("        ");
+            fail("Successfully retrieved instance with whitespace-only namespace");
+        } catch (IllegalArgumentException expected) {
+            // Expected
+        }
     }
 
     public void testNamespace_schedule() {
@@ -510,16 +673,18 @@ public class JobSchedulingTest extends BaseJobSchedulerTest {
                 mJobScheduler.getPendingJobReason(JOB_ID));
     }
 
-    public void testRunLongJobPermissionRequirement() throws Exception {
-        final boolean isAppOpPermission = isLongBackgroundTaskPermissionAppOp();
+    public void testRunUserInitiatedJobsPermissionRequirement() throws Exception {
+        startAndKeepTestActivity();
+        final boolean isAppOpPermission = isRunUserInitiatedJobsPermissionAppOp();
         JobInfo ji = new JobInfo.Builder(JOB_ID, kJobServiceComponent)
                 .setUserInitiated(true)
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                 .build();
         // Default is allowed.
-        AppOpsUtils.setOpMode(MY_PACKAGE, AppOpsManager.OPSTR_RUN_LONG_JOBS, MODE_DEFAULT);
+        AppOpsUtils.setOpMode(MY_PACKAGE, OPSTR_RUN_USER_INITIATED_JOBS, MODE_DEFAULT);
         assertEquals(JobScheduler.RESULT_SUCCESS, mJobScheduler.schedule(ji));
 
-        AppOpsUtils.setOpMode(MY_PACKAGE, AppOpsManager.OPSTR_RUN_LONG_JOBS, MODE_ERRORED);
+        AppOpsUtils.setOpMode(MY_PACKAGE, OPSTR_RUN_USER_INITIATED_JOBS, MODE_ERRORED);
         if (isAppOpPermission) {
             try {
                 mJobScheduler.schedule(ji);
@@ -531,18 +696,19 @@ public class JobSchedulingTest extends BaseJobSchedulerTest {
             assertEquals(JobScheduler.RESULT_SUCCESS, mJobScheduler.schedule(ji));
         }
 
-        AppOpsUtils.setOpMode(MY_PACKAGE, AppOpsManager.OPSTR_RUN_LONG_JOBS, MODE_ALLOWED);
+        AppOpsUtils.setOpMode(MY_PACKAGE, OPSTR_RUN_USER_INITIATED_JOBS, MODE_ALLOWED);
         assertEquals(JobScheduler.RESULT_SUCCESS, mJobScheduler.schedule(ji));
 
-        AppOpsUtils.setOpMode(MY_PACKAGE, AppOpsManager.OPSTR_RUN_LONG_JOBS, MODE_IGNORED);
+        AppOpsUtils.setOpMode(MY_PACKAGE, OPSTR_RUN_USER_INITIATED_JOBS, MODE_IGNORED);
         // TODO(263159631): uncomment to enable testing this scenario
         // assertEquals(JobScheduler.RESULT_FAILURE, mJobScheduler.schedule(ji));
     }
 
     /**
-     * @return {@code true} if the RUN_LONG_JOBS is an appop permission.
+     * @return {@code true} if the RUN_USER_INITIATED_JOBS is an appop permission.
      */
-    private boolean isLongBackgroundTaskPermissionAppOp() {
-        return TextUtils.equals(RUN_LONG_JOBS, opToPermission(OP_RUN_LONG_JOBS));
+    private boolean isRunUserInitiatedJobsPermissionAppOp() {
+        return TextUtils.equals(RUN_USER_INITIATED_JOBS,
+                opToPermission(OP_RUN_USER_INITIATED_JOBS));
     }
 }

@@ -58,9 +58,12 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Optional;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -78,6 +81,9 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
     private static final String ANDROID_TEST_MOCK_JAR = "/system/framework/android.test.mock.jar";
     private static final String TEST_HELPER_PACKAGE = "android.compat.sjp.app";
     private static final String TEST_HELPER_APK = "StrictJavaPackagesTestApp.apk";
+
+    private static final Pattern APEX_JAR_PATTERN =
+            Pattern.compile("\\/apex\\/(?<apexName>[^\\/]+)\\/.*\\.(jar|apk)");
 
     private static ImmutableList<String> sBootclasspathJars;
     private static ImmutableList<String> sSystemserverclasspathJars;
@@ -349,105 +355,10 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
     // TODO: b/223837004
     private static final ImmutableSet<String> BLUETOOTH_APK_IN_APEX_BURNDOWN_LIST =
         ImmutableSet.of(
-                // Already duplicate in BCP.
-                "Landroid/hidl/base/V1_0/DebugInfo;",
-                "Landroid/hidl/base/V1_0/IBase;",
                 // /apex/com.android.btservices/javalib/framework-bluetooth.jar
-                "Lcom/android/bluetooth/x/android/sysprop/AdbProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/ApkVerityProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/BluetoothProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/CarProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/ContactsProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/CryptoProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/DeviceProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/DisplayProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/HdmiProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/HypervisorProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/InputProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/MediaProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/NetworkProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/OtaProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/PowerProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/SetupWizardProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/SocProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/TelephonyProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/TraceProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/VndkProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/VoldProperties;",
-                "Lcom/android/bluetooth/x/android/sysprop/WifiProperties;",
                 "Lcom/android/bluetooth/x/com/android/modules/utils/ISynchronousResultReceiver;",
                 "Lcom/android/bluetooth/x/com/android/modules/utils/SynchronousResultReceiver-IA;",
                 "Lcom/android/bluetooth/x/com/android/modules/utils/SynchronousResultReceiver;",
-                // /system/framework/services.jar
-                "Landroid/net/DataStallReportParcelable;",
-                "Landroid/net/DhcpResultsParcelable;",
-                "Landroid/net/IIpMemoryStore;",
-                "Landroid/net/IIpMemoryStoreCallbacks;",
-                "Landroid/net/INetworkMonitor;",
-                "Landroid/net/INetworkMonitorCallbacks;",
-                "Landroid/net/INetworkStackConnector;",
-                "Landroid/net/INetworkStackStatusCallback;",
-                "Landroid/net/InformationElementParcelable;",
-                "Landroid/net/InitialConfigurationParcelable;",
-                "Landroid/net/IpMemoryStoreClient;",
-                "Landroid/net/Layer2InformationParcelable;",
-                "Landroid/net/Layer2PacketParcelable;",
-                "Landroid/net/NattKeepalivePacketDataParcelable;",
-                "Landroid/net/NetworkFactory;",
-                "Landroid/net/NetworkFactoryShim;",
-                "Landroid/net/NetworkMonitorManager;",
-                "Landroid/net/NetworkTestResultParcelable;",
-                "Landroid/net/PrivateDnsConfigParcel;",
-                "Landroid/net/ProvisioningConfigurationParcelable;",
-                "Landroid/net/ScanResultInfoParcelable;",
-                "Landroid/net/TcpKeepalivePacketDataParcelable;",
-                "Landroid/net/dhcp/DhcpLeaseParcelable;",
-                "Landroid/net/dhcp/DhcpServingParamsParcel;",
-                "Landroid/net/dhcp/IDhcpEventCallbacks;",
-                "Landroid/net/dhcp/IDhcpServer;",
-                "Landroid/net/dhcp/IDhcpServerCallbacks;",
-                "Landroid/net/ip/IIpClient;",
-                "Landroid/net/ip/IIpClientCallbacks;",
-                "Landroid/net/ip/IpClientCallbacks;",
-                "Landroid/net/ip/IpClientManager;",
-                "Landroid/net/ip/IpClientUtil;",
-                "Landroid/net/ipmemorystore/Blob;",
-                "Landroid/net/ipmemorystore/IOnBlobRetrievedListener;",
-                "Landroid/net/ipmemorystore/IOnL2KeyResponseListener;",
-                "Landroid/net/ipmemorystore/IOnNetworkAttributesRetrievedListener;",
-                "Landroid/net/ipmemorystore/IOnSameL3NetworkResponseListener;",
-                "Landroid/net/ipmemorystore/IOnStatusAndCountListener;",
-                "Landroid/net/ipmemorystore/IOnStatusListener;",
-                "Landroid/net/ipmemorystore/NetworkAttributes;",
-                "Landroid/net/ipmemorystore/NetworkAttributesParcelable;",
-                "Landroid/net/ipmemorystore/OnBlobRetrievedListener;",
-                "Landroid/net/ipmemorystore/OnDeleteStatusListener;",
-                "Landroid/net/ipmemorystore/OnL2KeyResponseListener;",
-                "Landroid/net/ipmemorystore/OnNetworkAttributesRetrievedListener;",
-                "Landroid/net/ipmemorystore/OnSameL3NetworkResponseListener;",
-                "Landroid/net/ipmemorystore/OnStatusListener;",
-                "Landroid/net/ipmemorystore/SameL3NetworkResponse;",
-                "Landroid/net/ipmemorystore/SameL3NetworkResponseParcelable;",
-                "Landroid/net/ipmemorystore/Status;",
-                "Landroid/net/ipmemorystore/StatusParcelable;",
-                "Landroid/net/networkstack/NetworkStackClientBase;",
-                "Landroid/net/networkstack/aidl/NetworkMonitorParameters;",
-                "Landroid/net/networkstack/aidl/dhcp/DhcpOption;",
-                "Landroid/net/networkstack/aidl/ip/ReachabilityLossInfoParcelable;",
-                "Landroid/net/networkstack/aidl/ip/ReachabilityLossReason;",
-                "Landroid/net/networkstack/aidl/quirks/IPv6ProvisioningLossQuirk;",
-                "Landroid/net/networkstack/aidl/quirks/IPv6ProvisioningLossQuirkParcelable;",
-                "Landroid/net/shared/InitialConfiguration;",
-                "Landroid/net/shared/IpConfigurationParcelableUtil;",
-                "Landroid/net/shared/Layer2Information;",
-                "Landroid/net/shared/ParcelableUtil;",
-                "Landroid/net/shared/PrivateDnsConfig;",
-                "Landroid/net/shared/ProvisioningConfiguration;",
-                "Landroid/net/util/KeepalivePacketDataUtil;",
-                "Landroid/net/IpMemoryStore;",
-                "Landroid/net/NetworkFactoryLegacyImpl;",
-                "Landroid/net/networkstack/ModuleNetworkStackClient;",
-                "Landroid/net/NetworkFactoryImpl;",
                 // /system/framework/framework.jar
                 "Landroid/bluetooth/BluetoothProtoEnums;",
                 "Landroid/bluetooth/a2dp/BluetoothA2dpProtoEnums;",
@@ -752,6 +663,8 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
         new ImmutableMap.Builder<String, ImmutableSet<String>>()
             .put("/apex/com.android.btservices/app/Bluetooth/Bluetooth.apk",
                 BLUETOOTH_APK_IN_APEX_BURNDOWN_LIST)
+            .put("/apex/com.android.btservices/app/BluetoothArc/BluetoothArc.apk",
+                BLUETOOTH_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.btservices/app/BluetoothGoogle/BluetoothGoogle.apk",
                 BLUETOOTH_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.bluetooth/app/BluetoothGoogle/BluetoothGoogle.apk",
@@ -871,7 +784,7 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testBootclasspath_nonDuplicateClasses() throws Exception {
-        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastR());
+        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastT());
         assertThat(getDuplicateClasses(sBootclasspathJars)).isEmpty();
     }
 
@@ -880,7 +793,7 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testSystemServerClasspath_nonDuplicateClasses() throws Exception {
-        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastR());
+        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastT());
         ImmutableSet<String> overlapBurndownList;
         if (hasFeature(FEATURE_AUTOMOTIVE)) {
             overlapBurndownList = ImmutableSet.copyOf(AUTOMOTIVE_HIDL_OVERLAP_BURNDOWN_LIST);
@@ -902,7 +815,7 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testBootClasspathAndSystemServerClasspath_nonDuplicateClasses() throws Exception {
-        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastR());
+        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastT());
         ImmutableList.Builder<String> jars = ImmutableList.builder();
         jars.addAll(sBootclasspathJars);
         jars.addAll(sSystemserverclasspathJars);
@@ -920,7 +833,8 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
         }
         Multimap<String, String> duplicates = getDuplicateClasses(jars.build());
         Multimap<String, String> filtered = Multimaps.filterKeys(duplicates,
-                duplicate -> !overlapBurndownList.contains(duplicate));
+                duplicate -> !overlapBurndownList.contains(duplicate)
+                        && !jarsInSameApex(duplicates.get(duplicate)));
 
         assertThat(filtered).isEmpty();
     }
@@ -1214,6 +1128,21 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
         final HashMultimap<String, String> allClasses = HashMultimap.create();
         Multimaps.invertFrom(Multimaps.filterKeys(sJarsToClasses, jars::contains), allClasses);
         return Multimaps.filterKeys(allClasses, key -> allClasses.get(key).size() > 1);
+    }
+
+    private boolean jarsInSameApex(Collection<String> jars) {
+        return jars.stream()
+            .map(path -> apexForJar(path).orElse(path))
+            .distinct()
+            .count() <= 1;
+    }
+
+    private Optional<String> apexForJar(String jar) {
+        Matcher m = APEX_JAR_PATTERN.matcher(jar);
+        if (!m.matches()) {
+            return Optional.empty();
+        }
+        return Optional.of(m.group("apexName"));
     }
 
     private static boolean doesFileExist(String path, ITestDevice device) {

@@ -24,12 +24,14 @@ import static android.content.Intent.ACTION_MANAGED_PROFILE_UNAVAILABLE;
 import static android.os.Build.VERSION_CODES.P;
 import static android.os.Build.VERSION_CODES.R;
 import static android.os.Build.VERSION_CODES.S;
+import static android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE;
 
 import static com.android.bedstead.nene.permissions.CommonPermissions.MANAGE_PROFILE_AND_DEVICE_OWNERS;
 import static com.android.bedstead.nene.permissions.CommonPermissions.MODIFY_QUIET_MODE;
 import static com.android.bedstead.nene.users.Users.users;
 
 import android.annotation.TargetApi;
+import android.app.ActivityManager;
 import android.app.KeyguardManager;
 import android.app.admin.DevicePolicyManager;
 import android.content.Intent;
@@ -38,17 +40,20 @@ import android.os.Build;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.Log;
+import android.view.Display;
 
 import androidx.annotation.Nullable;
 
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.annotations.Experimental;
+import com.android.bedstead.nene.devicepolicy.ProfileOwner;
 import com.android.bedstead.nene.exceptions.AdbException;
 import com.android.bedstead.nene.exceptions.NeneException;
 import com.android.bedstead.nene.exceptions.PollValueFailedException;
 import com.android.bedstead.nene.permissions.PermissionContext;
 import com.android.bedstead.nene.utils.Poll;
 import com.android.bedstead.nene.utils.ShellCommand;
+import com.android.bedstead.nene.utils.ShellCommand.Builder;
 import com.android.bedstead.nene.utils.ShellCommandUtils;
 import com.android.bedstead.nene.utils.Versions;
 import com.android.compatibility.common.util.BlockingBroadcastReceiver;
@@ -117,6 +122,13 @@ public final class UserReference implements AutoCloseable {
     }
 
     /**
+     * See {@link UserManager#isAdminUser()}.
+     */
+    public boolean isAdmin() {
+        return userInfo().isAdmin();
+    }
+
+    /**
      * {@code true} if this is a test user which should not include any user data.
      */
     public boolean isForTesting() {
@@ -140,6 +152,11 @@ public final class UserReference implements AutoCloseable {
      * {@link NeneException} will be thrown.
      */
     public void remove() {
+        ProfileOwner profileOwner = TestApis.devicePolicy().getProfileOwner(this);
+        if (profileOwner != null && profileOwner.isOrganizationOwned()) {
+            profileOwner.remove();
+        }
+
         try {
             // Expected success string is "Success: removed user"
             ShellCommand.builder("pm remove-user")
@@ -154,33 +171,78 @@ public final class UserReference implements AutoCloseable {
                     .errorOnFail()
                     .await();
         } catch (AdbException e) {
-            throw new NeneException("Could not remove user " + this, e);
+            throw new NeneException("Could not remove user " + this + ". Logcat: "
+                    + TestApis.logcat().dump((l) -> l.contains("UserManagerService")), e);
         }
     }
 
     /**
-     * Start the user.
+     * Starts the user in the background.
      *
-     * <p>After calling this command, the user will be running unlocked.
+     * <p>After calling this command, the user will be running unlocked, but not
+     * {@link #isVisible() visible}.
      *
      * <p>If the user does not exist, or the start fails for any other reason, a
      * {@link NeneException} will be thrown.
      */
-    //TODO(scottjonathan): Deal with users who won't unlock
     public UserReference start() {
+        Log.i(LOG_TAG, "Starting user " + mId);
+        return startUser(Display.INVALID_DISPLAY);
+    }
+
+    /**
+     * Starts the user in the background, {@link #isVisible() visible} in the given
+     * display.
+     *
+     * <p>After calling this command, the user will be running unlocked.
+     *
+     * @throws UnsupportedOperationException if the device doesn't
+     *   {@link UserManager#isVisibleBackgroundUsersOnDefaultDisplaySupported() support visible
+     *   background users}
+     *
+     * @throws NeneException if the user does not exist or the start fails for any other reason
+     */
+    public UserReference startVisibleOnDisplay(int displayId) {
+        if (!TestApis.users().isVisibleBackgroundUsersSupported()) {
+            throw new UnsupportedOperationException("Cannot start user " + mId + " on display "
+                    + displayId + " as device doesn't support that");
+        }
+        Log.i(LOG_TAG, "Starting user " + mId + " visible on display " + displayId);
+        return startUser(displayId);
+    }
+
+    //TODO(scottjonathan): Deal with users who won't unlock
+    private UserReference startUser(int displayId) {
+        boolean visibleOnDisplay = displayId != Display.INVALID_DISPLAY;
         try {
             // Expected success string is "Success: user started"
-            ShellCommand.builder("am start-user")
-                    .addOperand(mId)
-                    .addOperand("-w")
+            Builder builder = ShellCommand.builder("am start-user")
+                    .addOperand("-w");
+            if (visibleOnDisplay) {
+                builder.addOperand("--display").addOperand(displayId);
+            }
+            builder
+                    .addOperand(mId) // NOTE: id MUST be the last argument
                     .validate(ShellCommandUtils::startsWithSuccess)
                     .execute();
 
-            Poll.forValue("User running unlocked", () -> isRunning() && isUnlocked())
+            Poll.forValue("User running", this::isRunning)
                     .toBeEqualTo(true)
                     .errorOnFail()
                     .timeout(Duration.ofMinutes(1))
                     .await();
+            Poll.forValue("User unlocked", this::isUnlocked)
+                    .toBeEqualTo(true)
+                    .errorOnFail()
+                    .timeout(Duration.ofMinutes(1))
+                    .await();
+            if (visibleOnDisplay) {
+                Poll.forValue("User visible", this::isVisible)
+                        .toBeEqualTo(true)
+                        .errorOnFail()
+                        .timeout(Duration.ofMinutes(1))
+                        .await();
+            }
         } catch (AdbException | PollValueFailedException e) {
             throw new NeneException("Could not start user " + this, e);
         }
@@ -197,8 +259,10 @@ public final class UserReference implements AutoCloseable {
         try {
             // Expects no output on success or failure - stderr output on failure
             ShellCommand.builder("am stop-user")
+//                    .addOperand("-w") // Wait for it to stop
                     .addOperand("-f") // Force stop
                     .addOperand(mId)
+//                    .withTimeout(Duration.ofMinutes(1))
                     .allowEmptyOutput(true)
                     .validate(String::isEmpty)
                     .execute();
@@ -251,20 +315,32 @@ public final class UserReference implements AutoCloseable {
                 }
             }
 
-            // Expects no output on success or failure
-            ShellCommand.builder("am switch-user")
-                    .addOperand(mId)
-                    .allowEmptyOutput(true)
-                    .validate(String::isEmpty)
-                    .execute();
+            ActivityManager am = TestApis.context().instrumentedContext().getSystemService(
+                    ActivityManager.class);
+
+            boolean switched = false;
+            try (PermissionContext p = TestApis.permissions().withPermission(CREATE_USERS)) {
+                switched = am.switchUser(userHandle());
+            }
+
+            if (!switched) {
+                String error = getSwitchToUserError();
+                if (error != null) {
+                    throw new NeneException(error);
+                }
+
+                // TODO(273229540): It might take a while to fail - we should stream from the
+                // start of the call
+                throw new NeneException("Error switching user to " + this
+                        + ". Relevant logcat: " + TestApis.logcat().dump(
+                                (line) -> line.contains("Cannot switch")));
+            }
 
             if (Versions.meetsMinimumSdkVersionRequirement(R)) {
                 broadcastReceiver.awaitForBroadcast();
             } else {
                 Thread.sleep(20000);
             }
-        } catch (AdbException e) {
-            throw new NeneException("Could not switch to user", e);
         } catch (InterruptedException e) {
             Log.e(LOG_TAG, "Interrupted while switching user", e);
         } finally {
@@ -330,6 +406,46 @@ public final class UserReference implements AutoCloseable {
                     + mUserManager.isUserRunning(userHandle()));
             return mUserManager.isUserRunning(userHandle());
         }
+    }
+
+    /** Is the user {@link UserManager#isUserVisible() visible}? */
+    public boolean isVisible() {
+        if (!Versions.meetsMinimumSdkVersionRequirement(UPSIDE_DOWN_CAKE)) {
+            // Best effort to define visible as "current user or a profile of the current user"
+            UserReference currentUser = TestApis.users().current();
+            boolean isIt = currentUser.equals(this)
+                    || (isProfile() && currentUser.equals(parent()));
+            Log.d(LOG_TAG, "isUserVisible(" + this + "): returning " + isIt + " as best approach");
+            return isIt;
+        }
+        try (PermissionContext p = TestApis.permissions().withPermission(INTERACT_ACROSS_USERS)) {
+            boolean isIt = mUserManager.isUserVisible();
+            Log.d(LOG_TAG, "isUserVisible(" + this + "): " + isIt);
+            return isIt;
+        }
+    }
+
+    /** Is the user running in the foreground? */
+    public boolean isForeground() {
+        if (!Versions.meetsMinimumSdkVersionRequirement(S)) {
+            // Best effort to define foreground as "current user"
+            boolean isIt = TestApis.users().current().equals(this);
+            Log.d(LOG_TAG, "isForeground(" + this + "): returning " + isIt + " as best effort");
+            return isIt;
+        }
+        try (PermissionContext p = TestApis.permissions().withPermission(INTERACT_ACROSS_USERS)) {
+            boolean isIt = mUserManager.isUserForeground();
+            Log.d(LOG_TAG, "isUserForeground(" + this + "): " + isIt);
+            return isIt;
+        }
+    }
+
+    /**
+     * Is the user a non-{@link #isProfile() profile} that is running {@link #isVisible()} in the
+     * background?
+     */
+    public boolean isVisibleBagroundNonProfileUser() {
+        return isVisible() && !isForeground() && !isProfile();
     }
 
     /** Is the user unlocked? */
@@ -441,7 +557,9 @@ public final class UserReference implements AutoCloseable {
             return;
         }
 
-        if (TestApis.users().system().equals(this) && TestApis.users().isHeadlessSystemUserMode()) {
+        if (TestApis.users().system().equals(this)
+                && !TestApis.users().instrumented().equals(this)
+                && TestApis.users().isHeadlessSystemUserMode()) {
             // We should also copy the setup status onto the instrumented user as DO provisioning
             // depends on both
             TestApis.users().instrumented().setSetupComplete(complete);
@@ -486,8 +604,8 @@ public final class UserReference implements AutoCloseable {
         try {
             ShellCommand.builder("cmd lock_settings")
                     .addOperand("set-" + lockType)
-                    .addOperand(lockCredential)
                     .addOption("--user", mId)
+                    .addOperand(lockCredential)
                     .validate(s -> s.startsWith(lockTypeSentenceCase + " set to"))
                     .execute();
         } catch (AdbException e) {
@@ -653,9 +771,15 @@ public final class UserReference implements AutoCloseable {
             return true;
         }
 
-        try (PermissionContext p = TestApis.permissions().withPermission(MODIFY_QUIET_MODE)) {
+        UserReference parent = parent();
+        if (parent == null) {
+            throw new NeneException("Can't set quiet mode, no parent for user " + this);
+        }
+
+        try (PermissionContext p = TestApis.permissions().withPermission(
+                MODIFY_QUIET_MODE, INTERACT_ACROSS_USERS_FULL)) {
             BlockingBroadcastReceiver r = BlockingBroadcastReceiver.create(
-                            TestApis.context().instrumentedContext(),
+                            TestApis.context().androidContextAsUser(parent),
                             enabled
                                     ? ACTION_MANAGED_PROFILE_UNAVAILABLE
                                     : ACTION_MANAGED_PROFILE_AVAILABLE)
@@ -729,5 +853,19 @@ public final class UserReference implements AutoCloseable {
     @Override
     public String toString() {
         return "User{id=" + id() + "}";
+    }
+
+    /**
+     * {@code true} if this user can be switched to.
+     */
+    public boolean canBeSwitchedTo() {
+        return getSwitchToUserError() == null;
+    }
+
+    private String getSwitchToUserError() {
+        if (TestApis.users().isHeadlessSystemUserMode() && equals(TestApis.users().system())) {
+            return "Cannot switch to system user on HSUM devices";
+        }
+        return null;
     }
 }

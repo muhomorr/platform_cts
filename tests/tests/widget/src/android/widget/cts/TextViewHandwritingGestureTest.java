@@ -36,7 +36,10 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.os.CancellationSignal;
+import android.text.InputFilter;
 import android.text.Layout;
+import android.text.method.DigitsKeyListener;
+import android.text.method.PasswordTransformationMethod;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -69,6 +72,7 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.IntConsumer;
 
@@ -85,11 +89,12 @@ public class TextViewHandwritingGestureTest {
     // Font size is set to 1f, so that 10em is 10px.
     private static final float CHAR_WIDTH_PX = 10;
     private static final String INSERT_TEXT = "insert";
-    private static final String FALLBACK_TEXT = "fallback";
+    private static final String FALLBACK_TEXT = "789";
 
     // The placeholder text used in insert mode.
     private static final String PLACEHOLDER_TEXT_MULTI_LINE = "\n\n";
     private static final String PLACEHOLDER_TEXT_SINGLE_LINE = "\uFFFD";
+    private static final String DOT = "\u2022";
 
     private int mGestureLineMargin;
     private EditText mEditText;
@@ -192,18 +197,18 @@ public class TextViewHandwritingGestureTest {
     @Test
     @ApiTest(apis = "android.view.inputmethod.InputConnection#previewHandwritingGesture")
     public void previewSelectGesture_character() {
-        float char1HorizontalCenter = 1.5f * CHAR_WIDTH_PX;
+        float char0HorizontalCenter = 0.5f * CHAR_WIDTH_PX;
         float char2HorizontalCenter = 2.5f * CHAR_WIDTH_PX;
-        // Horizontal range [char1HorizontalCenter - 1f, char2HorizontalCenter + 1f] covers the
-        // centers of characters 1 and 2.
+        // Horizontal range [char0HorizontalCenter - 1f, char2HorizontalCenter + 1f] covers the
+        // centers of characters 0, 1 and 2.
         RectF area = new RectF(
-                char1HorizontalCenter - 1f,
+                char0HorizontalCenter - 1f,
                 mEditText.getLayout().getLineTop(0),
                 char2HorizontalCenter + 1f,
                 mEditText.getLayout().getLineBottom(0));
         previewSelectGesture(area, HandwritingGesture.GRANULARITY_CHARACTER);
 
-        assertSelectGesturePreviewHighlightRange(1, 3);
+        assertSelectGesturePreviewHighlightRange(0, 3);
     }
 
     @Test
@@ -779,6 +784,23 @@ public class TextViewHandwritingGestureTest {
 
     @Test
     @ApiTest(apis = "android.view.inputmethod.InputConnection#performHandwritingGesture")
+    public void performInsertGesture_endOfText_insertTextFiltered_shouldFallback() {
+        mEditText.setFilters(new InputFilter[] {new DigitsKeyListener(Locale.US)});
+        mEditText.setSelection(6);
+
+        // The point is at the end of line 1.
+        performInsertGesture(
+                new PointF(
+                        mEditText.getLayout().getLineRight(1),
+                        mEditText.getLayout().getLineTop(1) + 1f),
+                /* setFallbackText= */ true);
+
+        // Due to the input filter, all of the inserted text is filtered out.
+        assertFallbackTextInserted(6);
+    }
+
+    @Test
+    @ApiTest(apis = "android.view.inputmethod.InputConnection#performHandwritingGesture")
     public void performInsertGesture_aboveFirstLineWithinMargin() {
         // The point is closest to offset 3 with horizontal position 3 * CHAR_WIDTH_PX.
         // The point is (mGestureLineMargin - 1) above the top of the line.
@@ -881,7 +903,7 @@ public class TextViewHandwritingGestureTest {
         // The point is (mGestureLineMargin - 1) to the right of line 0.
         performInsertGesture(
                 new PointF(
-                        mEditText.getLayout().getLineRight(0) + mGestureLineMargin - 1f,
+                        mEditText.getLayout().getWidth() + mGestureLineMargin - 1f,
                         mEditText.getLayout().getLineTop(0) + 1f));
 
         assertGestureInsertedText(9, INSERT_TEXT);
@@ -894,7 +916,7 @@ public class TextViewHandwritingGestureTest {
 
         performInsertGesture(
                 new PointF(
-                        mEditText.getLayout().getLineRight(0) + mGestureLineMargin + 5f,
+                        mEditText.getLayout().getWidth() + mGestureLineMargin + 5f,
                         mEditText.getLayout().getLineTop(0) + 1f));
 
         assertFallbackTextInserted(/* initialCursorPosition= */ 6);
@@ -1068,10 +1090,10 @@ public class TextViewHandwritingGestureTest {
         // Both points are to the right of line 0.
         performRemoveSpaceGesture(
                 new PointF(
-                        mEditText.getLayout().getLineRight(0) + mGestureLineMargin + 5f,
+                        mEditText.getLayout().getWidth() + mGestureLineMargin + 5f,
                         mEditText.getLayout().getLineTop(0) + 1f),
                 new PointF(
-                        mEditText.getLayout().getLineRight(0) + mGestureLineMargin + 7f,
+                        mEditText.getLayout().getWidth() + mGestureLineMargin + 7f,
                         mEditText.getLayout().getLineTop(0) + 2f));
 
         assertFallbackTextInserted(/* initialCursorPosition= */ 6);
@@ -1143,6 +1165,21 @@ public class TextViewHandwritingGestureTest {
 
     @Test
     @ApiTest(apis = "android.view.inputmethod.InputConnection#performHandwritingGesture")
+    public void performJoinOrSplitGesture_spaceFiltered_shouldFallback() {
+        mEditText.setFilters(new InputFilter[] {new DigitsKeyListener(Locale.US)});
+        mEditText.setSelection(6);
+
+        // Line 1 "XX X   XX  X. .X " starts from offset 10 and has a word from offset 17 to 19.
+        performJoinOrSplitGesture(
+                new PointF(8 * CHAR_WIDTH_PX, mEditText.getLayout().getLineTop(1) + 1f));
+
+        // The point is closest to offset 18, which does not touch whitespace.
+        // Due to the input filter, the space is filtered out.
+        assertFallbackTextInserted(6);
+    }
+
+    @Test
+    @ApiTest(apis = "android.view.inputmethod.InputConnection#performHandwritingGesture")
     public void performJoinOrSplitGesture_aboveFirstLine_shouldFallback() {
         mEditText.setSelection(3);
 
@@ -1202,7 +1239,7 @@ public class TextViewHandwritingGestureTest {
         // The point is to the right of line 0.
         performJoinOrSplitGesture(
                 new PointF(
-                        mEditText.getLayout().getLineRight(0) + mGestureLineMargin + 5f,
+                        mEditText.getLayout().getWidth() + mGestureLineMargin + 5f,
                         mEditText.getLayout().getLineTop(0) + 1f));
 
         assertFallbackTextInserted(/* initialCursorPosition= */ 6);
@@ -1372,7 +1409,7 @@ public class TextViewHandwritingGestureTest {
         // The point is (mGestureLineMargin - 1) to the right of line 0.
         InsertModeGesture gesture = performInsertModeGesture(
                 new PointF(
-                        mEditText.getLayout().getLineRight(0) + mGestureLineMargin - 1f,
+                        mEditText.getLayout().getWidth() + mGestureLineMargin - 1f,
                         mEditText.getLayout().getLineTop(0) + 1f));
 
         assertGestureInsertMode(/* offset= */ 9);
@@ -1389,7 +1426,7 @@ public class TextViewHandwritingGestureTest {
 
         performInsertModeGesture(
                 new PointF(
-                        mEditText.getLayout().getLineRight(0) + mGestureLineMargin + 5f,
+                        mEditText.getLayout().getWidth() + mGestureLineMargin + 5f,
                         mEditText.getLayout().getLineTop(0) + 1f));
 
         assertFallbackTextInserted(/* initialCursorPosition= */ 6);
@@ -1525,7 +1562,7 @@ public class TextViewHandwritingGestureTest {
         // The point is (mGestureLineMargin - 1) to the right of line 0.
         InsertModeGesture gesture = performInsertModeGesture(
                 new PointF(
-                        mEditText.getLayout().getLineRight(0) + mGestureLineMargin - 1f,
+                        mEditText.getLayout().getWidth() + mGestureLineMargin - 1f,
                         mEditText.getLayout().getLineTop(0) + 1f));
 
         assertGestureInsertMode(/* offset= */ 27);
@@ -1543,7 +1580,7 @@ public class TextViewHandwritingGestureTest {
 
         performInsertModeGesture(
                 new PointF(
-                        mEditText.getLayout().getLineRight(0) + mGestureLineMargin + 5f,
+                        mEditText.getLayout().getWidth() + mGestureLineMargin + 5f,
                         mEditText.getLayout().getLineTop(0) + 1f));
 
         assertFallbackTextInserted(/* initialCursorPosition= */ 6);
@@ -1612,6 +1649,83 @@ public class TextViewHandwritingGestureTest {
         gesture.getCancellationSignal().cancel();
         assertNoInsertMode();
         assertCursorOffset(expectedOffset + insertText.length());
+    }
+
+    @Test
+    @ApiTest(apis = "android.view.inputmethod.InputConnection#performHandwritingGesture")
+    public void performInsertModeGesture_exitAfterLostFocus() {
+        mEditText.requestFocus();
+
+        performInsertModeGesture(
+                new PointF(3 * CHAR_WIDTH_PX, mEditText.getLayout().getLineTop(0) - 1f),
+                /* setFallbackText= */ false);
+
+        final int expectedOffset = 3;
+        assertGestureInsertMode(expectedOffset);
+
+        mEditText.clearFocus();
+        assertNoInsertMode();
+    }
+
+    @Test
+    @ApiTest(apis = "android.view.inputmethod.InputConnection#performHandwritingGesture")
+    public void performInsertModeGesture_setTransformationMethod() {
+        InsertModeGesture gesture = performInsertModeGesture(
+                new PointF(3 * CHAR_WIDTH_PX, mEditText.getLayout().getLineTop(0) - 1f),
+                /* setFallbackText= */ false);
+
+        int expectedOffset = 3;
+        assertGestureInsertMode(expectedOffset);
+
+        // Set PasswordTransformation, which will replace all character to DOT.
+        mEditText.setTransformationMethod(new PasswordTransformationMethod());
+
+        String placeholder = PLACEHOLDER_TEXT_MULTI_LINE;
+        String expectedText = DOT.repeat(expectedOffset) + placeholder
+                + DOT.repeat(DEFAULT_TEXT.length() - expectedOffset);
+        String displayText = mEditText.getLayout().getText().toString();
+
+        assertThat(displayText).isEqualTo(expectedText);
+        assertCursorOffset(expectedOffset);
+        assertGestureInsertModeHighlightRange(expectedOffset,
+                expectedOffset + placeholder.length());
+
+        gesture.getCancellationSignal().cancel();
+        assertNoInsertModeHighlight();
+        assertThat(mEditText.getLayout().getText().toString())
+                .isEqualTo(DOT.repeat(DEFAULT_TEXT.length()));
+        assertCursorOffset(expectedOffset);
+    }
+
+    @Test
+    @ApiTest(apis = "android.view.inputmethod.InputConnection#performHandwritingGesture")
+    public void performInsertModeGesture_setTransformationMethod_singleLine() {
+        setEditTextSingleLine();
+        InsertModeGesture gesture = performInsertModeGesture(
+                new PointF(3 * CHAR_WIDTH_PX, mEditText.getLayout().getLineTop(0) - 1f),
+                /* setFallbackText= */ false);
+
+        int expectedOffset = 3;
+        assertGestureInsertMode(expectedOffset);
+
+        // Set PasswordTransformation, which will replace all character to DOT.
+        mEditText.setTransformationMethod(new PasswordTransformationMethod());
+
+        String placeholder = PLACEHOLDER_TEXT_SINGLE_LINE;
+        String expectedText = DOT.repeat(expectedOffset) + placeholder
+                + DOT.repeat(DEFAULT_TEXT.length() - expectedOffset);
+        String displayText = mEditText.getLayout().getText().toString();
+
+        assertThat(displayText).isEqualTo(expectedText);
+        assertCursorOffset(expectedOffset);
+        assertGestureInsertModeHighlightRange(expectedOffset,
+                expectedOffset + placeholder.length());
+
+        gesture.getCancellationSignal().cancel();
+        assertNoInsertModeHighlight();
+        assertThat(mEditText.getLayout().getText().toString())
+                .isEqualTo(DOT.repeat(DEFAULT_TEXT.length()));
+        assertCursorOffset(expectedOffset);
     }
 
     private void setEditTextSingleLine() {
@@ -1841,13 +1955,17 @@ public class TextViewHandwritingGestureTest {
         assertGestureInsertModeHighlightRange(offset, offset + placeholder.length());
     }
 
+    private void assertNoInsertModeHighlight() {
+        final Canvas canvas = prepareMockCanvas();
+        mEditText.draw(canvas);
+        verify(canvas, never()).drawRect(anyFloat(), anyFloat(), anyFloat(), anyFloat(), any());
+    }
+
     private void assertNoInsertMode() {
         // There is no API to directly check if the editText is in insert mode.
         // Here we check that 1) no highlight is draw 2) the display text doesn't contain the
         // placeholder text from the insert mode.
-        final Canvas canvas = prepareMockCanvas();
-        mEditText.draw(canvas);
-        verify(canvas, never()).drawRect(anyFloat(), anyFloat(), anyFloat(), anyFloat(), any());
+        assertNoInsertModeHighlight();
 
         String expectedDisplayText = mEditText.getText().toString();
         if (mEditText.isSingleLine()) {

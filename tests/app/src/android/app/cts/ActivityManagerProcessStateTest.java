@@ -16,12 +16,12 @@
 
 package android.app.cts;
 
-import static android.app.ActivityManager.PROCESS_CAPABILITY_ALL;
 import static android.app.ActivityManager.PROCESS_CAPABILITY_FOREGROUND_CAMERA;
 import static android.app.ActivityManager.PROCESS_CAPABILITY_FOREGROUND_LOCATION;
 import static android.app.ActivityManager.PROCESS_CAPABILITY_FOREGROUND_MICROPHONE;
-import static android.app.ActivityManager.PROCESS_CAPABILITY_NETWORK;
 import static android.app.ActivityManager.PROCESS_CAPABILITY_NONE;
+import static android.app.ActivityManager.PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK;
+import static android.app.ActivityManager.PROCESS_CAPABILITY_USER_RESTRICTED_NETWORK;
 import static android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_CACHED;
 import static android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
 import static android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE;
@@ -30,6 +30,8 @@ import static android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIB
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.app.stubs.LocalForegroundService.ACTION_START_FGS_RESULT;
 import static android.app.stubs.LocalForegroundServiceSticky.ACTION_RESTART_FGS_STICKY_RESULT;
+
+import static com.android.compatibility.common.util.SystemUtil.runShellCommand;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
@@ -155,6 +157,12 @@ public class ActivityManagerProcessStateTest {
     private ApplicationInfo[] mAppInfo;
     private WatchUidRunner[] mWatchers;
 
+    private static final int PROCESS_CAPABILITY_ALL = PROCESS_CAPABILITY_FOREGROUND_LOCATION
+            | PROCESS_CAPABILITY_FOREGROUND_CAMERA
+            | PROCESS_CAPABILITY_FOREGROUND_MICROPHONE
+            | PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK
+            | PROCESS_CAPABILITY_USER_RESTRICTED_NETWORK;
+
     @Before
     public void setUp() throws Exception {
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
@@ -193,6 +201,9 @@ public class ActivityManagerProcessStateTest {
                 am.forceStopPackage(pkgName);
             });
         }
+
+        // Override the memory pressure level, force it staying at normal.
+        runShellCommand(mInstrumentation, "am memory-factor set NORMAL");
     }
 
     @After
@@ -209,6 +220,9 @@ public class ActivityManagerProcessStateTest {
                 am.forceStopPackage(pkgName);
             });
         }
+
+        // Reset the memory pressure override
+        runShellCommand(mInstrumentation, "am memory-factor reset");
     }
 
     /**
@@ -240,7 +254,7 @@ public class ActivityManagerProcessStateTest {
             mAppInfo[i] = mContext.getPackageManager().getApplicationInfo(
                     PACKAGE_NAMES[i], 0);
             mWatchers[i] = new WatchUidRunner(mInstrumentation, mAppInfo[i].uid,
-                    WAITFOR_MSEC);
+                    WAITFOR_MSEC, PROCESS_CAPABILITY_ALL);
         }
     }
 
@@ -1879,7 +1893,8 @@ public class ActivityManagerProcessStateTest {
                     new Integer(PROCESS_CAPABILITY_FOREGROUND_LOCATION
                             | PROCESS_CAPABILITY_FOREGROUND_CAMERA
                             | PROCESS_CAPABILITY_FOREGROUND_MICROPHONE
-                            | PROCESS_CAPABILITY_NETWORK));
+                            | PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK
+                            | PROCESS_CAPABILITY_USER_RESTRICTED_NETWORK));
 
             // Bind App 0 -> App 1, verify doesn't include capability.
             CommandReceiver.sendCommand(mContext, CommandReceiver.COMMAND_BIND_SERVICE,
@@ -1887,7 +1902,8 @@ public class ActivityManagerProcessStateTest {
             // Verify app1 does NOT have capability.
             mWatchers[1].waitFor(WatchUidRunner.CMD_PROCSTATE,
                     WatchUidRunner.STATE_FG_SERVICE,
-                    new Integer(PROCESS_CAPABILITY_NETWORK));
+                    new Integer(PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK
+                            | PROCESS_CAPABILITY_USER_RESTRICTED_NETWORK));
 
             // Bind App 0 -> App 2, include capability.
             bundle = new Bundle();
@@ -1900,7 +1916,8 @@ public class ActivityManagerProcessStateTest {
                     new Integer(PROCESS_CAPABILITY_FOREGROUND_LOCATION
                             | PROCESS_CAPABILITY_FOREGROUND_CAMERA
                             | PROCESS_CAPABILITY_FOREGROUND_MICROPHONE
-                            | PROCESS_CAPABILITY_NETWORK));
+                            | PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK
+                            | PROCESS_CAPABILITY_USER_RESTRICTED_NETWORK));
 
             // Back down to foreground service
             CommandReceiver.sendCommand(mContext,
@@ -1912,7 +1929,8 @@ public class ActivityManagerProcessStateTest {
                     WatchUidRunner.STATE_FG_SERVICE,
                     new Integer(PROCESS_CAPABILITY_FOREGROUND_CAMERA
                             | PROCESS_CAPABILITY_FOREGROUND_MICROPHONE
-                            | PROCESS_CAPABILITY_NETWORK));
+                            | PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK
+                            | PROCESS_CAPABILITY_USER_RESTRICTED_NETWORK));
 
             // Remove foreground service as well
             CommandReceiver.sendCommand(mContext,
@@ -1951,7 +1969,8 @@ public class ActivityManagerProcessStateTest {
             CommandReceiver.sendCommand(mContext, CommandReceiver.COMMAND_BIND_SERVICE,
                     STUB_PACKAGE_NAME, mAppInfo[0].packageName, 0, null);
             mWatchers[0].waitFor(WatchUidRunner.CMD_PROCSTATE, WatchUidRunner.STATE_BOUND_TOP,
-                    new Integer(PROCESS_CAPABILITY_NETWORK));
+                    new Integer(PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK
+                            | PROCESS_CAPABILITY_USER_RESTRICTED_NETWORK));
 
             // Bind Stub -> App 1, include capability (TOP)
             Bundle bundle = new Bundle();
@@ -2367,7 +2386,7 @@ public class ActivityManagerProcessStateTest {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
                 PACKAGE_NAME_APP1, 0);
         WatchUidRunner uid1Watcher = new WatchUidRunner(mInstrumentation, app1Info.uid,
-                WAITFOR_MSEC);
+                WAITFOR_MSEC, PROCESS_CAPABILITY_ALL);
         AmMonitor monitor = new AmMonitor(mInstrumentation,
                 new String[]{AmMonitor.WAIT_FOR_EARLY_ANR, AmMonitor.WAIT_FOR_ANR});
         try {
@@ -2452,7 +2471,8 @@ public class ActivityManagerProcessStateTest {
                     WatchUidRunner.STATE_FG_SERVICE,
                     new Integer(PROCESS_CAPABILITY_FOREGROUND_CAMERA
                             | PROCESS_CAPABILITY_FOREGROUND_MICROPHONE
-                            | PROCESS_CAPABILITY_NETWORK));
+                            | PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK
+                            | PROCESS_CAPABILITY_USER_RESTRICTED_NETWORK));
 
             // Bind App 0 -> App 1.
             CommandReceiver.sendCommand(mContext, CommandReceiver.COMMAND_BIND_SERVICE,
@@ -2461,7 +2481,8 @@ public class ActivityManagerProcessStateTest {
             // except network.
             mWatchers[1].waitFor(WatchUidRunner.CMD_PROCSTATE,
                     WatchUidRunner.STATE_FG_SERVICE,
-                    new Integer(PROCESS_CAPABILITY_NETWORK));
+                    new Integer(PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK
+                            | PROCESS_CAPABILITY_USER_RESTRICTED_NETWORK));
 
             // Stop App 0's foreground service.
             CommandReceiver.sendCommand(mContext,

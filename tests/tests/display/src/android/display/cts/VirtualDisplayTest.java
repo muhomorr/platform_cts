@@ -35,6 +35,7 @@ import android.graphics.Point;
 import android.graphics.drawable.ColorDrawable;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
+import android.hardware.display.VirtualDisplayConfig;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.Bundle;
@@ -82,6 +83,7 @@ public class VirtualDisplayTest {
     private static final int WIDTH = 720;
     private static final int HEIGHT = 480;
     private static final int DENSITY = DisplayMetrics.DENSITY_MEDIUM;
+    private static final float REQUESTED_REFRESH_RATE = 30.0f;
     private static final int TIMEOUT = 40000;
 
     // Colors that we use as a signal to determine whether some desired content was
@@ -278,6 +280,33 @@ public class VirtualDisplayTest {
         }
         fail("SecurityException must be thrown if a trusted virtual display is created without"
                 + "holding the permission ADD_TRUSTED_DISPLAY.");
+    }
+
+    /**
+     * Ensures that an application can create a private virtual display with a requested
+     * refresh rate and show its own windows on it.
+     */
+    @Test
+    public void testVirtualDisplayWithRequestedRefreshRate() throws Exception {
+        VirtualDisplayConfig config = new VirtualDisplayConfig.Builder(NAME, WIDTH, HEIGHT, DENSITY)
+                .setSurface(mSurface)
+                .setRequestedRefreshRate(REQUESTED_REFRESH_RATE)
+                .build();
+        VirtualDisplay virtualDisplay = mDisplayManager.createVirtualDisplay(config);
+        assertNotNull("virtual display must not be null", virtualDisplay);
+        Display display = virtualDisplay.getDisplay();
+        try {
+            assertDisplayRegistered(display, Display.FLAG_PRIVATE);
+            assertEquals(mSurface, virtualDisplay.getSurface());
+
+            // Show a private presentation on the display.
+            assertDisplayCanShowPresentation("private presentation window",
+                    display, BLUEISH, 0);
+            assertEquals(display.getRefreshRate(), REQUESTED_REFRESH_RATE, 0.1f);
+        } finally {
+            virtualDisplay.release();
+        }
+        assertDisplayUnregistered(display);
     }
 
     @Test

@@ -16,6 +16,7 @@
 
 package com.android.cts.verifier.notifications;
 
+import static android.app.NotificationManager.IMPORTANCE_DEFAULT;
 import static android.app.NotificationManager.IMPORTANCE_LOW;
 import static android.app.NotificationManager.IMPORTANCE_MAX;
 import static android.app.NotificationManager.IMPORTANCE_NONE;
@@ -86,18 +87,22 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
     private String mTag2;
     private String mTag3;
     private String mTag4;
+    private String mTag5;
     private int mIcon1;
     private int mIcon2;
     private int mIcon3;
     private int mIcon4;
+    private int mIcon5;
     private int mId1;
     private int mId2;
     private int mId3;
     private int mId4;
+    private int mId5;
     private long mWhen1;
     private long mWhen2;
     private long mWhen3;
     private long mWhen4;
+    private long mWhen5;
     private int mFlag1;
     private int mFlag2;
     private int mFlag3;
@@ -133,20 +138,23 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
         tests.add(new IsEnabledTest());
         tests.add(new ServiceStartedTest());
         tests.add(new NotificationReceivedTest());
-        /*
-        // TODO (b/200701618): re-enable tests if conditions in 3.8.3.1 change to MUST
         if (!isAutomotive) {
             tests.add(new SendUserToChangeFilter());
             tests.add(new AskIfFilterChanged());
             tests.add(new NotificationTypeFilterTest());
-            tests.add(new ResetChangeFilter());
-        }*/
+            tests.add(new ResetTypeFilterAddAppFilter());
+            tests.add(new AskIfReadyToProceed());
+            tests.add(new NotificationAppFilterTest());
+            tests.add(new ResetAppFilter());
+            tests.add(new AskIfReadyToProceed());
+        }
         tests.add(new LongMessageTest());
         tests.add(new DataIntactTest());
         tests.add(new AudiblyAlertedTest());
         tests.add(new DismissOneTest());
         tests.add(new DismissOneWithReasonTest());
         tests.add(new DismissOneWithStatsTest());
+        tests.add(new DismissOngoingTest());
         tests.add(new DismissAllTest());
         tests.add(new SnoozeNotificationForTimeTest());
         tests.add(new SnoozeNotificationForTimeCancelTest());
@@ -157,6 +165,8 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
         if (!isAutomotive) {
             tests.add(new ReceiveChannelBlockNoticeTest());
             tests.add(new ReceiveGroupBlockNoticeTest());
+            tests.add(new UpdateChannelWithFilterTest());
+            tests.add(new UpdateChannelWithFilterHalfSheetTest());
         }
         tests.add(new RequestUnbindTest());
         tests.add(new RequestBindTest());
@@ -269,6 +279,31 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
                         .setCategory(Notification.CATEGORY_REMINDER)
                         .build();
         mNm.notify(mTag4, mId4, n1);
+    }
+
+    /**
+     * NotificationListener cannot dismiss notifications with FLAG_ONGOING_EVENT
+     */
+    private void sendOngoingNotification() {
+        mTag5 = UUID.randomUUID().toString();
+        Log.d(TAG, "Sending ongoing notif: " + mTag5);
+
+        mWhen5 = System.currentTimeMillis() + 5;
+        mIcon5 = R.drawable.ic_stat_charlie;
+        mId5 = NOTIFICATION_ID + 5;
+        mPackageString = "com.android.cts.verifier";
+
+        Notification n =
+                new Notification.Builder(mContext, NOTIFICATION_CHANNEL_ID)
+                        .setContentTitle("ClearOngoingTest 1")
+                        .setContentText(mTag5)
+                        .setSmallIcon(mIcon5)
+                        .setWhen(mWhen5)
+                        .setDeleteIntent(makeIntent(5, mTag5))
+                        .setOnlyAlertOnce(true)
+                        .setOngoing(true)
+                        .build();
+        mNm.notify(mTag5, mId5, n);
     }
 
     // Tests
@@ -431,6 +466,7 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
             next();
         }
 
+        @Override
         protected void tearDown() {
             MockListener.getInstance().resetData();
             mNm.deleteNotificationChannel(mChannelId);
@@ -446,6 +482,88 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
             return new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
                     .putExtra(EXTRA_APP_PACKAGE, mContext.getPackageName())
                     .putExtra(EXTRA_CHANNEL_ID, mChannelId);
+        }
+    }
+
+    /**
+     * Creates a notification channel. Sends the user to the channel settings half-sheet to toggle
+     * vibration settings and waits for that to be done.
+     */
+    protected class UpdateChannelWithFilterTest extends InteractiveTestCase {
+        private String mChannelId;
+        private View mView;
+
+        @Override
+        protected View inflate(ViewGroup parent) {
+            mView = createNlsSettingsItem(parent,
+                    R.string.nls_channel_settings_with_filter_instructions);
+            Button button = mView.findViewById(R.id.nls_action_button);
+            button.setEnabled(false);
+            return mView;
+        }
+
+        @Override
+        protected void setUp() {
+            mChannelId = UUID.randomUUID().toString();
+            NotificationChannel channel =
+                    new NotificationChannel(
+                            mChannelId, "UpdateChannelWithFilterTest", IMPORTANCE_DEFAULT);
+            channel.enableVibration(false);
+            mNm.createNotificationChannel(channel);
+            status = READY;
+            Button button = mView.findViewById(R.id.nls_action_button);
+            button.setEnabled(true);
+        }
+
+        @Override
+        boolean autoStart() {
+            return true;
+        }
+
+        @Override
+        protected void test() {
+            NotificationChannel channel = mNm.getNotificationChannel(mChannelId);
+            status = channel.shouldVibrate() ? PASS : WAIT_FOR_USER;
+            next();
+        }
+
+        @Override
+        protected void tearDown() {
+            mNm.deleteNotificationChannel(mChannelId);
+        }
+
+        @Override
+        protected Intent getIntent() {
+            return new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                    .putExtra(EXTRA_APP_PACKAGE, mContext.getPackageName())
+                    .putExtra(EXTRA_CHANNEL_ID, mChannelId)
+                    .putStringArrayListExtra(Settings.EXTRA_CHANNEL_FILTER_LIST,
+                            new ArrayList<>(Arrays.asList(
+                                    NotificationChannel.EDIT_SOUND,
+                                    NotificationChannel.EDIT_VIBRATION)));
+        }
+    }
+
+    /**
+     * Asks the user to verify the appearance of the channel settings sheet they just saw.
+     */
+    protected class UpdateChannelWithFilterHalfSheetTest extends InteractiveTestCase {
+
+        @Override
+        protected View inflate(ViewGroup parent) {
+            return createPassFailItem(parent,
+                    R.string.nls_channel_settings_with_filter_verification);
+        }
+
+        @Override
+        boolean autoStart() {
+            return true;
+        }
+
+        @Override
+        protected void test() {
+            status = WAIT_FOR_USER;
+            next();
         }
     }
 
@@ -902,6 +1020,49 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
         }
     }
 
+    private class DismissOngoingTest extends InteractiveTestCase {
+        @Override
+        protected View inflate(ViewGroup parent) {
+            return createAutoItem(parent, R.string.nls_clear_ongoing);
+        }
+
+        @Override
+        protected void setUp() {
+            createChannels();
+            sendNotifications();
+            sendOngoingNotification();
+            status = READY;
+        }
+
+        @Override
+        protected void test() {
+            if (status == READY) {
+                MockListener.getInstance()
+                        .cancelNotification(MockListener.getInstance().getKeyForTag(mTag5));
+                status = RETEST;
+            } else {
+                List<String> result = new ArrayList<>(MockListener.getInstance().mRemoved);
+                if (result.size() != 0
+                        && !result.contains(mTag1)
+                        && !result.contains(mTag2)
+                        && !result.contains(mTag3)
+                        && !result.contains(mTag5)) {
+                    status = PASS;
+                } else {
+                    logFail();
+                    status = FAIL;
+                }
+            }
+        }
+
+        @Override
+        protected void tearDown() {
+            mNm.cancelAll();
+            deleteChannels();
+            MockListener.getInstance().resetData();
+        }
+    }
+
     private class DismissOneWithReasonTest extends InteractiveTestCase {
         int mRetries = 3;
 
@@ -1031,6 +1192,7 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
         protected void setUp() {
             createChannels();
             sendNotifications();
+            sendOngoingNotification();
             status = READY;
         }
 
@@ -1044,7 +1206,9 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
                 if (result.size() != 0
                         && result.contains(mTag1)
                         && result.contains(mTag2)
-                        && result.contains(mTag3)) {
+                        && result.contains(mTag3)
+                        // NotificationListenerService cannot dismiss ongoing notifications
+                        && !result.contains(mTag5)) {
                     status = PASS;
                 } else {
                     logFail();
@@ -1598,8 +1762,7 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
     }
 
     /**
-     * Tests that conversation notifications appear at the top of the shade, if the device supports
-     * a separate conversation section
+     * Tests that conversation notifications appear at the top of the shade
      */
     private class ConversationOrderingTest extends InteractiveTestCase {
         private static final String SHARE_SHORTCUT_ID = "shareShortcut";
@@ -1821,6 +1984,42 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
         }
     }
 
+    /**
+     * Sends an alerting notification and makes sure this listener cannot see it.
+     */
+    private class NotificationAppFilterTest extends InteractiveTestCase {
+        int mRetries = 3;
+
+        @Override
+        protected View inflate(ViewGroup parent) {
+            return createAutoItem(parent, R.string.nls_confirm_notification_not_visible);
+        }
+
+        @Override
+        protected void setUp() {
+            createChannels();
+            sendNoisyNotification();
+            status = READY;
+        }
+
+        @Override
+        protected void tearDown() {
+            mNm.cancelAll();
+            MockListener.getInstance().resetData();
+            deleteChannels();
+        }
+
+        @Override
+        protected void test() {
+            if (MockListener.getInstance().getPosted(mTag4) != null) {
+                logFail("Found" + mTag4);
+                status = FAIL;
+            } else {
+                status = PASS;
+            }
+        }
+    }
+
     protected class SendUserToChangeFilter extends InteractiveTestCase {
         @Override
         protected View inflate(ViewGroup parent) {
@@ -1873,11 +2072,19 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
         }
     }
 
-    protected class ResetChangeFilter extends SendUserToChangeFilter {
+    protected class ResetTypeFilterAddAppFilter extends SendUserToChangeFilter {
         @Override
         protected View inflate(ViewGroup parent) {
             return createUserItem(
-                    parent, R.string.cp_start_settings, R.string.nls_reset_type_filter);
+                    parent, R.string.cp_start_settings, R.string.nls_reset_type_add_app_filter);
+        }
+    }
+
+    protected class ResetAppFilter extends SendUserToChangeFilter {
+        @Override
+        protected View inflate(ViewGroup parent) {
+            return createUserItem(
+                    parent, R.string.cp_start_settings, R.string.nls_reset_app_filter);
         }
     }
 
@@ -1885,6 +2092,24 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
         @Override
         protected View inflate(ViewGroup parent) {
             return createPassFailItem(parent, R.string.nls_original_filter_verification);
+        }
+
+        @Override
+        boolean autoStart() {
+            return true;
+        }
+
+        @Override
+        protected void test() {
+            status = WAIT_FOR_USER;
+            next();
+        }
+    }
+
+    protected class AskIfReadyToProceed extends InteractiveTestCase {
+        @Override
+        protected View inflate(ViewGroup parent) {
+            return createPassFailItem(parent, R.string.nls_confirm_filter_selection);
         }
 
         @Override
