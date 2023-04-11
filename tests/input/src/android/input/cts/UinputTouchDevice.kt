@@ -32,7 +32,8 @@ class UinputTouchDevice(
     instrumentation: Instrumentation,
     display: Display,
     size: Size,
-    private val rawResource: Int = R.raw.test_touchscreen_register
+    private val rawResource: Int = R.raw.test_touchscreen_register,
+    private val source: Int = InputDevice.SOURCE_TOUCHSCREEN,
 ) :
     AutoCloseable {
 
@@ -53,6 +54,10 @@ class UinputTouchDevice(
 
     fun sendBtnTouch(isDown: Boolean) {
         injectEvent(intArrayOf(EV_KEY, BTN_TOUCH, if (isDown) 1 else 0))
+    }
+
+    fun sendBtn(btnCode: Int, isDown: Boolean) {
+        injectEvent(intArrayOf(EV_KEY, btnCode, if (isDown) 1 else 0))
     }
 
     fun sendDown(id: Int, location: Point, toolType: Int? = null) {
@@ -109,7 +114,7 @@ class UinputTouchDevice(
         // Create the uinput device.
         val registerCommand = json.toString()
         return UinputDevice(instrumentation, resourceDeviceId,
-                vendorId, productId, InputDevice.SOURCE_TOUCHSCREEN, registerCommand)
+                vendorId, productId, source, registerCommand)
     }
 
     private fun associateWith(display: Display) {

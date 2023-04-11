@@ -50,6 +50,9 @@ import android.platform.test.annotations.AppModeFull;
 import android.provider.DeviceConfig;
 import android.text.TextUtils;
 import android.util.Log;
+import android.content.Intent;
+import android.net.Uri;
+import android.content.pm.ResolveInfo;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -107,9 +110,15 @@ public class CtsCredentialProviderServiceDeviceTest {
             "android.credentials.cts/android.credentials.cts.CtsNoOpCredentialProviderSysService";
     private static final List<String> CREDENTIAL_TYPES =
             Arrays.asList(PASSKEY_CREDENTIAL_TYPE, PASSWORD_CREDENTIAL_TYPE);
+    private static final List<String> PASSKEY_CREDENTIAL_TYPE_LIST =
+            Arrays.asList(PASSKEY_CREDENTIAL_TYPE);
+    private static final List<String> PASSWORD_CREDENTIAL_TYPE_LIST =
+            Arrays.asList(PASSWORD_CREDENTIAL_TYPE);
     private static final String PROVIDER_LABEL = "Test Provider Service";
     private static final String PROVIDER_LABEL_ALT = "Test Provider Service Alternate";
     private static final String PROVIDER_LABEL_SYSTEM = "Test Provider Service System";
+    private static final String PRIMARY_SETTINGS_INTENT = "android.settings.CREDENTIAL_PROVIDER";
+    private static final String SECONDARY_SETTINGS_INTENT = "android.settings.SYNC_SETTINGS";
 
     private CredentialManager mCredentialManager;
     private final Context mContext = getInstrumentation().getContext();
@@ -162,6 +171,20 @@ public class CtsCredentialProviderServiceDeviceTest {
         });
     }
 
+    @Test
+    public void testRequestSetCredentialManagerServiceIntent_primary() {
+        Intent intent = new Intent(PRIMARY_SETTINGS_INTENT)
+                .setData(Uri.parse("package:android.content.cts"));
+        assertCanBeHandled(intent);
+    }
+
+    @Test
+    public void testRequestSetCredentialManagerServiceIntent_secondary() {
+        Intent intent = new Intent(SECONDARY_SETTINGS_INTENT)
+                .setData(Uri.parse("package:android.content.cts"));
+        assertCanBeHandled(intent);
+    }
+
     // TODO for all 'valid success' cases, mock credential manager the current success case
     // TODO (rightly) flips an error bit since we have test inputs
     @Test
@@ -191,7 +214,7 @@ public class CtsCredentialProviderServiceDeviceTest {
         ActivityScenario<TestCredentialActivity> activityScenario =
                 ActivityScenario.launch(TestCredentialActivity.class);
         activityScenario.onActivity(activity -> {
-            mCredentialManager.getCredential(request, activity, null,
+            mCredentialManager.getCredential(activity, request, null,
                     Executors.newSingleThreadExecutor(), callback);
         });
 
@@ -234,7 +257,7 @@ public class CtsCredentialProviderServiceDeviceTest {
         ActivityScenario<TestCredentialActivity> activityScenario =
                 ActivityScenario.launch(TestCredentialActivity.class);
         activityScenario.onActivity(activity -> {
-            mCredentialManager.getCredential(request, activity, null,
+            mCredentialManager.getCredential(activity, request, null,
                     Executors.newSingleThreadExecutor(), callback);
         });
 
@@ -276,7 +299,7 @@ public class CtsCredentialProviderServiceDeviceTest {
         ActivityScenario<TestCredentialActivity> activityScenario =
                 ActivityScenario.launch(TestCredentialActivity.class);
         activityScenario.onActivity(activity -> {
-            mCredentialManager.getCredential(request, activity, null,
+            mCredentialManager.getCredential(activity, request, null,
                     Executors.newSingleThreadExecutor(), callback);
         });
 
@@ -311,7 +334,7 @@ public class CtsCredentialProviderServiceDeviceTest {
         activityScenario.onActivity(activity -> {
 
             assertThrows("expect null request to throw NPE", NullPointerException.class,
-                    () -> mCredentialManager.getCredential(nullRequest, activity, null,
+                    () -> mCredentialManager.getCredential(activity, nullRequest, null,
                     Executors.newSingleThreadExecutor(), callback));
         });
     }
@@ -373,8 +396,8 @@ public class CtsCredentialProviderServiceDeviceTest {
                     }
                 };
         activityScenario.onActivity(activity -> {
-            mCredentialManager.getCredential(
-                    prepareGetCredResponse.get().getPendingGetCredentialHandle(), activity, null,
+            mCredentialManager.getCredential(activity,
+                    prepareGetCredResponse.get().getPendingGetCredentialHandle(), null,
                     Executors.newSingleThreadExecutor(), getCredCallback);
         });
 
@@ -442,7 +465,7 @@ public class CtsCredentialProviderServiceDeviceTest {
         ActivityScenario<TestCredentialActivity> activityScenario =
                 ActivityScenario.launch(TestCredentialActivity.class);
         activityScenario.onActivity(activity -> {
-            mCredentialManager.createCredential(request, activity, null,
+            mCredentialManager.createCredential(activity, request, null,
                     Executors.newSingleThreadExecutor(), callback);
         });
 
@@ -474,7 +497,7 @@ public class CtsCredentialProviderServiceDeviceTest {
         activityScenario.onActivity(activity -> {
 
             assertThrows("expect null request to throw NPE", NullPointerException.class,
-                    () -> mCredentialManager.createCredential(null, activity, null,
+                    () -> mCredentialManager.createCredential(activity, null, null,
                             Executors.newSingleThreadExecutor(), callback));
         });
     }
@@ -553,7 +576,7 @@ public class CtsCredentialProviderServiceDeviceTest {
                     assertThat(cpi2.getLabel(mContext)).isEqualTo(PROVIDER_LABEL_ALT);
                     assertThat(cpi2.getServiceIcon(mContext)).isNotNull();
                     assertThat(cpi2.getServiceInfo()).isNotNull();
-                    assertThat(cpi2.getCapabilities()).containsExactlyElementsIn(CREDENTIAL_TYPES);
+                    assertThat(cpi2.getCapabilities()).containsExactlyElementsIn(PASSWORD_CREDENTIAL_TYPE_LIST);
                 });
     }
 
@@ -586,7 +609,7 @@ public class CtsCredentialProviderServiceDeviceTest {
                     assertThat(cpi2.getLabel(mContext)).isEqualTo(PROVIDER_LABEL_ALT);
                     assertThat(cpi2.getServiceIcon(mContext)).isNotNull();
                     assertThat(cpi2.getServiceInfo()).isNotNull();
-                    assertThat(cpi2.getCapabilities()).containsExactlyElementsIn(CREDENTIAL_TYPES);
+                    assertThat(cpi2.getCapabilities()).containsExactlyElementsIn(PASSWORD_CREDENTIAL_TYPE_LIST);
                 });
     }
 
@@ -607,9 +630,9 @@ public class CtsCredentialProviderServiceDeviceTest {
                     assertThat(cpi.isSystemProvider()).isTrue();
                     assertThat(cpi.getLabel(mContext)).isEqualTo(PROVIDER_LABEL_SYSTEM);
                     assertThat(cpi.getServiceIcon(mContext)).isNotNull();
-                    assertThat(cpi.getSettingsSubtitle()).isNull();
+                    assertThat(cpi.getSettingsSubtitle()).isEqualTo("This is a subtitle");
                     assertThat(cpi.getServiceInfo()).isNotNull();
-                    assertThat(cpi.getCapabilities()).containsExactlyElementsIn(CREDENTIAL_TYPES);
+                    assertThat(cpi.getCapabilities()).containsExactlyElementsIn(PASSKEY_CREDENTIAL_TYPE_LIST);
                 });
     }
 
@@ -738,5 +761,17 @@ public class CtsCredentialProviderServiceDeviceTest {
         services.remove(service);
         String originalString = String.join(";", services);
         mUserSettings.set(CREDENTIAL_SERVICE, originalString);
+    }
+
+    /**
+     * Assert target intent can be handled by at least one Activity.
+     * @param intent - the Intent will be handled.
+     */
+    private void assertCanBeHandled(final Intent intent) {
+        PackageManager packageManager = mContext.getPackageManager();
+        List<ResolveInfo> resolveInfoList = packageManager.queryIntentActivities(intent, 0);
+        assertThat(resolveInfoList).isNotNull();
+        // one or more activity can handle this intent.
+        assertTrue(resolveInfoList.size() > 0);
     }
 }

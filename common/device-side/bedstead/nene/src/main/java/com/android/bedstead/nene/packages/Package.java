@@ -382,14 +382,15 @@ public final class Package {
      * <p>You can not deny permissions for the current package on the current user.
      */
     public Package denyPermission(UserReference user, String permission) {
+        if (!hasPermission(user, permission)) {
+            return this; // Already denied
+        }
+
         // There is no readable output upon failure so we need to check ourselves
         checkCanGrantOrRevokePermission(user, permission);
 
         if (packageName().equals(TestApis.context().instrumentedContext().getPackageName())
                 && user.equals(TestApis.users().instrumented())) {
-            if (!hasPermission(user, permission)) {
-                return this; // Already denied
-            }
             throw new NeneException("Cannot deny permission from current package");
         }
 
@@ -1046,5 +1047,39 @@ public final class Package {
         } catch (PackageManager.NameNotFoundException e) {
             throw new NeneException("Package " + mPackageName + " not found for user " + user);
         }
+    }
+
+    /**
+     * Get the app standby bucket of the package.
+     */
+    @Experimental
+    public int getAppStandbyBucket() {
+        try {
+            return ShellCommand.builder("am get-standby-bucket")
+                .addOperand(mPackageName)
+                .executeAndParseOutput(o -> Integer.parseInt(o.trim()));
+        } catch (AdbException e) {
+            throw new NeneException("Could not get app standby bucket " + this, e);
+        }
+    }
+
+    /** Approves all links for an auto verifiable app */
+    @Experimental
+    public void setAppLinksToAllApproved() {
+        try {
+            ShellCommand.builder("pm set-app-links")
+                    .addOption("--package", this.mPackageName)
+                    .addOperand(2) // 2 = STATE_APPROVED
+                    .addOperand("all")
+                    .execute();
+        } catch (AdbException e) {
+            throw new NeneException("Error verifying links ", e);
+        }
+    }
+
+    /** Checks if the current package is a role holder for the given role*/
+    @Experimental
+    public boolean isRoleHolder(String role) {
+        return TestApis.roles().getRoleHolders(role).contains(this.mPackageName);
     }
 }

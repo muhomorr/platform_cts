@@ -58,8 +58,8 @@ import androidx.test.filters.SdkSuppress;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
+import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.ShellIdentityUtils;
-import com.android.compatibility.common.util.SystemUtil;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -132,6 +132,7 @@ public class ConcurrencyTest extends WifiJUnit3TestBase {
     private MyResponse mMyResponse = new MyResponse();
     private boolean mWasVerboseLoggingEnabled;
     private WifiP2pConfig mTestWifiP2pPeerConfig;
+    private boolean mWasWifiEnabled;
 
     private static final String TAG = "ConcurrencyTest";
     private static final int TIMEOUT_MSEC = 6000;
@@ -216,9 +217,9 @@ public class ConcurrencyTest extends WifiJUnit3TestBase {
 
     @Override
     protected void setUp() throws Exception {
-       super.setUp();
-       if (!WifiFeature.isWifiSupported(getContext()) &&
-                !WifiFeature.isP2pSupported(getContext())) {
+        super.setUp();
+        if (!WifiFeature.isWifiSupported(getContext())
+                && !WifiFeature.isP2pSupported(getContext())) {
             // skip the test if WiFi && p2p are not supported
             return;
         }
@@ -233,10 +234,6 @@ public class ConcurrencyTest extends WifiJUnit3TestBase {
         mContext.registerReceiver(mReceiver, mIntentFilter);
         mWifiManager = (WifiManager) getContext().getSystemService(Context.WIFI_SERVICE);
         assertNotNull(mWifiManager);
-        if (mWifiManager.isWifiEnabled()) {
-            SystemUtil.runShellCommand("svc wifi disable");
-            Thread.sleep(DURATION);
-        }
 
         // turn on verbose logging for tests
         mWasVerboseLoggingEnabled = ShellIdentityUtils.invokeWithShellPermissions(
@@ -244,12 +241,20 @@ public class ConcurrencyTest extends WifiJUnit3TestBase {
         ShellIdentityUtils.invokeWithShellPermissions(
                 () -> mWifiManager.setVerboseLoggingEnabled(true));
 
-        assertTrue(!mWifiManager.isWifiEnabled());
+        mWasWifiEnabled = ShellIdentityUtils.invokeWithShellPermissions(
+                () -> mWifiManager.isWifiEnabled());
+        if (mWasWifiEnabled) {
+            ShellIdentityUtils.invokeWithShellPermissions(() -> mWifiManager.setWifiEnabled(false));
+        }
+
+        PollingCheck.check("Wifi not disabled", DURATION,
+                () -> !mWifiManager.isWifiEnabled());
         mMySync.expectedWifiState = WifiManager.WIFI_STATE_DISABLED;
         mMySync.expectedP2pState = WifiP2pManager.WIFI_P2P_STATE_DISABLED;
         mMySync.expectedDiscoveryState = WifiP2pManager.WIFI_P2P_DISCOVERY_STOPPED;
         mMySync.expectedNetworkInfo = null;
         mMySync.expectedListenState = WifiP2pManager.WIFI_P2P_LISTEN_STOPPED;
+        mMySync.pendingSync.clear();
 
         // for general connect command
         mTestWifiP2pPeerConfig = new WifiP2pConfig();
@@ -273,6 +278,7 @@ public class ConcurrencyTest extends WifiJUnit3TestBase {
                 () -> mWifiManager.setVerboseLoggingEnabled(mWasVerboseLoggingEnabled));
 
         enableWifi();
+        mMySync.pendingSync.clear();
         super.tearDown();
     }
 
@@ -366,7 +372,7 @@ public class ConcurrencyTest extends WifiJUnit3TestBase {
      */
     private void enableWifi() throws InterruptedException {
         if (!mWifiManager.isWifiEnabled()) {
-            SystemUtil.runShellCommand("svc wifi enable");
+            ShellIdentityUtils.invokeWithShellPermissions(() -> mWifiManager.setWifiEnabled(true));
         }
 
         ConnectivityManager cm =
@@ -444,9 +450,7 @@ public class ConcurrencyTest extends WifiJUnit3TestBase {
         assertNotNull(mWifiP2pManager);
         assertNotNull(mWifiP2pChannel);
 
-        assertTrue(waitForBroadcasts(
-                new LinkedList<Integer>(
-                Arrays.asList(MySync.WIFI_STATE, MySync.P2P_STATE))));
+        assertTrue(waitForBroadcasts(MySync.P2P_STATE));
 
         assertEquals(WifiManager.WIFI_STATE_ENABLED, mMySync.expectedWifiState);
         assertEquals(WifiP2pManager.WIFI_P2P_STATE_ENABLED, mMySync.expectedP2pState);

@@ -24,10 +24,11 @@ import static com.android.bedstead.nene.flags.CommonFlags.DevicePolicyManager.PE
 import static com.android.bedstead.nene.flags.CommonFlags.NAMESPACE_DEVICE_POLICY_MANAGER;
 
 import com.android.bedstead.harrier.annotations.AnnotationRunPrecedence;
-import com.android.bedstead.harrier.annotations.EnsureFeatureFlagEnabled;
 import com.android.bedstead.harrier.annotations.EnsureHasAdditionalUser;
+import com.android.bedstead.harrier.annotations.RequireFeatureFlagEnabled;
 import com.android.bedstead.harrier.annotations.RequireRunOnWorkProfile;
 import com.android.bedstead.harrier.annotations.enterprise.EnsureHasDevicePolicyManagerRoleHolder;
+import com.android.bedstead.harrier.annotations.enterprise.EnsureHasNoDelegate;
 import com.android.bedstead.harrier.annotations.enterprise.EnsureHasNoDeviceOwner;
 import com.android.bedstead.harrier.annotations.enterprise.EnsureHasNoProfileOwner;
 import com.android.bedstead.harrier.annotations.meta.ParameterizedAnnotation;
@@ -48,14 +49,15 @@ import java.lang.annotation.Target;
 @EnsureHasNoProfileOwner(onUser = SYSTEM_USER)
 @EnsureHasNoDeviceOwner
 @EnsureHasDevicePolicyManagerRoleHolder(onUser = INITIAL_USER, isPrimary = true)
-@EnsureFeatureFlagEnabled(
+@RequireFeatureFlagEnabled(
         namespace = NAMESPACE_DEVICE_POLICY_MANAGER,
         key = ENABLE_DEVICE_POLICY_ENGINE_FLAG
 )
-@EnsureFeatureFlagEnabled(
+@RequireFeatureFlagEnabled(
         namespace = NAMESPACE_DEVICE_POLICY_MANAGER,
         key = PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG
 )
+@EnsureHasNoDelegate
 public @interface IncludeRunOnDevicePolicyManagementRoleHolderProfile {
     /**
      * Weight sets the order that annotations will be resolved.

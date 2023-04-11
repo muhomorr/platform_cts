@@ -17,6 +17,8 @@
 package android.server.wm.jetpack.embedding;
 
 import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.DEFAULT_SPLIT_ATTRS;
+import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.EXPAND_SPLIT_ATTRS;
+import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.HINGE_SPLIT_ATTRS;
 import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.assertValidSplit;
 import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.createSplitPairRuleBuilder;
 import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.startActivityAndVerifySplitAttributes;
@@ -276,22 +278,19 @@ public class ActivityEmbeddingBoundsTests extends ActivityEmbeddingTestBase {
     @ApiTest(apis = "androidx.window.extensions.embedding.SplitAttributes.HingeSplitType")
     @Test
     public void testHingeSplitType() {
-        // Launch a second activity in a split. Use a very small split ratio, so that the secondary
-        // activity occupies most of the screen.
+        TestConfigChangeHandlingActivity primaryActivity = startFullScreenActivityNewTask(
+                TestConfigChangeHandlingActivity.class);
+
         SplitPairRule splitPairRule = createSplitPairRuleBuilder(
                 activityActivityPair -> true,
                 activityIntentPair -> true,
-                windowMetrics -> true
-        )
-                .setDefaultSplitAttributes(new SplitAttributes.Builder().setSplitType(
-                        new SplitType.ExpandContainersSplitType()).build())
+                windowMetrics -> true)
+                .setDefaultSplitAttributes(HINGE_SPLIT_ATTRS)
                 .build();
         mActivityEmbeddingComponent.setEmbeddingRules(Collections.singleton(splitPairRule));
 
-        // Start activities in a split and verify that the layout direction is BOTTOM_TO_TOP,
-        // which is checked in {@link ActivityEmbeddingUtil#startActivityAndVerifySplit}.
-        Activity primaryActivity = startFullScreenActivityNewTask(
-                TestConfigChangeHandlingActivity.class);
+        // Start another activity to split with the primary activity and verify that the split type
+        // is hinge.
         startActivityAndVerifySplitAttributes(primaryActivity, TestActivityWithId.class,
                 splitPairRule, "secondaryActivityId", mSplitInfoConsumer);
     }
@@ -301,21 +300,16 @@ public class ActivityEmbeddingBoundsTests extends ActivityEmbeddingTestBase {
             + ".ExpandContainersSplitType")
     @Test
     public void testExpandSplitType() {
-        final SplitAttributes expandContainersAttrs = new SplitAttributes.Builder()
-                .setSplitType(new SplitAttributes.SplitType.ExpandContainersSplitType()).build();
-
-        // Launch a second activity in a split. Use a very small split ratio, so that the secondary
-        // activity occupies most of the screen.
         SplitPairRule splitPairRule = createSplitPairRuleBuilder(
                 activityActivityPair -> true,
                 activityIntentPair -> true,
                 windowMetrics -> true
         )
-                .setDefaultSplitAttributes(expandContainersAttrs)
+                .setDefaultSplitAttributes(EXPAND_SPLIT_ATTRS)
                 .build();
         mActivityEmbeddingComponent.setEmbeddingRules(Collections.singleton(splitPairRule));
 
-        // Start activities in a split and verify that the layout direction is BOTTOM_TO_TOP,
+        // Start activities in a split and verify that the split type is expand,
         // which is checked in {@link ActivityEmbeddingUtil#startActivityAndVerifySplit}.
         Activity primaryActivity = startFullScreenActivityNewTask(
                 TestConfigChangeHandlingActivity.class);
@@ -335,7 +329,7 @@ public class ActivityEmbeddingBoundsTests extends ActivityEmbeddingTestBase {
                 .build();
     }
 
-    private boolean matchesActivityIntentPair(@NonNull Pair<Activity, Intent> activityIntentPair,
+    static boolean matchesActivityIntentPair(@NonNull Pair<Activity, Intent> activityIntentPair,
             @NonNull String primaryActivityId, @NonNull String secondaryActivityId) {
         if (!(activityIntentPair.first instanceof TestActivityWithId)) {
             return false;

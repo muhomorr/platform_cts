@@ -23,6 +23,7 @@ import static com.android.cts.devicepolicy.metrics.DevicePolicyEventLogVerifier.
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import android.platform.test.annotations.FlakyTest;
 import android.platform.test.annotations.LargeTest;
@@ -31,8 +32,6 @@ import android.stats.devicepolicy.EventId;
 import com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.RequiresAdditionalFeatures;
 import com.android.cts.devicepolicy.metrics.DevicePolicyEventWrapper;
 import com.android.tradefed.device.DeviceNotAvailableException;
-import com.android.tradefed.result.ByteArrayInputStreamSource;
-import com.android.tradefed.result.LogDataType;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.util.RunUtil;
 
@@ -40,7 +39,7 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
-import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Tests for organization-owned Profile Owner.
@@ -260,16 +259,14 @@ public class OrgOwnedProfileOwnerTest extends BaseDevicePolicyTest {
             // Turn logging on.
             runDeviceTestsAsUser(packageName, testClassName,
                     "testEnablingSecurityLogging", mUserId);
+
+            // Ensure user is initialized before rebooting, otherwise it won't start.
+            waitForUserInitialized(mUserId);
+            // Wait until idle so that the flag is persisted to disk.
+            waitForBroadcastIdle();
             // Reboot to ensure ro.organization_owned is set to true in logd and logging is on.
             rebootAndWaitUntilReady();
-
-            try {
-                waitForUserUnlock(mUserId);
-            } catch (AssertionError e) {
-                // STOPSHIP(b/266588263): debug logs for "User is not unlocked" investigation.
-                collectUserLockedDebugLogs();
-                throw e;
-            }
+            waitForUserUnlock(mUserId);
 
             // Generate various types of events on device side and check that they are logged.
             runDeviceTestsAsUser(packageName, testClassName, "testGenerateLogs", mUserId);
@@ -290,14 +287,15 @@ public class OrgOwnedProfileOwnerTest extends BaseDevicePolicyTest {
         }
     }
 
-    private void collectUserLockedDebugLogs() throws Exception {
-        String content = String.join("\n--------------------------------------\n",
-                getDevice().executeShellCommand("dumpsys activity users"),
-                getDevice().executeShellCommand("dumpsys user"),
-                getDevice().executeShellCommand("dumpsys device_policy"),
-                getDevice().executeShellCommand("dumpsys lock_settings"));
-        mLogger.addTestLog("user_locked_debug.txt", LogDataType.DUMPSYS,
-                new ByteArrayInputStreamSource(content.getBytes(StandardCharsets.UTF_8)));
+    private void waitForUserInitialized(int userId) throws Exception {
+        final long start = System.nanoTime();
+        final long deadline = start + TimeUnit.MINUTES.toNanos(5);
+        while ((getUserFlags(userId) & FLAG_INITIALIZED) == 0) {
+            if (System.nanoTime() > deadline) {
+                fail("Timed out waiting for user to become initialized");
+            }
+            RunUtil.getDefault().sleep(100);
+        }
     }
 
     @FlakyTest(bugId = 137088260)

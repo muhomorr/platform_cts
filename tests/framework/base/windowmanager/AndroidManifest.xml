@@ -216,12 +216,6 @@
              android:authorities="android.server.wm.testjournalprovider"
              android:exported="true"/>
 
-        <!--compat tests-->
-        <activity android:name="android.server.wm.CompatChangeTests$TestPortraitActivityWithView"
-            android:maxAspectRatio="1.5"
-            android:resizeableActivity="false"
-            android:screenOrientation="portrait"/>
-
         <!--intent tests-->
         <activity android:name="android.server.wm.intent.Activities$RegularActivity"/>
         <activity android:name="android.server.wm.intent.Activities$SingleTopActivity"
@@ -293,7 +287,7 @@
                   android:theme="@style/no_starting_window"/>
         <activity android:name="android.server.wm.DialogFrameTestActivity" />
         <activity android:name="android.server.wm.DisplayCutoutTests$TestActivity"
-                  android:configChanges="orientation|screenSize"
+                  android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout"
                   android:screenOrientation="nosensor"
                   android:turnScreenOn="true"
                   android:showWhenLocked="true"/>
@@ -451,7 +445,8 @@
              android:directBootAware="true"/>
 
         <activity android:name="android.server.wm.WindowInsetsAnimationTestBase$TestActivity"
-             android:theme="@android:style/Theme.Material.NoActionBar"/>
+            android:screenOrientation="locked"
+            android:theme="@android:style/Theme.Material.NoActionBar"/>
         <activity android:name="android.server.wm.WindowInsetsAnimationControllerTests$ControllerTestActivity"
             android:theme="@android:style/Theme.Material.NoActionBar" />
 
@@ -489,9 +484,20 @@
         <activity android:name="android.server.wm.DisplayHashManagerTest$TestActivity"
                    android:exported="true"/>
 
+        <activity android:name="android.server.wm.CompatChangeTests$ResizeableLeftActivity"
+                  android:resizeableActivity="true"
+                  android:exported="true"/>
+
+        <activity android:name="android.server.wm.CompatChangeTests$ResizeableRightActivity"
+                  android:resizeableActivity="true"
+                  android:exported="true"/>
+
         <activity android:name="android.server.wm.CompatChangeTests$ResizeablePortraitActivity"
                   android:resizeableActivity="true"
                   android:screenOrientation="portrait"
+                  android:exported="true"/>
+
+        <activity android:name="android.server.wm.CompatChangeTests$ResponsiveActivity"
                   android:exported="true"/>
 
         <activity android:name="android.server.wm.CompatChangeTests$NonResizeablePortraitActivity"
@@ -527,6 +533,9 @@
         <meta-data android:name="android.supports_size_changes"
                        android:value="true"/>
         </activity>
+
+        <activity android:name="android.server.wm.CompatChangeTests$NoPropertyChangeOrientationWhileRelaunchingActivity"
+                  android:exported="true"/>
 
         <service android:name="android.server.wm.WindowContextTests$TestWindowService"
                  android:exported="true"

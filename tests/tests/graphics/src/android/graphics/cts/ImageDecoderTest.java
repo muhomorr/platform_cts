@@ -121,12 +121,15 @@ public class ImageDecoderTest {
                 new Record(R.drawable.webp_test, 640, 480, "image/webp", false, false, sSRGB),
                 new Record(R.drawable.google_chrome, 256, 256, "image/x-ico", false, true, sSRGB),
                 new Record(R.drawable.color_wheel, 128, 128, "image/x-ico", false, true, sSRGB),
-                new Record(R.raw.sample_1mp, 600, 338, "image/x-adobe-dng", false, false, sSRGB),
-                new Record(R.raw.avif_yuv_420_8bit, 120, 160, "image/avif", false, false, sSRGB)
+                new Record(R.raw.sample_1mp, 600, 338, "image/x-adobe-dng", false, false, sSRGB)
         }));
         if (MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
             // HEIF support is optional when HEVC decoder is not supported.
             records.add(new Record(R.raw.heifwriter_input, 1920, 1080, "image/heif", false, false,
+                                   sSRGB));
+        }
+        if (ImageDecoder.isMimeTypeSupported("image/avif")) {
+            records.add(new Record(R.raw.avif_yuv_420_8bit, 120, 160, "image/avif", false, false,
                                    sSRGB));
         }
         return records.toArray(new Record[] {});
@@ -283,6 +286,9 @@ public class ImageDecoderTest {
     @Test
     @RequiresDevice
     public void testDecode10BitAvif() {
+        assumeTrue("AVIF is not supported on this device, skip this test.",
+                ImageDecoder.isMimeTypeSupported("image/avif"));
+
         try {
             ImageDecoder.Source src = ImageDecoder
                 .createSource(getResources(), R.raw.avif_yuv_420_10bit);
@@ -323,6 +329,9 @@ public class ImageDecoderTest {
     @Test
     @RequiresDevice
     public void testDecode10BitAvifWithLowRam() {
+        assumeTrue("AVIF is not supported on this device, skip this test.",
+                ImageDecoder.isMimeTypeSupported("image/avif"));
+
         ImageDecoder.Source src = ImageDecoder.createSource(getResources(),
                 R.raw.avif_yuv_420_10bit);
         assertNotNull(src);

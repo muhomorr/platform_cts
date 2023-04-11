@@ -100,6 +100,8 @@ public class WallpaperManagerTest {
     private static final ComponentName DEFAULT_COMPONENT_NAME = new ComponentName(
             TestLiveWallpaper.class.getPackageName(), TestLiveWallpaper.class.getName());
 
+    private final CtsTouchUtils mCtsTouchUtils = new CtsTouchUtils();
+
     private WallpaperManager mWallpaperManager;
     private Context mContext;
     private Handler mHandler;
@@ -969,7 +971,7 @@ public class WallpaperManagerTest {
         mWallpaperManager.setWallpaperZoomOut(windowToken, 0.5f);
 
         // trigger Engine.onTouchEvent
-        CtsTouchUtils.emulateTapOnViewCenter(
+        mCtsTouchUtils.emulateTapOnViewCenter(
                 InstrumentationRegistry.getInstrumentation(), null,
                 activity.findViewById(android.R.id.content));
 
@@ -1094,7 +1096,7 @@ public class WallpaperManagerTest {
         Drawable actual = mWallpaperManager.getDrawable(FLAG_SYSTEM);
 
         assertWithMessage("Drawables must represent the same image").that(
-                isSimilar(actual, expected)).isTrue();
+                isSimilar(actual, expected, true)).isTrue();
     }
 
     @Test
@@ -1112,7 +1114,7 @@ public class WallpaperManagerTest {
         Drawable actual = mWallpaperManager.getDrawable(FLAG_LOCK);
 
         assertWithMessage("Drawables must represent the same image").that(
-                isSimilar(actual, expected)).isTrue();
+                isSimilar(actual, expected, true)).isTrue();
     }
 
     @Test
@@ -1123,7 +1125,7 @@ public class WallpaperManagerTest {
         Drawable actual = mWallpaperManager.getDrawable();
 
         assertWithMessage("Drawables must represent the same image").that(
-                isSimilar(actual, expected)).isTrue();
+                isSimilar(actual, expected, true)).isTrue();
     }
 
     @Test
@@ -1134,7 +1136,7 @@ public class WallpaperManagerTest {
         Drawable actual = mWallpaperManager.getFastDrawable(FLAG_SYSTEM);
 
         assertWithMessage("Drawables must represent the same image").that(
-                isSimilar(actual, expected)).isTrue();
+                isSimilar(actual, expected, true)).isTrue();
     }
 
     @Test
@@ -1152,7 +1154,7 @@ public class WallpaperManagerTest {
         Drawable actual = mWallpaperManager.getFastDrawable(FLAG_LOCK);
 
         assertWithMessage("Drawables must represent the same image").that(
-                isSimilar(actual, expected)).isTrue();
+                isSimilar(actual, expected, true)).isTrue();
     }
 
     @Test
@@ -1163,7 +1165,7 @@ public class WallpaperManagerTest {
         Drawable actual = mWallpaperManager.getFastDrawable();
 
         assertWithMessage("Drawables must represent the same image").that(
-                isSimilar(actual, expected)).isTrue();
+                isSimilar(actual, expected, true)).isTrue();
     }
 
     @Test
@@ -1174,7 +1176,7 @@ public class WallpaperManagerTest {
         Drawable actual = mWallpaperManager.peekDrawable(FLAG_SYSTEM);
 
         assertWithMessage("Drawables must represent the same image").that(
-                isSimilar(actual, expected)).isTrue();
+                isSimilar(actual, expected, true)).isTrue();
     }
 
     @Test
@@ -1192,7 +1194,7 @@ public class WallpaperManagerTest {
         Drawable actual = mWallpaperManager.peekDrawable(FLAG_LOCK);
 
         assertWithMessage("Drawables must represent the same image").that(
-                isSimilar(actual, expected)).isTrue();
+                isSimilar(actual, expected, true)).isTrue();
     }
 
     @Test
@@ -1203,7 +1205,7 @@ public class WallpaperManagerTest {
         Drawable actual = mWallpaperManager.peekDrawable();
 
         assertWithMessage("Drawables must represent the same image").that(
-                isSimilar(actual, expected)).isTrue();
+                isSimilar(actual, expected, true)).isTrue();
     }
 
     @Test
@@ -1214,7 +1216,7 @@ public class WallpaperManagerTest {
         Drawable actual = mWallpaperManager.peekFastDrawable(FLAG_SYSTEM);
 
         assertWithMessage("Drawables must represent the same image").that(
-                isSimilar(actual, expected)).isTrue();
+                isSimilar(actual, expected, true)).isTrue();
     }
 
     @Test
@@ -1232,7 +1234,7 @@ public class WallpaperManagerTest {
         Drawable actual = mWallpaperManager.peekFastDrawable(FLAG_LOCK);
 
         assertWithMessage("Drawables must represent the same image").that(
-                isSimilar(actual, expected)).isTrue();
+                isSimilar(actual, expected, true)).isTrue();
     }
 
     @Test
@@ -1243,7 +1245,7 @@ public class WallpaperManagerTest {
         Drawable actual = mWallpaperManager.peekFastDrawable();
 
         assertWithMessage("Drawables must represent the same image").that(
-                isSimilar(actual, expected)).isTrue();
+                isSimilar(actual, expected, true)).isTrue();
     }
 
     /**

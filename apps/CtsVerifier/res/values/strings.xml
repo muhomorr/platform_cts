@@ -331,21 +331,6 @@
     <string name="clipboard_preview_test_secret">FAIL</string>
     <string name="clipboard_preview_test_copy_button">Copy</string>
 
-    <!-- Strings for SharesheetTest -->
-    <string name="sharesheet_test">Sharesheet Test</string>
-    <string name="sharesheet_test_info">The sharesheet test validates that the user
-        is presented with the option of modifying the share if the source app indicates it.</string>
-    <string name="sharesheet_test_instructions">When you press "Share" below, you will be shown
-        the system sharesheet sharing an image of the letter \'A\'. On this
-        sharesheet, there should be something you can tap to modify the share (e.g. by selecting
-        different images, a different format, etc). It can have different names
-        on different devices or be instead represented by an icon. Tap on that to
-        complete the test. If it works correctly, the sharesheet will dismiss
-        and you\'ll be able to mark the test as complete. No need to share the image
-        to any app targets or otherwise interact with the sharesheet. If you can\'t see a way to do
-        this, mark the test as failed.</string>
-    <string name="share">Share</string>
-
     <!-- Strings for BiometricTest -->
     <string name="biometric_test">Biometric Tests</string>
 
@@ -2575,6 +2560,8 @@ When the buttons are enabled, pass this test if the information in the dialog wa
     <string name="nls_unblock_app">Please unblock the linked application and return here.</string>
     <string name="nls_block_channel">Please block the linked notification channel and return here.</string>
     <string name="nls_block_group">Please block the linked notification channel group and return here.</string>
+    <string name="nls_channel_settings_with_filter_instructions">In the following dialog, please take a note of which channel settings are visible. Then turn on vibration for the channel and press \"Done\".</string>
+    <string name="nls_channel_settings_with_filter_verification">Were the channel settings shown in a bottom sheet instead of the normal \"full-screen\" settings? Were sound and vibration the only available options?</string>
     <string name="nls_disable_service">Please disable \"Notification Listener for CTS Verifier\"
         under Apps > Gear Icon > Special Access > Notification Access and return here.</string>
     <string name="nls_start_settings">Launch Settings</string>
@@ -2866,6 +2853,27 @@ You should be prompted to select credentials; choose the ones you just installed
 
         6. Repeat step 1 to remove CtsVpnFirewallApp.
     </string>
+    <string name="provisioning_byod_allow_nondismissible_notification_channel">Non-Dismissible Notification Channel</string>
+    <string name="provisioning_byod_allow_nondismissible_notification_title">Non-Dismissible Notification</string>
+    <string name="provisioning_byod_allow_nondismissible_notification_text">This is a notification</string>
+    <string name="provisioning_byod_allow_nondismissible_notification">Non-Dismissible notification</string>
+    <string name="provisioning_byod_allow_nondismissible_notification_instructions">
+        In this test, you\'ll verify that you are unable to dismiss a notification.\n
+
+        1. Grant the non-dismissible exemption by running\n
+           \"adb shell appops set com.android.cts.verifier android:system_exempt_from_dismissible_notifications allow\".\n
+
+        2. Now hit \"Go\" and you will see a notification pop up.\n
+
+        3. Scroll from the top to see the notification and verify you are unable to dismiss it.\n
+
+        4. To then remove the notification you must revoke the exemption by running\n
+           \"adb shell appops set com.android.cts.verifier android:system_exempt_from_dismissible_notifications default\".\n
+
+        5. Now hit \"Go\" again and dismiss the notification.\n
+
+        6. Mark test as pass\n
+    </string>
     <string name="provisioning_byod_always_on_vpn_prepare_button">Prepare VPN</string>
     <string name="provisioning_byod_always_on_vpn_vpn_not_found_note">
         Can\'t find VPN app. Did you install it correctly?
@@ -3006,6 +3014,37 @@ You should be prompted to select credentials; choose the ones you just installed
         Verify that the prompt does not appear at all.\n
         Mark the test as passed if the text at the bottom shows \"PASSED (2/2)\"\n
     </string>
+
+    <string name="provisioning_byod_screenshot">Work profile Screenshot Test</string>
+    <string name="provisioning_byod_screenshot_info">
+        This test verifies how screenshots are saved when using work profile apps.\n
+        \n
+        Whenever a screenshot is taken while a work application is in the foreground,\n
+        the resulting image should:\n
+        \n
+        *  include only the work application\n
+        *  be saved to the work profile
+    </string>
+    <string name="provisioning_byod_screenshot_start">
+        Press \'Open Work App\', to launch an activity in the work profile.\n
+    </string>
+    <string name="provisioning_byod_screenshot_open">Open Work App</string>
+    <string name="provisioning_byod_screenshot_work_app">Work App</string>
+    <string name="provisioning_byod_screenshot_capture">Capture Screenshot</string>
+    <string name="provisioning_byod_screenshot_verify">
+        Examine the screenshot image contained within the checkerboard area below.\n
+        \n
+        Verify the image contains only the work app and does not contain:\n
+            \t* any other application windows\n
+            \t* foreground status or navigation bar content (back, home, clock, battery, signal)\n
+        \n
+        If these conditions are met, pass the test.\n
+    </string>
+    <string name="provisioning_byod_screenshot_capture_title"> Take a screenshot now using the device\'s physical buttons.</string>
+    <string name="provisioning_byod_screenshot_capture_open">Choose Screenshot</string>
+    <string name="provisioning_byod_screenshot_capture_cancel">Cancel Test</string>
+    <string name="provisioning_byod_screenshot_select_title">A screenshot was detected.</string>
+    <string name="provisioning_byod_screenshot_select_message">Press the button to choose the screenshot image just captured. If no images appear, press \'Back\' to cancel this and fail the test.</string>
 
     <!-- Strings for DeskClock -->
     <string name="deskclock_tests">Alarms and Timers Tests</string>
@@ -5580,7 +5619,7 @@ You should be prompted to select credentials; choose the ones you just installed
         \nTest Completion:
         \n - Once each of the data paths and APIs have been measured, the test can be marked successful.
     </string>
-
+    <string name="audio_datapaths_noio">"No valid datapaths. PASS."</string>
     <string name="audio_datapaths_results">%1$s\n%2$s -> %3$s</string>
 
     <!-- Audio Loopback Latency Test -->
@@ -5851,6 +5890,22 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="audio_aec_instructions">Press [TEST] to play a voice recording twice with different parameters.</string>
     <string name="audio_aec_mandatory_test">Is AEC mandatory in this device?</string>
 
+    <!-- Audio Connection Test -->
+    <string name="audio_disconnect_test">Audio Stream Disconnect Test</string>
+    <string name="audio_disconnect_info">
+        Tests that audio streams generate the correct stream disconnection events. Note that this
+        test is only required for devices that support wired headset.
+        \n\nTest Requirements
+        \nA wired (analog or USB) headset peripheral, or analog loopback adapter.
+        \n\nTest Process:
+        \n1. Press the \"Start\" button.
+        \n2. For each tested audio route:
+        \n a. Connect the headset peripheral when instructed.
+        \n b. Disconnect the headset peripheral when instructed.
+        \n\nTest Criteria:
+        \nThe test passes if all routes demonstrate the correct stream disconnection behavior.
+    </string>
+    <string name="audio_disconnect_wired_prompt">Does this device support an analog or USB audio peripheral?</string>
     <!--Audio Frequency Global strings -->
     <string name="af_button_play">Play</string>
     <string name="af_button_stop">Stop</string>
@@ -5884,8 +5939,9 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="audio_tap2tone_too_few">Not enough edges. Use fingernail.</string>
     <string name="audio_tap2tone_too_many">Too many edges. Use fingernail. Ensure there is
     no background noise.</string>
-    <string name="audio_tap2tone_buffer_frames">Buffer Frames:</string>
+    <string name="audio_tap2tone_buffer_frames">Buffer Frames: </string>
     <string name="audio_tap2tone_bad_streams">Can\'t open streams.</string>
+    <string name="audio_tap2tone_noio">No mic and/or speaker. PASS</string>
 
     <!-- Strings for 6DoF test -->
     <string name="six_dof_test">6DoF Test</string>

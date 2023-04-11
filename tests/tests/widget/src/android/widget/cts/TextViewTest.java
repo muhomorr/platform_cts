@@ -185,6 +185,8 @@ import java.util.Objects;
 @MediumTest
 @RunWith(AndroidJUnit4.class)
 public class TextViewTest {
+    private final CtsTouchUtils mCtsTouchUtils = new CtsTouchUtils();
+
     private Instrumentation mInstrumentation;
     private Activity mActivity;
     private TextView mTextView;
@@ -803,7 +805,7 @@ public class TextViewTest {
         // Long click on the text selects all text and shows selection handlers. The view has an
         // attribute layout_width="wrap_content", so clicked location (the center of the view)
         // should be on the text.
-        CtsTouchUtils.emulateLongPressOnViewCenter(mInstrumentation, mActivityRule, textView);
+        mCtsTouchUtils.emulateLongPressOnViewCenter(mInstrumentation, mActivityRule, textView);
 
         // At this point the entire content of our TextView should be selected and highlighted
         // with blue. Now change the highlight to red while the selection is still on.
@@ -1843,7 +1845,7 @@ public class TextViewTest {
         // Long click on the text selects all text and shows selection handlers. The view has an
         // attribute layout_width="wrap_content", so clicked location (the center of the view)
         // should be on the text.
-        CtsTouchUtils.emulateLongPressOnViewCenter(mInstrumentation, mActivityRule, mTextView);
+        mCtsTouchUtils.emulateLongPressOnViewCenter(mInstrumentation, mActivityRule, mTextView);
 
         mActivityRule.runOnUiThread(() -> Selection.removeSelection((Spannable) mTextView.getText()));
         mInstrumentation.waitForIdleSync();
@@ -4362,7 +4364,7 @@ public class TextViewTest {
         mInstrumentation.waitForIdleSync();
 
         // Trigger insertion.
-        CtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mTextView);
+        mCtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mTextView);
 
         final boolean[] mDrawn = new boolean[3];
         mActivityRule.runOnUiThread(() -> {
@@ -4388,7 +4390,7 @@ public class TextViewTest {
         mInstrumentation.waitForIdleSync();
 
         // Trigger selection.
-        CtsTouchUtils.emulateLongPressOnViewCenter(mInstrumentation, mActivityRule, mTextView);
+        mCtsTouchUtils.emulateLongPressOnViewCenter(mInstrumentation, mActivityRule, mTextView);
 
         final boolean[] mDrawn = new boolean[3];
         mActivityRule.runOnUiThread(() -> {
@@ -5005,9 +5007,77 @@ public class TextViewTest {
     }
 
     @UiThreadTest
+    @Test
+    public void testSetLineHeightInUnits() {
+        mTextView = new TextView(mActivity);
+        mTextView.setText("This is some random text");
+
+        // The line height of RobotoFont is (1900 + 500) / 2048 em.
+        // Not to accidentally divide the line height into half, use the small text size.
+        mTextView.setTextSize(10f);
+
+        final float lineSpacingExtra = 50;
+        final float lineSpacingMultiplier = 0.2f;
+        mTextView.setLineSpacing(lineSpacingExtra, lineSpacingMultiplier);
+
+        mTextView.setLineHeight(TypedValue.COMPLEX_UNIT_PX, 200);
+        assertEquals(200, mTextView.getLineHeight());
+        assertNotEquals(lineSpacingExtra, mTextView.getLineSpacingExtra(), 0);
+        assertNotEquals(lineSpacingMultiplier, mTextView.getLineSpacingMultiplier(), 0);
+
+        mTextView.setLineHeight(TypedValue.COMPLEX_UNIT_SP, 200);
+        assertEquals(
+                TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_SP,
+                        200f,
+                        mActivity.getResources().getDisplayMetrics()
+                ),
+                mTextView.getLineHeight(),
+                /* delta=*/ 0.05f
+        );
+        assertNotEquals(lineSpacingExtra, mTextView.getLineSpacingExtra(), 0);
+        assertNotEquals(lineSpacingMultiplier, mTextView.getLineSpacingMultiplier(), 0);
+
+        mTextView.setLineHeight(TypedValue.COMPLEX_UNIT_DIP, 200);
+        assertEquals(
+                TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_DIP,
+                        200f,
+                        mActivity.getResources().getDisplayMetrics()
+                ),
+                mTextView.getLineHeight(),
+                /* delta=*/ 0.05f
+        );
+        assertNotEquals(lineSpacingExtra, mTextView.getLineSpacingExtra(), 0);
+        assertNotEquals(lineSpacingMultiplier, mTextView.getLineSpacingMultiplier(), 0);
+
+        mTextView.setLineSpacing(lineSpacingExtra, lineSpacingMultiplier);
+        assertEquals(lineSpacingExtra, mTextView.getLineSpacingExtra(), 0);
+        assertEquals(lineSpacingMultiplier, mTextView.getLineSpacingMultiplier(), 0);
+    }
+
+    @UiThreadTest
     @Test(expected = IllegalArgumentException.class)
     public void testSetLineHeight_negative() {
         new TextView(mActivity).setLineHeight(-1);
+    }
+
+    @UiThreadTest
+    @Test(expected = IllegalArgumentException.class)
+    public void testSetLineHeight_negativeSp() {
+        new TextView(mActivity).setLineHeight(TypedValue.COMPLEX_UNIT_SP, -1f);
+    }
+
+    @UiThreadTest
+    @Test(expected = IllegalArgumentException.class)
+    public void testSetLineHeight_negativeDp() {
+        new TextView(mActivity).setLineHeight(TypedValue.COMPLEX_UNIT_DIP, -1f);
+    }
+
+    @UiThreadTest
+    @Test(expected = IllegalArgumentException.class)
+    public void testSetLineHeight_negativePx() {
+        new TextView(mActivity).setLineHeight(TypedValue.COMPLEX_UNIT_PX, -1f);
     }
 
     @UiThreadTest
@@ -5930,7 +6000,7 @@ public class TextViewTest {
     @Test
     public void testCancelLongPress() {
         mTextView = findTextView(R.id.textview_text);
-        CtsTouchUtils.emulateLongPressOnViewCenter(mInstrumentation, mActivityRule, mTextView);
+        mCtsTouchUtils.emulateLongPressOnViewCenter(mInstrumentation, mActivityRule, mTextView);
         mTextView.cancelLongPress();
     }
 
@@ -5999,7 +6069,7 @@ public class TextViewTest {
         mInstrumentation.waitForIdleSync();
 
         // Tap the view to show InsertPointController.
-        CtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mTextView);
+        mCtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mTextView);
         // bad workaround for waiting onStartInputView of LeanbackIme.apk done
         try {
             Thread.sleep(1000);
@@ -7185,14 +7255,14 @@ public class TextViewTest {
         assertFalse(mTextView.isInTouchMode());
 
         // First tap on the view triggers onClick() but does not focus the TextView.
-        CtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mTextView);
+        mCtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mTextView);
         SystemClock.sleep(safeDoubleTapTimeout);
         assertTrue(mTextView.isInTouchMode());
         assertFalse(mTextView.isFocused());
         verify(mockOnClickListener, times(1)).onClick(mTextView);
         reset(mockOnClickListener);
         // So does the second tap.
-        CtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mTextView);
+        mCtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mTextView);
         SystemClock.sleep(safeDoubleTapTimeout);
         assertTrue(mTextView.isInTouchMode());
         assertFalse(mTextView.isFocused());
@@ -7207,14 +7277,14 @@ public class TextViewTest {
 
         // First tap on the view focuses the TextView but does not trigger onClick().
         reset(mockOnClickListener);
-        CtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mTextView);
+        mCtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mTextView);
         SystemClock.sleep(safeDoubleTapTimeout);
         assertTrue(mTextView.isInTouchMode());
         assertTrue(mTextView.isFocused());
         verify(mockOnClickListener, never()).onClick(mTextView);
         reset(mockOnClickListener);
         // The second tap triggers onClick() and keeps the focus.
-        CtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mTextView);
+        mCtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mTextView);
         SystemClock.sleep(safeDoubleTapTimeout);
         assertTrue(mTextView.isInTouchMode());
         assertTrue(mTextView.isFocused());
@@ -7302,7 +7372,7 @@ public class TextViewTest {
     @Test
     public void testClickableSpanOnClickSingleTapInside() throws Throwable {
         ClickableSpanTestDetails spanDetails = prepareAndRetrieveClickableSpanDetails();
-        CtsTouchUtils.emulateTapOnView(mInstrumentation, mActivityRule, mTextView,
+        mCtsTouchUtils.emulateTapOnView(mInstrumentation, mActivityRule, mTextView,
                 spanDetails.mXPosInside, spanDetails.mYPosInside);
         verify(spanDetails.mClickableSpan, times(1)).onClick(mTextView);
     }
@@ -7310,7 +7380,7 @@ public class TextViewTest {
     @Test
     public void testClickableSpanOnClickDoubleTapInside() throws Throwable {
         ClickableSpanTestDetails spanDetails = prepareAndRetrieveClickableSpanDetails();
-        CtsTouchUtils.emulateDoubleTapOnView(mInstrumentation, mActivityRule, mTextView,
+        mCtsTouchUtils.emulateDoubleTapOnView(mInstrumentation, mActivityRule, mTextView,
                 spanDetails.mXPosInside, spanDetails.mYPosInside);
         verify(spanDetails.mClickableSpan, times(2)).onClick(mTextView);
     }
@@ -7318,7 +7388,7 @@ public class TextViewTest {
     @Test
     public void testClickableSpanOnClickSingleTapOutside() throws Throwable {
         ClickableSpanTestDetails spanDetails = prepareAndRetrieveClickableSpanDetails();
-        CtsTouchUtils.emulateTapOnView(mInstrumentation, mActivityRule, mTextView,
+        mCtsTouchUtils.emulateTapOnView(mInstrumentation, mActivityRule, mTextView,
                 spanDetails.mXPosOutside, spanDetails.mYPosOutside);
         verify(spanDetails.mClickableSpan, never()).onClick(mTextView);
     }
@@ -7350,7 +7420,7 @@ public class TextViewTest {
                 viewOnScreenXY[1] + spanDetails.mYPosOutside));
         swipeCoordinates.put(1, new Point(viewOnScreenXY[0] + spanDetails.mXPosOutside + 50,
                 viewOnScreenXY[1] + spanDetails.mYPosOutside + 50));
-        CtsTouchUtils.emulateDragGesture(mInstrumentation, mActivityRule, swipeCoordinates);
+        mCtsTouchUtils.emulateDragGesture(mInstrumentation, mActivityRule, swipeCoordinates);
         verify(spanDetails.mClickableSpan, never()).onClick(mTextView);
     }
 
@@ -8452,7 +8522,7 @@ public class TextViewTest {
         int offsetX = end.x - start.x;
 
         // Perform drag selection.
-        CtsTouchUtils.emulateLongPressAndDragGesture(
+        mCtsTouchUtils.emulateLongPressAndDragGesture(
                 mInstrumentation, mActivityRule, startX, startY, offsetX, 0 /* offsetY */);
 
         // No smart selection on drag selection.
@@ -9100,12 +9170,12 @@ public class TextViewTest {
     }
 
     private void emulateClickOnView(View view, int offsetX, int offsetY) {
-        CtsTouchUtils.emulateTapOnView(mInstrumentation, mActivityRule, view, offsetX, offsetY);
+        mCtsTouchUtils.emulateTapOnView(mInstrumentation, mActivityRule, view, offsetX, offsetY);
         SystemClock.sleep(CLICK_TIMEOUT);
     }
 
     private void emulateLongPressOnView(View view, int offsetX, int offsetY) {
-        CtsTouchUtils.emulateLongPressOnView(mInstrumentation, mActivityRule, view,
+        mCtsTouchUtils.emulateLongPressOnView(mInstrumentation, mActivityRule, view,
                 offsetX, offsetY);
         // TODO: Ideally, we shouldn't have to wait for a click timeout after a long-press but it
         // seems like we have a minor bug (call it inconvenience) in TextView that requires this.

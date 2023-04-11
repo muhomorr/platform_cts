@@ -19,6 +19,7 @@ import static android.app.ActivityManager.PROCESS_CAPABILITY_FOREGROUND_CAMERA;
 import static android.app.ActivityManager.PROCESS_CAPABILITY_FOREGROUND_LOCATION;
 import static android.app.ActivityManager.PROCESS_CAPABILITY_FOREGROUND_MICROPHONE;
 import static android.app.ActivityManager.PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK;
+import static android.app.ActivityManager.PROCESS_CAPABILITY_USER_RESTRICTED_NETWORK;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND;
 import static android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE;
@@ -113,6 +114,7 @@ import android.util.Log;
 import android.util.Pair;
 
 import androidx.test.InstrumentationRegistry;
+import androidx.test.filters.FlakyTest;
 import androidx.test.filters.LargeTest;
 import androidx.test.runner.AndroidJUnit4;
 
@@ -187,7 +189,8 @@ public final class ActivityManagerTest {
     private static final int PROCESS_CAPABILITY_ALL = PROCESS_CAPABILITY_FOREGROUND_LOCATION
             | PROCESS_CAPABILITY_FOREGROUND_CAMERA
             | PROCESS_CAPABILITY_FOREGROUND_MICROPHONE
-            | PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK;
+            | PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK
+            | PROCESS_CAPABILITY_USER_RESTRICTED_NETWORK;
 
     private Context mTargetContext;
     private ActivityManager mActivityManager;
@@ -202,6 +205,17 @@ public final class ActivityManagerTest {
     private boolean mLeanbackOnly;
 
     private final UserHelper mUserHelper = new UserHelper();
+
+    private String mPreviousModernTrim;
+
+    private static final String WRITE_DEVICE_CONFIG_PERMISSION =
+            "android.permission.WRITE_DEVICE_CONFIG";
+
+    private static final String READ_DEVICE_CONFIG_PERMISSION =
+            "android.permission.READ_DEVICE_CONFIG";
+
+    private static final String MONITOR_DEVICE_CONFIG_ACCESS =
+            "android.permission.MONITOR_DEVICE_CONFIG_ACCESS";
 
     @Before
     public void setUp() throws Exception {
@@ -520,6 +534,7 @@ public final class ActivityManagerTest {
         assertFalse(am.isBackgroundRestricted());
     }
 
+    @FlakyTest(detail = "Known fail on cuttleshish b/275888802 and other devices b/255817314.")
     @Test
     public void testGetMemoryInfo() {
         ActivityManager.MemoryInfo outInfo = new ActivityManager.MemoryInfo();
@@ -1579,6 +1594,17 @@ public final class ActivityManagerTest {
 
     @Test
     public void testTrimMemActivityFg() throws Exception {
+
+        runWithShellPermissionIdentity(() -> {
+            mPreviousModernTrim = DeviceConfig.getString(
+                DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
+                "use_modern_trim",
+                null);
+
+            DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER, "use_modern_trim",
+                    "false", false);
+        });
+
         final int waitForSec = 5 * 1000;
         final ApplicationInfo ai1 = mTargetContext.getPackageManager()
                 .getApplicationInfo(PACKAGE_NAME_APP1, 0);
@@ -1703,6 +1729,14 @@ public final class ActivityManagerTest {
                 mActivityManager.forceStopPackage(PACKAGE_NAME_APP1);
                 mActivityManager.forceStopPackage(PACKAGE_NAME_APP2);
                 mActivityManager.forceStopPackage(CANT_SAVE_STATE_1_PACKAGE_NAME);
+                if (mPreviousModernTrim == null) {
+                    DeviceConfig.deleteProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
+                            "use_modern_trim");
+                } else {
+                    DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
+                            "use_modern_trim", mPreviousModernTrim, false);
+                }
+
             });
 
             watcher1.finish();
@@ -1722,6 +1756,17 @@ public final class ActivityManagerTest {
         int startSeq = 0;
 
         try {
+
+            runWithShellPermissionIdentity(() -> {
+                mPreviousModernTrim = DeviceConfig.getString(
+                    DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
+                    "use_modern_trim",
+                    null);
+
+                DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
+                        "use_modern_trim", "false", false);
+            });
+
             // Kill all background processes
             runShellCommand(mInstrumentation, "am kill-all");
 
@@ -1812,6 +1857,14 @@ public final class ActivityManagerTest {
 
             runWithShellPermissionIdentity(() -> {
                 mActivityManager.forceStopPackage(PACKAGE_NAME_APP1);
+                if (mPreviousModernTrim == null) {
+                    DeviceConfig.deleteProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
+                            "use_modern_trim");
+                } else {
+                    DeviceConfig.setProperty(DeviceConfig.NAMESPACE_ACTIVITY_MANAGER,
+                            "use_modern_trim", mPreviousModernTrim, false);
+                }
+
             });
         }
     }

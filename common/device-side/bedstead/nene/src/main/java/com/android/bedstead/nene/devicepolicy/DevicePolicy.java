@@ -107,6 +107,7 @@ public final class DevicePolicy {
         try {
             Retry.logic(command::execute)
                     .terminalException((ex) -> {
+
                         if (!Versions.meetsMinimumSdkVersionRequirement(Build.VERSION_CODES.S)) {
                             return false; // Just retry on old versions as we don't have stderr
                         }
@@ -220,7 +221,7 @@ public final class DevicePolicy {
                     .timeout(Duration.ofMinutes(5))
                     .run();
         } catch (Throwable e) {
-            throw new NeneException("Error setting device owner", e);
+            throw new NeneException("Error setting device owner.", e);
         }
 
         Package deviceOwnerPackage = TestApis.packages().find(
@@ -794,5 +795,20 @@ public final class DevicePolicy {
                     .getTrustAgentConfiguration(/* componentName= */ null, trustAgent);
             return configurations == null ? Set.of() : Set.copyOf(configurations);
         }
+    }
+
+    /**
+     * True if either this is the system user or the user is affiliated with a device owner on
+     * the device.
+     */
+    @Experimental
+    public boolean isAffiliated() {
+        return isAffiliated(TestApis.users().instrumented());
+    }
+
+    // TODO(276248451): Make user handle aware so it'll work cross-user
+    @Experimental
+    private boolean isAffiliated(UserReference user) {
+        return devicePolicyManager(user).isAffiliatedUser();
     }
 }

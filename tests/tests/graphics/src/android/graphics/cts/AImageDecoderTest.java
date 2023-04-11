@@ -22,6 +22,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 import android.content.ContentResolver;
 import android.content.res.AssetManager;
@@ -372,6 +373,9 @@ public class AImageDecoderTest {
     @RequiresDevice
     @Parameters(method = "getBitMapFormatsUnpremul")
     public void testDecode10BitAvif(int bitmapFormat, boolean unpremul) throws IOException {
+        assumeTrue("AVIF is not supported on this device, skip this test.",
+                ImageDecoder.isMimeTypeSupported("image/avif"));
+
         final int resId = R.raw.avif_yuv_420_10bit;
         Bitmap bm = null;
         switch (bitmapFormat) {

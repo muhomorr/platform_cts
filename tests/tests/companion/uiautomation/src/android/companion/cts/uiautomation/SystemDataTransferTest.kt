@@ -40,7 +40,6 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import libcore.util.EmptyArray
@@ -84,9 +83,9 @@ class SystemDataTransferTest : UiAutomationTestBase(null, null) {
         val (resultCode: Int, _: Intent?) = CompanionActivity.waitForActivityResult()
         assertEquals(expected = RESULT_OK, actual = resultCode)
 
-        // Second time request permission transfer should get null IntentSender
+        // Second time request permission transfer should get non null IntentSender
         val pendingUserConsent2 = cdm.buildPermissionTransferUserConsentIntent(association1.id)
-        assertNull(pendingUserConsent2)
+        assertNotNull(pendingUserConsent2)
 
         // disassociate() should clean up the requests
         cdm.disassociate(association1.id)
@@ -109,9 +108,9 @@ class SystemDataTransferTest : UiAutomationTestBase(null, null) {
         val (resultCode: Int, _: Intent?) = CompanionActivity.waitForActivityResult()
         assertEquals(expected = RESULT_CANCELED, actual = resultCode)
 
-        // Second time request permission transfer should get null IntentSender
+        // Second time request permission transfer should get non null IntentSender
         val pendingUserConsent2 = cdm.buildPermissionTransferUserConsentIntent(association1.id)
-        assertNull(pendingUserConsent2)
+        assertNotNull(pendingUserConsent2)
 
         // disassociate() should clean up the requests
         cdm.disassociate(association1.id)
@@ -135,6 +134,29 @@ class SystemDataTransferTest : UiAutomationTestBase(null, null) {
         // Second time request permission transfer should prompt a dialog
         val pendingUserConsent2 = cdm.buildPermissionTransferUserConsentIntent(association1.id)
         assertNotNull(pendingUserConsent2)
+    }
+
+    @Test
+    fun test_userConsentDialogAllowedAndThenDisallowed() {
+        val association1 = associate()
+
+        // First time request permission transfer should prompt a dialog
+        val pendingUserConsent = cdm.buildPermissionTransferUserConsentIntent(association1.id)
+        assertNotNull(pendingUserConsent)
+        CompanionActivity.startIntentSender(pendingUserConsent)
+        confirmationUi.waitUntilSystemDataTransferConfirmationVisible()
+        confirmationUi.clickPositiveButton()
+        val (resultCode: Int, _: Intent?) = CompanionActivity.waitForActivityResult()
+        assertEquals(expected = RESULT_OK, actual = resultCode)
+
+        // Second time request permission transfer should prompt a dialog
+        val pendingUserConsent2 = cdm.buildPermissionTransferUserConsentIntent(association1.id)
+        assertNotNull(pendingUserConsent2)
+        CompanionActivity.startIntentSender(pendingUserConsent2)
+        confirmationUi.waitUntilSystemDataTransferConfirmationVisible()
+        confirmationUi.clickNegativeButton()
+        val (resultCode2: Int, _: Intent?) = CompanionActivity.waitForActivityResult()
+        assertEquals(expected = RESULT_CANCELED, actual = resultCode2)
     }
 
     /**
@@ -223,7 +245,6 @@ class SystemDataTransferTest : UiAutomationTestBase(null, null) {
         confirmationUi.waitUntilGone()
         // Check the result code and the data delivered via onActivityResult()
         val (_: Int, associationData: Intent?) = CompanionActivity.waitForActivityResult()
-        CompanionActivity.clearResult()
         assertNotNull(associationData)
         val association: AssociationInfo? = associationData.getParcelableExtra(
                 CompanionDeviceManager.EXTRA_ASSOCIATION,

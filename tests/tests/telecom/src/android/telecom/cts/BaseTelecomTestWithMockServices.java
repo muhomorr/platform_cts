@@ -104,6 +104,7 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
     public static final String PKG_NAME = "android.telecom.cts";
     public static final String PERMISSION_PROCESS_OUTGOING_CALLS =
             "android.permission.PROCESS_OUTGOING_CALLS";
+    public static final String PERMISSION_PACKAGE_USAGE_STATS = "android.permission.PACKAGE_USAGE_STATS";
 
     Context mContext;
     TelecomManager mTelecomManager;
@@ -329,6 +330,8 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
                 InstrumentationRegistry.getInstrumentation().getUiAutomation();
         uiAutomation.grantRuntimePermissionAsUser(PKG_NAME, PERMISSION_PROCESS_OUTGOING_CALLS,
                 UserHandle.CURRENT);
+        uiAutomation.grantRuntimePermissionAsUser(PKG_NAME, PERMISSION_PACKAGE_USAGE_STATS,
+                UserHandle.CURRENT);
     }
 
     @Override
@@ -410,6 +413,8 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
             }
 
         } catch (Exception e) {
+            // Clear static cts connection service state: its ok to do this if setUp itself throws.
+            CtsConnectionService.tearDown();
             unregisterTelephonyCallbacks();
             throw e;
         }

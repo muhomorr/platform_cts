@@ -53,7 +53,10 @@ public class CallStreamingTest extends BaseTelecomTestWithMockServices {
 
     @Override
     public void tearDown() throws Exception {
-        cleanup();
+        if (mShouldTestTelecom) {
+            cleanup();
+            mTelecomManager.unregisterPhoneAccount(TestUtils.TEST_SELF_MANAGED_HANDLE_1);
+        }
         super.tearDown();
     }
 

@@ -29,14 +29,14 @@ import android.os.Build
 import android.os.Process
 import android.provider.DeviceConfig
 import android.provider.Settings
-import android.support.test.uiautomator.By
-import android.support.test.uiautomator.BySelector
-import android.support.test.uiautomator.UiObjectNotFoundException
-import android.support.test.uiautomator.UiScrollable
-import android.support.test.uiautomator.UiSelector
 import android.text.Spanned
 import android.text.style.ClickableSpan
 import android.view.View
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.BySelector
+import androidx.test.uiautomator.UiObjectNotFoundException
+import androidx.test.uiautomator.UiScrollable
+import androidx.test.uiautomator.UiSelector
 import com.android.compatibility.common.util.SystemUtil
 import com.android.compatibility.common.util.SystemUtil.callWithShellPermissionIdentity
 import com.android.compatibility.common.util.SystemUtil.eventually
@@ -91,12 +91,10 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
 
         const val ALLOW_ALL_BUTTON =
             "com.android.permissioncontroller:id/permission_allow_all_button"
-        const val ALLOW_ALL_SINGLETON_BUTTON =
-            "com.android.permissioncontroller:id/permission_allow_all_singleton_button"
         const val SELECT_BUTTON =
             "com.android.permissioncontroller:id/permission_allow_selected_button"
-        const val SELECT_MORE_BUTTON =
-            "com.android.permissioncontroller:id/permission_allow_more_selected_button"
+        const val DONT_SELECT_MORE_BUTTON =
+            "com.android.permissioncontroller:id/permission_dont_allow_more_selected_button"
         const val ALLOW_BUTTON =
                 "com.android.permissioncontroller:id/permission_allow_button"
         const val ALLOW_FOREGROUND_BUTTON =
@@ -117,8 +115,8 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                 "com.android.permissioncontroller:id/allow_foreground_only_radio_button"
         const val ASK_RADIO_BUTTON = "com.android.permissioncontroller:id/ask_radio_button"
         const val DENY_RADIO_BUTTON = "com.android.permissioncontroller:id/deny_radio_button"
-        const val SELECT_PHOTOS_RADIO_BUTTON =
-            "com.android.permissioncontroller:id/select_photos_radio_button"
+        const val SELECT_RADIO_BUTTON =
+            "com.android.permissioncontroller:id/select_radio_button"
 
         const val NOTIF_TEXT = "permgrouprequest_notifications"
         const val ALLOW_BUTTON_TEXT = "grant_dialog_button_allow"
@@ -209,6 +207,7 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         @JvmStatic
         protected fun isPhotoPickerPermissionPromptEnabled(): Boolean {
             return SdkLevel.isAtLeastU() &&
+                    !isTv && !isAutomotive && !isWatch &&
                 callWithShellPermissionIdentity {
                     DeviceConfig.getBoolean(
                         DeviceConfig.NAMESPACE_PRIVACY, PICKER_ENABLED_SETTING, true)

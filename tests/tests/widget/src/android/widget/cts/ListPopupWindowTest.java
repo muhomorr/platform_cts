@@ -79,6 +79,8 @@ import java.util.concurrent.TimeUnit;
 @LargeTest
 @RunWith(AndroidJUnit4.class)
 public class ListPopupWindowTest {
+    private final CtsTouchUtils mCtsTouchUtils = new CtsTouchUtils();
+
     private Instrumentation mInstrumentation;
     private Activity mActivity;
     private Builder mPopupWindowBuilder;
@@ -500,7 +502,7 @@ public class ListPopupWindowTest {
         final ListView popupListView = mPopupWindow.getListView();
         final Rect rect = new Rect();
         mPopupWindow.getBackground().getPadding(rect);
-        CtsTouchUtils.emulateTapOnView(instrumentation, mActivityRule, popupListView,
+        mCtsTouchUtils.emulateTapOnView(instrumentation, mActivityRule, popupListView,
                 -rect.left - 20, popupListView.getHeight() / 2);
 
         // At this point our popup should not be showing and should have notified its
@@ -914,8 +916,8 @@ public class ListPopupWindowTest {
         int swipeAmount = 2 * popupRowHeight;
 
         // Emulate drag-down gesture with a sequence of motion events
-        CtsTouchUtils.emulateDragGesture(mInstrumentation, mActivityRule, emulatedX, emulatedStartY,
-                0, swipeAmount);
+        mCtsTouchUtils.emulateDragGesture(mInstrumentation, mActivityRule, emulatedX,
+                emulatedStartY, /* dragAmountX= */ 0, swipeAmount);
 
         // We expect the swipe / drag gesture to result in clicking the second item in our list.
         verify(mPopupWindowBuilder.mOnItemClickListener, times(1)).onItemClick(

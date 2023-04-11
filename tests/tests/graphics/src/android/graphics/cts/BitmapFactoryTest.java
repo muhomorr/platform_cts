@@ -34,6 +34,7 @@ import android.graphics.Bitmap.Config;
 import android.graphics.BitmapFactory;
 import android.graphics.BitmapFactory.Options;
 import android.graphics.Color;
+import android.graphics.ImageDecoder;
 import android.graphics.Rect;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
@@ -100,12 +101,14 @@ public class BitmapFactoryTest {
                 new TestImage(R.drawable.png_test, 640, 480),
                 new TestImage(R.drawable.gif_test, 320, 240),
                 new TestImage(R.drawable.bmp_test, 320, 240),
-                new TestImage(R.drawable.webp_test, 640, 480),
-                new TestImage(R.raw.avif_yuv_420_8bit, 120, 160)
+                new TestImage(R.drawable.webp_test, 640, 480)
         }));
         if (MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
             // HEIF support is optional when HEVC decoder is not supported.
             testImages.add(new TestImage(R.raw.heifwriter_input, 1920, 1080));
+        }
+        if (ImageDecoder.isMimeTypeSupported("image/avif")) {
+            testImages.add(new TestImage(R.raw.avif_yuv_420_8bit, 120, 160));
         }
         return testImages.toArray(new Object[] {});
     }
@@ -1042,6 +1045,9 @@ public class BitmapFactoryTest {
     @Test
     @RequiresDevice
     public void testDecode10BitAVIFTo10BitBitmap() {
+        assumeTrue("AVIF is not supported on this device, skip this test.",
+                ImageDecoder.isMimeTypeSupported("image/avif"));
+
         BitmapFactory.Options opt = new BitmapFactory.Options();
         opt.inPreferredConfig = Config.RGBA_1010102;
         Bitmap bm = BitmapFactory.decodeStream(
@@ -1091,6 +1097,9 @@ public class BitmapFactoryTest {
     @Test
     @RequiresDevice
     public void testDecode10BitAVIFTo8BitBitmap() {
+        assumeTrue("AVIF is not supported on this device, skip this test.",
+                ImageDecoder.isMimeTypeSupported("image/avif"));
+
         BitmapFactory.Options opt = new BitmapFactory.Options();
         opt.inPreferredConfig = Config.ARGB_8888;
         Bitmap bm1 =
@@ -1130,6 +1139,9 @@ public class BitmapFactoryTest {
     @Test
     @RequiresDevice
     public void testDecode8BitAVIFTo10BitBitmap() {
+        assumeTrue("AVIF is not supported on this device, skip this test.",
+                ImageDecoder.isMimeTypeSupported("image/avif"));
+
         BitmapFactory.Options opt = new BitmapFactory.Options();
         opt.inPreferredConfig = Config.RGBA_1010102;
         Bitmap bm1 =

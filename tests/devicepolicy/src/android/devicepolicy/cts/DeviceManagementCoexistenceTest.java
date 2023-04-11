@@ -19,6 +19,7 @@ package android.devicepolicy.cts;
 import static android.Manifest.permission.READ_CALENDAR;
 import static android.app.admin.DevicePolicyIdentifiers.APPLICATION_RESTRICTIONS_POLICY;
 import static android.app.admin.DevicePolicyIdentifiers.AUTO_TIMEZONE_POLICY;
+import static android.app.admin.DevicePolicyIdentifiers.KEYGUARD_DISABLED_FEATURES_POLICY;
 import static android.app.admin.DevicePolicyIdentifiers.LOCK_TASK_POLICY;
 import static android.app.admin.DevicePolicyIdentifiers.PACKAGE_UNINSTALL_BLOCKED_POLICY;
 import static android.app.admin.DevicePolicyIdentifiers.PERMISSION_GRANT_POLICY;
@@ -27,9 +28,12 @@ import static android.app.admin.DevicePolicyIdentifiers.RESET_PASSWORD_TOKEN_POL
 import static android.app.admin.DevicePolicyIdentifiers.USER_CONTROL_DISABLED_PACKAGES_POLICY;
 import static android.app.admin.DevicePolicyIdentifiers.getIdentifierForUserRestriction;
 import static android.app.admin.DevicePolicyManager.LOCK_TASK_FEATURE_HOME;
+import static android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_FEATURES_NONE;
+import static android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_SECURE_CAMERA;
 import static android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT;
 import static android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED;
 import static android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED;
+import static android.app.admin.FlagUnion.FLAG_UNION;
 import static android.app.admin.TargetUser.GLOBAL_USER_ID;
 import static android.app.admin.TargetUser.LOCAL_USER_ID;
 import static android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS;
@@ -42,6 +46,7 @@ import static org.junit.Assert.fail;
 import android.app.admin.DevicePolicyState;
 import android.app.admin.DpcAuthority;
 import android.app.admin.EnforcingAdmin;
+import android.app.admin.FlagUnion;
 import android.app.admin.IntentFilterPolicyKey;
 import android.app.admin.LockTaskPolicy;
 import android.app.admin.MostRestrictive;
@@ -80,6 +85,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -109,6 +115,7 @@ public final class DeviceManagementCoexistenceTest {
 
     private static final int LOCK_TASK_FEATURES = LOCK_TASK_FEATURE_HOME;
 
+    private static final int KEYGUARD_DISABLED_FEATURE = KEYGUARD_DISABLE_SECURE_CAMERA;
     private static final TestApp sTestApp = sDeviceState.testApps().any();
 
     private static TestAppInstance sTestAppInstance = sTestApp.install();
@@ -314,9 +321,9 @@ public final class DeviceManagementCoexistenceTest {
         }
     }
 
-    // If ResetPasswordWithTokenTest for managed profile is executed before device owner and
-    // primary user profile owner tests, password reset token would have been disabled for the
-    // primary user, disabling this test until this gets fixed.
+    @Ignore("If ResetPasswordWithTokenTest for managed profile is executed before device owner "
+            + "and primary user profile owner tests, password reset token would have been disabled "
+            + "for the primary user, disabling this test until this gets fixed.")
     @Test
     @EnsureHasDevicePolicyManagerRoleHolder
     @EnsureHasDeviceOwner
@@ -393,6 +400,27 @@ public final class DeviceManagementCoexistenceTest {
                 sDeviceState.dpc().devicePolicyManager().clearUserRestriction(
                         sDeviceState.dpc().componentName(), GLOBAL_USER_RESTRICTION);
             }
+        }
+    }
+
+    @Test
+    @EnsureHasDevicePolicyManagerRoleHolder
+    @EnsureHasDeviceOwner
+    @Postsubmit(reason = "new test")
+    public void getDevicePolicyState_setKeyguardDisabledFeatures_returnsPolicy() {
+        try {
+            sDeviceState.dpc().devicePolicyManager().setKeyguardDisabledFeatures(
+                    sDeviceState.dpc().componentName(), KEYGUARD_DISABLED_FEATURE);
+
+            PolicyState<Integer> policyState = getIntegerPolicyState(
+                    new NoArgsPolicyKey(
+                            KEYGUARD_DISABLED_FEATURES_POLICY),
+                    sDeviceState.dpc().user().userHandle());
+
+            assertThat(policyState.getCurrentResolvedPolicy()).isEqualTo(KEYGUARD_DISABLED_FEATURE);
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setKeyguardDisabledFeatures(
+                    sDeviceState.dpc().componentName(), KEYGUARD_DISABLE_FEATURES_NONE);
         }
     }
 
@@ -585,6 +613,27 @@ public final class DeviceManagementCoexistenceTest {
                 sDeviceState.dpc().devicePolicyManager().clearUserRestriction(
                         sDeviceState.dpc().componentName(), LOCAL_USER_RESTRICTION);
             }
+        }
+    }
+
+    @Test
+    @EnsureHasDevicePolicyManagerRoleHolder
+    @EnsureHasDeviceOwner
+    @Postsubmit(reason = "new test")
+    public void getDevicePolicyState_setKeyguardDisabledFeatures_returnsCorrectResolutionMechanism() {
+        try {
+            sDeviceState.dpc().devicePolicyManager().setKeyguardDisabledFeatures(
+                    sDeviceState.dpc().componentName(), KEYGUARD_DISABLED_FEATURE);
+
+            PolicyState<Integer> policyState = getIntegerPolicyState(
+                    new NoArgsPolicyKey(
+                            KEYGUARD_DISABLED_FEATURES_POLICY),
+                    sDeviceState.dpc().user().userHandle());
+
+            assertThat(getFlagUnionMechanism(policyState)).isEqualTo(FLAG_UNION);
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setKeyguardDisabledFeatures(
+                    sDeviceState.dpc().componentName(), KEYGUARD_DISABLE_FEATURES_NONE);
         }
     }
 
@@ -811,6 +860,567 @@ public final class DeviceManagementCoexistenceTest {
         }
     }
 
+    @Test
+    @EnsureHasDevicePolicyManagerRoleHolder
+    @EnsureHasDeviceOwner
+    @Postsubmit(reason = "new test")
+    public void policyUpdateReceiver_setKeyguardDisabledFeatures_receivedPolicySetBroadcast() {
+        try {
+            sDeviceState.dpc().devicePolicyManager().setKeyguardDisabledFeatures(
+                    sDeviceState.dpc().componentName(), KEYGUARD_DISABLED_FEATURE);
+
+            PolicySetResultUtils.assertPolicySetResultReceived(
+                    sDeviceState,
+                    KEYGUARD_DISABLED_FEATURES_POLICY,
+                    PolicyUpdateResult.RESULT_POLICY_SET, LOCAL_USER_ID, new Bundle());
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setKeyguardDisabledFeatures(
+                    sDeviceState.dpc().componentName(), KEYGUARD_DISABLE_FEATURES_NONE);
+        }
+    }
+
+    @Ignore("b/277071699: add test API to trigger reloading from disk")
+    @Test
+    @EnsureHasDevicePolicyManagerRoleHolder
+    @EnsureHasDeviceOwner
+    @Postsubmit(reason = "new test")
+    public void autoTimezoneSet_serialisation_loadsPolicy() {
+        try {
+            sDeviceState.dpc().devicePolicyManager().setAutoTimeZoneEnabled(
+                    sDeviceState.dpc().componentName(), true);
+
+            // TODO(b/277071699): Add test API to trigger reloading from disk. Currently I've tested
+            //  this locally by triggering the loading in DPM#getDevicePolicyState in my local
+            //  build.
+
+            PolicyState<Boolean> policyState = getBooleanPolicyState(
+                    new NoArgsPolicyKey(AUTO_TIMEZONE_POLICY),
+                    UserHandle.ALL);
+
+            assertThat(policyState.getCurrentResolvedPolicy()).isTrue();
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setAutoTimeZoneEnabled(
+                    sDeviceState.dpc().componentName(), false);
+        }
+    }
+
+    @Ignore("b/277071699: add test API to trigger reloading from disk")
+    @Test
+    @EnsureHasDevicePolicyManagerRoleHolder
+    @EnsureHasDeviceOwner
+    @Postsubmit(reason = "new test")
+    public void permissionGrantStateSet_serialisation_loadsPolicy() {
+        try {
+            sDeviceState.dpc().devicePolicyManager()
+                    .setPermissionGrantState(
+                            sDeviceState.dpc().componentName(), sTestApp.packageName(),
+                            GRANTABLE_PERMISSION, PERMISSION_GRANT_STATE_GRANTED);
+
+            // TODO(b/277071699): Add test API to trigger reloading from disk. Currently I've tested
+            //  this locally by triggering the loading in DPM#getDevicePolicyState in my local
+            //  build.
+
+            PolicyState<Integer> policyState = getIntegerPolicyState(
+                    new PackagePermissionPolicyKey(
+                            PERMISSION_GRANT_POLICY,
+                            sTestApp.packageName(),
+                            GRANTABLE_PERMISSION),
+                    sDeviceState.dpc().user().userHandle());
+
+            assertThat(policyState.getCurrentResolvedPolicy()).isEqualTo(
+                    PERMISSION_GRANT_STATE_GRANTED);
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setPermissionGrantState(
+                    sDeviceState.dpc().componentName(), sTestApp.packageName(),
+                    GRANTABLE_PERMISSION, PERMISSION_GRANT_STATE_DEFAULT);
+        }
+    }
+
+    @Ignore("b/277071699: add test API to trigger reloading from disk")
+    @Test
+    @EnsureHasDevicePolicyManagerRoleHolder
+    @EnsureHasDeviceOwner
+    @Postsubmit(reason = "new test")
+    public void lockTaskPolicySet_serialisation_loadsPolicy() {
+        try {
+            sDeviceState.dpc().devicePolicyManager()
+                    .setLockTaskPackages(
+                            sDeviceState.dpc().componentName(), new String[]{PACKAGE_NAME});
+            sDeviceState.dpc().devicePolicyManager()
+                    .setLockTaskFeatures(sDeviceState.dpc().componentName(), LOCK_TASK_FEATURES);
+
+            // TODO(b/277071699): Add test API to trigger reloading from disk. Currently I've tested
+            //  this locally by triggering the loading in DPM#getDevicePolicyState in my local
+            //  build.
+
+            PolicyState<LockTaskPolicy> policyState = getLockTaskPolicyState(
+                    new NoArgsPolicyKey(LOCK_TASK_POLICY),
+                    sDeviceState.dpc().user().userHandle());
+
+            assertThat(policyState.getCurrentResolvedPolicy().getPackages())
+                    .containsExactly(PACKAGE_NAME);
+            assertThat(policyState.getCurrentResolvedPolicy().getFlags())
+                    .isEqualTo(LOCK_TASK_FEATURES);
+        } finally {
+            sDeviceState.dpc().devicePolicyManager()
+                    .setLockTaskPackages(sDeviceState.dpc().componentName(), new String[]{});
+        }
+    }
+
+    @Ignore("b/277071699: add test API to trigger reloading from disk")
+    @Test
+    @EnsureHasDevicePolicyManagerRoleHolder
+    @EnsureHasDeviceOwner
+    @Postsubmit(reason = "new test")
+    public void userControlDisabledPackagesSet_serialisation_loadsPolicy() {
+        try {
+            sDeviceState.dpc().devicePolicyManager().setUserControlDisabledPackages(
+                    sDeviceState.dpc().componentName(),
+                    Arrays.asList(sTestApp.packageName()));
+
+            // TODO(b/277071699): Add test API to trigger reloading from disk. Currently I've tested
+            //  this locally by triggering the loading in DPM#getDevicePolicyState in my local
+            //  build.
+
+            PolicyState<Set<String>> policyState = getStringSetPolicyState(
+                    new NoArgsPolicyKey(USER_CONTROL_DISABLED_PACKAGES_POLICY),
+                    UserHandle.ALL);
+
+            assertThat(policyState.getCurrentResolvedPolicy()).containsExactly(
+                    sTestApp.packageName());
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setUserControlDisabledPackages(
+                    sDeviceState.dpc().componentName(),
+                    new ArrayList<>());
+        }
+    }
+
+    @Ignore("b/277071699: add test API to trigger reloading from disk")
+    @Test
+    @EnsureHasDevicePolicyManagerRoleHolder
+    @EnsureHasDeviceOwner
+    @Postsubmit(reason = "new test")
+    public void uninstallBlockedSet_serialisation_loadsPolicy() {
+        try {
+            sDeviceState.dpc().devicePolicyManager().setUninstallBlocked(
+                    sDeviceState.dpc().componentName(),
+                    sTestApp.packageName(), /* uninstallBlocked= */ true);
+
+            // TODO(b/277071699): Add test API to trigger reloading from disk. Currently I've tested
+            //  this locally by triggering the loading in DPM#getDevicePolicyState in my local
+            //  build.
+
+            PolicyState<Boolean> policyState = getBooleanPolicyState(
+                    new PackagePolicyKey(
+                            PACKAGE_UNINSTALL_BLOCKED_POLICY,
+                            sTestApp.packageName()),
+                    sDeviceState.dpc().user().userHandle());
+
+            assertThat(policyState.getCurrentResolvedPolicy()).isTrue();
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setUninstallBlocked(
+                    sDeviceState.dpc().componentName(),
+                    sTestApp.packageName(), /* uninstallBlocked= */ false);
+        }
+    }
+
+    @Ignore("b/277071699: add test API to trigger reloading from disk")
+    @Test
+    @EnsureHasDevicePolicyManagerRoleHolder
+    @EnsureHasDeviceOwner
+    @Postsubmit(reason = "new test")
+    public void persistentPreferredActivitySet_serialisation_loadsPolicy() {
+        try {
+            IntentFilter intentFilter = new IntentFilter(Intent.ACTION_MAIN);
+            sDeviceState.dpc().devicePolicyManager().addPersistentPreferredActivity(
+                    sDeviceState.dpc().componentName(),
+                    intentFilter,
+                    sDeviceState.dpc().componentName());
+
+            // TODO(b/277071699): Add test API to trigger reloading from disk. Currently I've tested
+            //  this locally by triggering the loading in DPM#getDevicePolicyState in my local
+            //  build.
+
+            PolicyState<ComponentName> policyState = getComponentNamePolicyState(
+                    new IntentFilterPolicyKey(
+                            PERSISTENT_PREFERRED_ACTIVITY_POLICY,
+                            intentFilter),
+                    sDeviceState.dpc().user().userHandle());
+
+            assertThat(policyState.getCurrentResolvedPolicy()).isEqualTo(
+                    sDeviceState.dpc().componentName());
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().clearPackagePersistentPreferredActivities(
+                    sDeviceState.dpc().componentName(),
+                    sDeviceState.dpc().packageName());
+        }
+    }
+
+    @Ignore("b/277071699: add test API to trigger reloading from disk")
+    @Test
+    @EnsureHasDevicePolicyManagerRoleHolder
+    @EnsureHasDeviceOwner
+    @Postsubmit(reason = "new test")
+    public void appRestrictionsSet_serialisation_loadsPolicy() {
+        Bundle bundle = BundleUtils.createBundle(
+                "appRestrictionsSet_serialisation_loadsPolicy");
+        try {
+            sDeviceState.dpc().devicePolicyManager()
+                    .setApplicationRestrictions(
+                            sDeviceState.dpc().componentName(), sTestApp.packageName(),
+                            bundle);
+
+            // TODO(b/277071699): Add test API to trigger reloading from disk. Currently I've tested
+            //  this locally by triggering the loading in DPM#getDevicePolicyState in my local
+            //  build.
+
+            PolicyState<Bundle> policyState = getBundlePolicyState(
+                    new PackagePolicyKey(
+                            APPLICATION_RESTRICTIONS_POLICY,
+                            sTestApp.packageName()),
+                    sDeviceState.dpc().user().userHandle());
+
+            // app restrictions is a non-coexistable policy, so should not have a resolved policy.
+            assertThat(policyState.getCurrentResolvedPolicy()).isNull();
+            Bundle returnedBundle = policyState.getPoliciesSetByAdmins().get(
+                    new EnforcingAdmin(sDeviceState.dpc().packageName(),
+                            DpcAuthority.DPC_AUTHORITY,
+                            sDeviceState.dpc().user().userHandle()));
+            assertThat(returnedBundle).isNotNull();
+            BundleUtils.assertEqualToBundle(
+                    "appRestrictionsSet_serialisation_loadsPolicy",
+                    returnedBundle);
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setApplicationRestrictions(
+                    sDeviceState.dpc().componentName(),
+                    sTestApp.packageName(), new Bundle());
+        }
+    }
+
+    @Ignore("If ResetPasswordWithTokenTest for managed profile is executed before device owner " +
+            "and primary user profile owner tests, password reset token would have been " +
+            "disabled for the primary user, disabling this test until this gets fixed.")
+    @Test
+    @EnsureHasDevicePolicyManagerRoleHolder
+    @EnsureHasDeviceOwner
+    @Postsubmit(reason = "new test")
+    public void resetPasswordTokenSet_serialisation_loadsPolicy() {
+        try {
+            sDeviceState.dpc().devicePolicyManager().setResetPasswordToken(
+                    sDeviceState.dpc().componentName(), TOKEN);
+
+            PolicyState<Long> policyState = getLongPolicyState(
+                    new NoArgsPolicyKey(RESET_PASSWORD_TOKEN_POLICY),
+                    sDeviceState.dpc().user().userHandle());
+
+            // TODO(b/277071699): Add test API to trigger reloading from disk. Currently I've tested
+            //  this locally by triggering the loading in DPM#getDevicePolicyState in my local
+            //  build.
+
+            // reset password token is a non-coexistable policy, so should not have a resolved
+            // policy.
+            assertThat(policyState.getCurrentResolvedPolicy()).isNull();
+            Long token = policyState.getPoliciesSetByAdmins().get(
+                    new EnforcingAdmin(sDeviceState.dpc().packageName(),
+                            DpcAuthority.DPC_AUTHORITY,
+                            sDeviceState.dpc().user().userHandle()));
+            assertThat(token).isNotNull();
+            assertThat(token).isNotEqualTo(0);
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().clearResetPasswordToken(
+                    sDeviceState.dpc().componentName());
+        }
+    }
+
+    @Ignore("b/277071699: add test API to trigger reloading from disk")
+    @Test
+    @EnsureHasDevicePolicyManagerRoleHolder
+    @EnsureHasDeviceOwner
+    @Postsubmit(reason = "new test")
+    public void addUserRestriction_serialisation_loadsPolicy() {
+        try {
+            sDeviceState.dpc().devicePolicyManager().addUserRestriction(
+                    sDeviceState.dpc().componentName(), LOCAL_USER_RESTRICTION);
+
+            // TODO(b/277071699): Add test API to trigger reloading from disk. Currently I've tested
+            //  this locally by triggering the loading in DPM#getDevicePolicyState in my local
+            //  build.
+
+            PolicyState<Boolean> policyState = getBooleanPolicyState(
+                    new UserRestrictionPolicyKey(
+                            getIdentifierForUserRestriction(LOCAL_USER_RESTRICTION),
+                            LOCAL_USER_RESTRICTION),
+                    sDeviceState.dpc().user().userHandle());
+
+            assertThat(policyState.getCurrentResolvedPolicy()).isTrue();
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().clearUserRestriction(
+                    sDeviceState.dpc().componentName(), LOCAL_USER_RESTRICTION);
+        }
+    }
+
+    @Ignore("b/277071699: add test API to trigger reloading from disk")
+    @Test
+    @EnsureHasDevicePolicyManagerRoleHolder
+    @EnsureHasDeviceOwner
+    @Postsubmit(reason = "new test")
+    public void addUserRestrictionGlobally_serialisation_loadsPolicy() {
+        try {
+            sDeviceState.dpc().devicePolicyManager().addUserRestrictionGlobally(
+                    GLOBAL_USER_RESTRICTION);
+
+            // TODO(b/277071699): Add test API to trigger reloading from disk. Currently I've tested
+            //  this locally by triggering the loading in DPM#getDevicePolicyState in my local
+            //  build.
+
+            PolicyState<Boolean> policyState = getBooleanPolicyState(
+                    new UserRestrictionPolicyKey(
+                            getIdentifierForUserRestriction(GLOBAL_USER_RESTRICTION),
+                            GLOBAL_USER_RESTRICTION),
+                    UserHandle.ALL);
+
+            assertThat(policyState.getCurrentResolvedPolicy()).isTrue();
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().clearUserRestriction(
+                    sDeviceState.dpc().componentName(), GLOBAL_USER_RESTRICTION);
+        }
+    }
+
+    @Ignore("b/277071699: add test API to trigger reloading from disk")
+    @Test
+    @EnsureHasDevicePolicyManagerRoleHolder
+    @EnsureHasDeviceOwner
+    @Postsubmit(reason = "new test")
+    public void setKeyguardDisabledFeatures_serialisation_loadsPolicy() {
+        try {
+            sDeviceState.dpc().devicePolicyManager().setKeyguardDisabledFeatures(
+                    sDeviceState.dpc().componentName(), KEYGUARD_DISABLED_FEATURE);
+
+            // TODO(b/277071699): Add test API to trigger reloading from disk. Currently I've tested
+            //  this locally by triggering the loading in DPM#getDevicePolicyState in my local
+            //  build.
+
+            PolicyState<Integer> policyState = getIntegerPolicyState(
+                    new NoArgsPolicyKey(
+                            KEYGUARD_DISABLED_FEATURES_POLICY),
+                    sDeviceState.dpc().user().userHandle());
+
+            assertThat(policyState.getCurrentResolvedPolicy()).isEqualTo(KEYGUARD_DISABLED_FEATURE);
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setKeyguardDisabledFeatures(
+                    sDeviceState.dpc().componentName(), KEYGUARD_DISABLE_FEATURES_NONE);
+        }
+    }
+
+    @Ignore("b/277071699: add test API to trigger reloading from disk")
+    @Test
+    @EnsureHasDevicePolicyManagerRoleHolder
+    @EnsureHasDeviceOwner
+    @Postsubmit(reason = "new test")
+    public void multiplePoliciesSet_serialisation_loadsPolicies() {
+        try {
+            // Policy Setting
+            sDeviceState.dpc().devicePolicyManager().setAutoTimeZoneEnabled(
+                    sDeviceState.dpc().componentName(), true);
+
+            sDeviceState.dpc().devicePolicyManager()
+                    .setPermissionGrantState(
+                            sDeviceState.dpc().componentName(), sTestApp.packageName(),
+                            GRANTABLE_PERMISSION, PERMISSION_GRANT_STATE_GRANTED);
+
+            sDeviceState.dpc().devicePolicyManager()
+                    .setLockTaskPackages(
+                            sDeviceState.dpc().componentName(), new String[]{PACKAGE_NAME});
+            sDeviceState.dpc().devicePolicyManager()
+                    .setLockTaskFeatures(sDeviceState.dpc().componentName(), LOCK_TASK_FEATURES);
+
+            sDeviceState.dpc().devicePolicyManager().setUserControlDisabledPackages(
+                    sDeviceState.dpc().componentName(),
+                    Arrays.asList(sTestApp.packageName()));
+
+            sDeviceState.dpc().devicePolicyManager().setUninstallBlocked(
+                    sDeviceState.dpc().componentName(),
+                    sTestApp.packageName(), /* uninstallBlocked= */ true);
+
+            sDeviceState.dpc().devicePolicyManager().setResetPasswordToken(
+                    sDeviceState.dpc().componentName(), TOKEN);
+
+            sDeviceState.dpc().devicePolicyManager().addUserRestriction(
+                    sDeviceState.dpc().componentName(), LOCAL_USER_RESTRICTION);
+
+            sDeviceState.dpc().devicePolicyManager().addUserRestrictionGlobally(
+                    GLOBAL_USER_RESTRICTION);
+
+            sDeviceState.dpc().devicePolicyManager().setKeyguardDisabledFeatures(
+                    sDeviceState.dpc().componentName(), KEYGUARD_DISABLED_FEATURE);
+
+            IntentFilter intentFilter = new IntentFilter(Intent.ACTION_MAIN);
+            sDeviceState.dpc().devicePolicyManager().addPersistentPreferredActivity(
+                    sDeviceState.dpc().componentName(),
+                    intentFilter,
+                    sDeviceState.dpc().componentName());
+
+            Bundle bundle = BundleUtils.createBundle(
+                    "appRestrictionsSet_serialisation_loadsPolicy");
+            sDeviceState.dpc().devicePolicyManager()
+                    .setApplicationRestrictions(
+                            sDeviceState.dpc().componentName(), sTestApp.packageName(),
+                            bundle);
+
+            // Reloading policies from disk
+            // TODO(b/277071699): Add test API to trigger reloading from disk. Currently I've tested
+            //  this locally by triggering the loading in DPM#getDevicePolicyState in my local
+            //  build.
+
+            // Getting policy states
+            PolicyState<Boolean> autoTimezonePolicy = getBooleanPolicyState(
+                    new NoArgsPolicyKey(AUTO_TIMEZONE_POLICY),
+                    UserHandle.ALL);
+
+            PolicyState<Integer> permissionGrantStatePolicy = getIntegerPolicyState(
+                    new PackagePermissionPolicyKey(
+                            PERMISSION_GRANT_POLICY,
+                            sTestApp.packageName(),
+                            GRANTABLE_PERMISSION),
+                    sDeviceState.dpc().user().userHandle());
+
+            PolicyState<LockTaskPolicy> lockTaskPolicy = getLockTaskPolicyState(
+                    new NoArgsPolicyKey(LOCK_TASK_POLICY),
+                    sDeviceState.dpc().user().userHandle());
+
+            PolicyState<Set<String>> userControlDisabledPackagesPolicy = getStringSetPolicyState(
+                    new NoArgsPolicyKey(USER_CONTROL_DISABLED_PACKAGES_POLICY),
+                    UserHandle.ALL);
+
+            PolicyState<Boolean> packageUninstallBlockedPolicy = getBooleanPolicyState(
+                    new PackagePolicyKey(
+                            PACKAGE_UNINSTALL_BLOCKED_POLICY,
+                            sTestApp.packageName()),
+                    sDeviceState.dpc().user().userHandle());
+
+            PolicyState<Long> resetPasswordTokenPolicy = getLongPolicyState(
+                    new NoArgsPolicyKey(RESET_PASSWORD_TOKEN_POLICY),
+                    sDeviceState.dpc().user().userHandle());
+
+            PolicyState<Boolean> userRestrictionPolicy = getBooleanPolicyState(
+                    new UserRestrictionPolicyKey(
+                            getIdentifierForUserRestriction(LOCAL_USER_RESTRICTION),
+                            LOCAL_USER_RESTRICTION),
+                    sDeviceState.dpc().user().userHandle());
+
+            PolicyState<Boolean> globalUserRestrictionPolicy = getBooleanPolicyState(
+                    new UserRestrictionPolicyKey(
+                            getIdentifierForUserRestriction(GLOBAL_USER_RESTRICTION),
+                            GLOBAL_USER_RESTRICTION),
+                    UserHandle.ALL);
+
+            PolicyState<Integer> keyguardDisabledPolicy = getIntegerPolicyState(
+                    new NoArgsPolicyKey(
+                            KEYGUARD_DISABLED_FEATURES_POLICY),
+                    sDeviceState.dpc().user().userHandle());
+
+            PolicyState<ComponentName> persistentPreferredActivityPolicy =
+                    getComponentNamePolicyState(
+                            new IntentFilterPolicyKey(
+                                    PERSISTENT_PREFERRED_ACTIVITY_POLICY,
+                                    intentFilter),
+                            sDeviceState.dpc().user().userHandle());
+
+            PolicyState<Bundle> applicationRestrictionsPolicy = getBundlePolicyState(
+                    new PackagePolicyKey(
+                            APPLICATION_RESTRICTIONS_POLICY,
+                            sTestApp.packageName()),
+                    sDeviceState.dpc().user().userHandle());
+
+
+            // Asserting policies loaded correctly
+            assertThat(autoTimezonePolicy.getCurrentResolvedPolicy()).isTrue();
+
+            assertThat(permissionGrantStatePolicy.getCurrentResolvedPolicy()).isEqualTo(
+                    PERMISSION_GRANT_STATE_GRANTED);
+
+            assertThat(lockTaskPolicy.getCurrentResolvedPolicy().getPackages())
+                    .containsExactly(PACKAGE_NAME);
+            assertThat(lockTaskPolicy.getCurrentResolvedPolicy().getFlags())
+                    .isEqualTo(LOCK_TASK_FEATURES);
+
+            assertThat(userControlDisabledPackagesPolicy.getCurrentResolvedPolicy())
+                    .containsExactly(sTestApp.packageName());
+
+            assertThat(packageUninstallBlockedPolicy.getCurrentResolvedPolicy()).isTrue();
+
+            // reset password token is a non-coexistable policy, so should not have a resolved
+            // policy.
+            assertThat(resetPasswordTokenPolicy.getCurrentResolvedPolicy()).isNull();
+            Long token = resetPasswordTokenPolicy.getPoliciesSetByAdmins().get(
+                    new EnforcingAdmin(sDeviceState.dpc().packageName(),
+                            DpcAuthority.DPC_AUTHORITY,
+                            sDeviceState.dpc().user().userHandle()));
+            assertThat(token).isNotNull();
+            assertThat(token).isNotEqualTo(0);
+
+            assertThat(userRestrictionPolicy.getCurrentResolvedPolicy()).isTrue();
+
+            assertThat(globalUserRestrictionPolicy.getCurrentResolvedPolicy()).isTrue();
+
+            assertThat(keyguardDisabledPolicy.getCurrentResolvedPolicy()).isEqualTo(
+                    KEYGUARD_DISABLED_FEATURE);
+
+            assertThat(persistentPreferredActivityPolicy.getCurrentResolvedPolicy()).isEqualTo(
+                    sDeviceState.dpc().componentName());
+
+            // app restrictions is a non-coexistable policy, so should not have a resolved policy.
+            assertThat(applicationRestrictionsPolicy.getCurrentResolvedPolicy()).isNull();
+            Bundle returnedBundle = applicationRestrictionsPolicy.getPoliciesSetByAdmins().get(
+                    new EnforcingAdmin(sDeviceState.dpc().packageName(),
+                            DpcAuthority.DPC_AUTHORITY,
+                            sDeviceState.dpc().user().userHandle()));
+            assertThat(returnedBundle).isNotNull();
+            BundleUtils.assertEqualToBundle(
+                    "appRestrictionsSet_serialisation_loadsPolicy",
+                    returnedBundle);
+
+
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setAutoTimeZoneEnabled(
+                    sDeviceState.dpc().componentName(), false);
+
+            sDeviceState.dpc().devicePolicyManager().setPermissionGrantState(
+                    sDeviceState.dpc().componentName(), sTestApp.packageName(),
+                    GRANTABLE_PERMISSION, PERMISSION_GRANT_STATE_DEFAULT);
+
+            sDeviceState.dpc().devicePolicyManager()
+                    .setLockTaskPackages(sDeviceState.dpc().componentName(), new String[]{});
+
+            sDeviceState.dpc().devicePolicyManager().setUserControlDisabledPackages(
+                    sDeviceState.dpc().componentName(),
+                    new ArrayList<>());
+
+            sDeviceState.dpc().devicePolicyManager().setUninstallBlocked(
+                    sDeviceState.dpc().componentName(),
+                    sTestApp.packageName(), /* uninstallBlocked= */ false);
+
+            sDeviceState.dpc().devicePolicyManager().clearResetPasswordToken(
+                    sDeviceState.dpc().componentName());
+
+            sDeviceState.dpc().devicePolicyManager().clearUserRestriction(
+                    sDeviceState.dpc().componentName(), LOCAL_USER_RESTRICTION);
+
+            sDeviceState.dpc().devicePolicyManager().clearUserRestriction(
+                    sDeviceState.dpc().componentName(), GLOBAL_USER_RESTRICTION);
+
+            sDeviceState.dpc().devicePolicyManager().setKeyguardDisabledFeatures(
+                    sDeviceState.dpc().componentName(), KEYGUARD_DISABLE_FEATURES_NONE);
+            sDeviceState.dpc().devicePolicyManager().clearPackagePersistentPreferredActivities(
+                    sDeviceState.dpc().componentName(),
+                    sDeviceState.dpc().packageName());
+
+            sDeviceState.dpc().devicePolicyManager().setApplicationRestrictions(
+                    sDeviceState.dpc().componentName(),
+                    sTestApp.packageName(), new Bundle());
+        }
+    }
+
     private PolicyState<Long> getLongPolicyState(PolicyKey policyKey, UserHandle user) {
         try {
             DevicePolicyState state =
@@ -915,6 +1525,16 @@ public final class DeviceManagementCoexistenceTest {
             return (TopPriority<?>) policyState.getResolutionMechanism();
         } catch (ClassCastException e) {
             fail("Returned resolution mechanism is not of type TopPriority<>: " + e);
+            return null;
+        }
+    }
+
+    private FlagUnion getFlagUnionMechanism(
+            PolicyState<Integer> policyState) {
+        try {
+            return (FlagUnion) policyState.getResolutionMechanism();
+        } catch (ClassCastException e) {
+            fail("Returned resolution mechanism is not of type FlagUnion: " + e);
             return null;
         }
     }

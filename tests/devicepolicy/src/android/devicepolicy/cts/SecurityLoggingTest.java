@@ -29,13 +29,11 @@ import com.android.bedstead.harrier.annotations.Postsubmit;
 import com.android.bedstead.harrier.annotations.enterprise.CanSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.CannotSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.EnsureHasProfileOwner;
-import com.android.bedstead.harrier.policies.GlobalSecurityLogging;
 import com.android.bedstead.harrier.policies.SecurityLogging;
 import com.android.bedstead.nene.TestApis;
+import com.android.bedstead.nene.exceptions.NeneException;
 import com.android.bedstead.nene.users.UserReference;
 import com.android.compatibility.common.util.ApiTest;
-
-import com.google.common.truth.Truth;
 
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -50,7 +48,7 @@ public final class SecurityLoggingTest {
     @ClassRule @Rule
     public static final DeviceState sDeviceState = new DeviceState();
 
-    @CannotSetPolicyTest(policy = {GlobalSecurityLogging.class, SecurityLogging.class}, includeNonDeviceAdminStates = false)
+    @CannotSetPolicyTest(policy = {SecurityLogging.class})
     @Postsubmit(reason = "new test")
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#setSecurityLoggingEnabled")
     public void setSecurityLoggingEnabled_notPermitted_throwsException() {
@@ -59,7 +57,7 @@ public final class SecurityLoggingTest {
                         sDeviceState.dpc().componentName(), true));
     }
 
-    @CanSetPolicyTest(policy = {GlobalSecurityLogging.class, SecurityLogging.class})
+    @CanSetPolicyTest(policy = {SecurityLogging.class})
     @Postsubmit(reason = "new test")
     @ApiTest(apis = {"android.app.admin.DevicePolicyManager#setSecurityLoggingEnabled",
             "android.app.admin.DevicePolicyManager#isSecurityLoggingEnabled"})
@@ -79,7 +77,7 @@ public final class SecurityLoggingTest {
         }
     }
 
-    @CanSetPolicyTest(policy = {GlobalSecurityLogging.class, SecurityLogging.class})
+    @CanSetPolicyTest(policy = {SecurityLogging.class})
     @Postsubmit(reason = "new test")
     @ApiTest(apis = {"android.app.admin.DevicePolicyManager#setSecurityLoggingEnabled",
             "android.app.admin.DevicePolicyManager#isSecurityLoggingEnabled"})
@@ -99,7 +97,7 @@ public final class SecurityLoggingTest {
         }
     }
 
-    @CannotSetPolicyTest(policy = {GlobalSecurityLogging.class, SecurityLogging.class}, includeNonDeviceAdminStates = false)
+    @CannotSetPolicyTest(policy = {SecurityLogging.class})
     @Postsubmit(reason = "new test")
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#isSecurityLoggingEnabled")
     public void isSecurityLoggingEnabled_notPermitted_throwsException() {
@@ -108,7 +106,7 @@ public final class SecurityLoggingTest {
                         sDeviceState.dpc().componentName()));
     }
 
-    @CannotSetPolicyTest(policy = {GlobalSecurityLogging.class, SecurityLogging.class}, includeNonDeviceAdminStates = false)
+    @CannotSetPolicyTest(policy = {SecurityLogging.class})
     @Postsubmit(reason = "new test")
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#retrieveSecurityLogs")
     public void retrieveSecurityLogs_notPermitted_throwsException() {
@@ -119,7 +117,7 @@ public final class SecurityLoggingTest {
                         sDeviceState.dpc().componentName()));
     }
 
-    @CanSetPolicyTest(policy = {GlobalSecurityLogging.class, SecurityLogging.class})
+    @CanSetPolicyTest(policy = {SecurityLogging.class})
     @Postsubmit(reason = "new test")
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#retrieveSecurityLogs")
     public void retrieveSecurityLogs_returnsSecurityLogs() {
@@ -147,7 +145,7 @@ public final class SecurityLoggingTest {
     // TODO: Add test for rate limiting
     // TODO: Add test for onSecurityLogsAvailable
 
-    @CannotSetPolicyTest(policy = {GlobalSecurityLogging.class, SecurityLogging.class}, includeNonDeviceAdminStates = false)
+    @CannotSetPolicyTest(policy = {SecurityLogging.class})
     @Postsubmit(reason = "new test")
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#retrievePreRebootSecurityLogs")
     public void retrievePreRebootSecurityLogs_notPermitted_throwsException() {
@@ -158,7 +156,7 @@ public final class SecurityLoggingTest {
                         sDeviceState.dpc().componentName()));
     }
 
-    @CanSetPolicyTest(policy = {GlobalSecurityLogging.class, SecurityLogging.class})
+    @CanSetPolicyTest(policy = {SecurityLogging.class})
     @Postsubmit(reason = "new test")
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#retrievePreRebootSecurityLogs")
     public void retrievePreRebootSecurityLogs_doesNotThrow() {
@@ -180,7 +178,7 @@ public final class SecurityLoggingTest {
         }
     }
 
-    @CanSetPolicyTest(policy = GlobalSecurityLogging.class, singleTestOnly = true)
+    @CanSetPolicyTest(policy = SecurityLogging.class, singleTestOnly = true)
     @EnsureHasAdditionalUser
     @EnsureHasProfileOwner(onUser = UserType.ADDITIONAL_USER, affiliationIds = {})
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#retrieveSecurityLogs")
@@ -199,7 +197,7 @@ public final class SecurityLoggingTest {
         }
     }
 
-    @CanSetPolicyTest(policy = {GlobalSecurityLogging.class, SecurityLogging.class})
+    @CanSetPolicyTest(policy = {SecurityLogging.class})
     @EnsureHasAdditionalUser
     @EnsureHasProfileOwner(onUser = UserType.ADDITIONAL_USER, affiliationIds = "affiliated")
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#retrieveSecurityLogs")
@@ -231,7 +229,7 @@ public final class SecurityLoggingTest {
         }
     }
 
-    @CanSetPolicyTest(policy = {GlobalSecurityLogging.class, SecurityLogging.class})
+    @CanSetPolicyTest(policy = {SecurityLogging.class})
     @EnsureHasNoAdditionalUser
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#retrieveSecurityLogs")
     public void retrieveSecurityLogs_noAdditionalUser_doesNotThrowException() {
@@ -249,7 +247,7 @@ public final class SecurityLoggingTest {
         }
     }
 
-    @CanSetPolicyTest(policy = GlobalSecurityLogging.class)
+    @CanSetPolicyTest(policy = SecurityLogging.class)
     @EnsureHasAdditionalUser
     @EnsureHasProfileOwner(onUser = UserType.ADDITIONAL_USER, affiliationIds = {})
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#retrievePreRebootSecurityLogs")
@@ -268,7 +266,7 @@ public final class SecurityLoggingTest {
         }
     }
 
-    @CanSetPolicyTest(policy = {GlobalSecurityLogging.class, SecurityLogging.class})
+    @CanSetPolicyTest(policy = {SecurityLogging.class})
     @EnsureHasAdditionalUser
     @EnsureHasProfileOwner(onUser = UserType.ADDITIONAL_USER, affiliationIds = "affiliated")
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#retrievePreRebootSecurityLogs")
@@ -300,7 +298,7 @@ public final class SecurityLoggingTest {
         }
     }
 
-    @CanSetPolicyTest(policy = {GlobalSecurityLogging.class, SecurityLogging.class})
+    @CanSetPolicyTest(policy = {SecurityLogging.class})
     @EnsureHasNoAdditionalUser
     @ApiTest(apis = "android.app.admin.DevicePolicyManager#retrievePreRebootSecurityLogs")
     public void retrievePreRebootSecurityLogs_noAdditionalUser_doesNotThrowException() {
@@ -320,11 +318,19 @@ public final class SecurityLoggingTest {
 
     private void ensureNoAdditionalUsers() {
         // TODO(273474964): Move into infra
-        TestApis.users().all().stream()
-                .filter(u -> !u.equals(TestApis.users().instrumented())
-                        && !u.equals(TestApis.users().system())
-                        && !u.equals(TestApis.users().current()))
-                .forEach(UserReference::remove);
+        try {
+            TestApis.users().all().stream()
+                    .filter(u -> !u.equals(TestApis.users().instrumented())
+                            && !u.equals(TestApis.users().system())
+                            && !u.equals(TestApis.users().current()))
+                    .forEach(UserReference::remove);
+        } catch (NeneException e) {
+            // Happens when we can't remove a user
+            throw new NeneException("Error when removing user. Instrumented user is "
+                    + TestApis.users().instrumented() + ", current user is "
+                    + TestApis.users().current() + ", system user is "
+                    + TestApis.users().system(), e);
+        }
     }
 
 }
