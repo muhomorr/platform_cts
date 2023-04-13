@@ -21,6 +21,7 @@ import static android.Manifest.permission.BIND_VISUAL_QUERY_DETECTION_SERVICE;
 import static android.Manifest.permission.CAPTURE_AUDIO_HOTWORD;
 import static android.Manifest.permission.MANAGE_HOTWORD_DETECTION;
 import static android.Manifest.permission.RECORD_AUDIO;
+import static android.voiceinteraction.cts.testcore.Helper.WAIT_LONG_TIMEOUT_IN_MS;
 import static android.voiceinteraction.cts.testcore.Helper.WAIT_TIMEOUT_IN_MS;
 
 import static com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity;
@@ -82,6 +83,25 @@ public class CtsBasicVoiceInteractionService extends BaseVoiceInteractionService
         HandlerThread handlerThread = new HandlerThread("CtsBasicVoiceInteractionService");
         handlerThread.start();
         mHandler = Handler.createAsync(handlerThread.getLooper());
+    }
+
+    @Override
+    public void resetState() {
+        super.resetState();
+        mAvailabilityChangeLatch = null;
+        mOnDetectRejectLatch = null;
+        mOnErrorLatch = null;
+        mOnFailureLatch = null;
+        mOnQueryFinishRejectLatch = null;
+        mOnHotwordDetectionServiceRestartedLatch = null;
+        mDetectedResult = null;
+        mRejectedResult = null;
+        mStreamedQueries.clear();
+        mCurrentQuery = "";
+        mHotwordDetectionServiceFailure = null;
+        mSoundTriggerFailure = null;
+        mUnknownFailure = null;
+        mSoftwareOnDetectedCount = 0;
     }
 
     /**
@@ -244,6 +264,7 @@ public class CtsBasicVoiceInteractionService extends BaseVoiceInteractionService
             @Override
             public void onHotwordDetectionServiceRestarted() {
                 Log.i(TAG, "onHotwordDetectionServiceRestarted");
+                setIsDetectorCallbackRunningOnMainThread(isRunningOnMainThread());
                 if (mOnHotwordDetectionServiceRestartedLatch != null) {
                     mOnHotwordDetectionServiceRestartedLatch.countDown();
                 }
@@ -403,6 +424,10 @@ public class CtsBasicVoiceInteractionService extends BaseVoiceInteractionService
             @Override
             public void onHotwordDetectionServiceRestarted() {
                 Log.i(TAG, "onHotwordDetectionServiceRestarted");
+                setIsDetectorCallbackRunningOnMainThread(isRunningOnMainThread());
+                if (mOnHotwordDetectionServiceRestartedLatch != null) {
+                    mOnHotwordDetectionServiceRestartedLatch.countDown();
+                }
             }
         };
 
@@ -493,6 +518,10 @@ public class CtsBasicVoiceInteractionService extends BaseVoiceInteractionService
             @Override
             public void onHotwordDetectionServiceRestarted() {
                 Log.i(TAG, "onHotwordDetectionServiceRestarted");
+                setIsDetectorCallbackRunningOnMainThread(isRunningOnMainThread());
+                if (mOnHotwordDetectionServiceRestartedLatch != null) {
+                    mOnHotwordDetectionServiceRestartedLatch.countDown();
+                }
             }
         };
 
@@ -581,6 +610,10 @@ public class CtsBasicVoiceInteractionService extends BaseVoiceInteractionService
             @Override
             public void onHotwordDetectionServiceRestarted() {
                 Log.i(TAG, "onHotwordDetectionServiceRestarted");
+                setIsDetectorCallbackRunningOnMainThread(isRunningOnMainThread());
+                if (mOnHotwordDetectionServiceRestartedLatch != null) {
+                    mOnHotwordDetectionServiceRestartedLatch.countDown();
+                }
             }
         };
 
@@ -734,6 +767,14 @@ public class CtsBasicVoiceInteractionService extends BaseVoiceInteractionService
     }
 
     /**
+     * Resets the onDetected() and OnRejected() result.
+     */
+    public void resetHotwordServiceOnDetectedAndOnRejectedResult() {
+        mDetectedResult = null;
+        mRejectedResult = null;
+    }
+
+    /**
      * Returns the OnQueryDetected() result.
      */
     public ArrayList<String> getStreamedQueriesResult() {
@@ -747,7 +788,7 @@ public class CtsBasicVoiceInteractionService extends BaseVoiceInteractionService
         Log.d(TAG, "waitOnHotwordDetectionServiceRestartedCalled(), latch="
                 + mOnHotwordDetectionServiceRestartedLatch);
         if (mOnHotwordDetectionServiceRestartedLatch == null
-                || !mOnHotwordDetectionServiceRestartedLatch.await(WAIT_TIMEOUT_IN_MS,
+                || !mOnHotwordDetectionServiceRestartedLatch.await(WAIT_LONG_TIMEOUT_IN_MS,
                 TimeUnit.MILLISECONDS)) {
             mOnHotwordDetectionServiceRestartedLatch = null;
             throw new AssertionError(
