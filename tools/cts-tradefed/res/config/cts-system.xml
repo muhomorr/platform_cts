@@ -15,12 +15,13 @@
 -->
 
 <configuration description="Runs a subset of CTS tests when vendor image is not changed">
-    <option name="plan" value="cts-system" />
-    <option name="result-attribute" key="system" value="1" />
 
     <include name="cts" />
 
-    <!-- dEQP tests to be excluded in this plan-->
+    <option name="plan" value="cts-system" />
+    <option name="result-attribute" key="system" value="1" />
+
+    <!-- dEQP tests to be included in this plan-->
     <option name="compatibility:module-arg" value="CtsDeqpTestCases:include-filter:dEQP-EGL.*" />
     <option name="compatibility:module-arg" value="CtsDeqpTestCases:include-filter:dEQP-VK.wsi.*" />
     <option name="compatibility:module-arg" value="CtsDeqpTestCases:include-filter:dEQP-GLES2.functional.prerequisite#*" />

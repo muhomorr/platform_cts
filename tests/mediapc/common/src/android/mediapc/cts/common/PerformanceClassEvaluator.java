@@ -517,6 +517,32 @@ public class PerformanceClassEvaluator {
         }
 
         /**
+         * [2.2.7.1/5.3/H-1-1] MUST NOT drop more than 1 frame in 10 seconds for a
+         * 4k 60 fps video session under load. Load is defined as a concurrent 1080p to 720p
+         * video-only transcoding session using hardware video codecs, as well as a 128 kbps AAC
+         * audio playback.
+         */
+        public static FrameDropRequirement createR5_3__H_1_1_U() {
+            RequiredMeasurement<Integer> frameDropped = RequiredMeasurement
+                    .<Integer>builder()
+                    .setId(RequirementConstants.FRAMES_DROPPED)
+                    .setPredicate(RequirementConstants.INTEGER_LTE)
+                    // MUST NOT drop more than 1 frame in 10 seconds so 3 frames for 30 seconds
+                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 3)
+                    .build();
+
+            RequiredMeasurement<Double> frameRate = RequiredMeasurement
+                    .<Double>builder()
+                    .setId(RequirementConstants.FRAME_RATE)
+                    .setPredicate(RequirementConstants.DOUBLE_EQ)
+                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 60.0)
+                    .build();
+
+            return new FrameDropRequirement(RequirementConstants.R5_3__H_1_1, frameDropped,
+                    frameRate);
+        }
+
+        /**
          * [2.2.7.1/5.3/H-1-2] MUST NOT drop more than 2(S) / 1(T) frames in 10 seconds during a
          * video resolution change in a 60 fps video session under load. Load is defined as a
          * concurrent 1080p to 720p video-only transcoding session using hardware video codecs,
@@ -590,6 +616,10 @@ public class PerformanceClassEvaluator {
             this.setMeasuredValue(RequirementConstants.NUM_4k_HW_ENC, num4kHwEncoders);
         }
 
+        public void setAVIFDecoderReq(boolean avifDecoderReqSatisfied) {
+            this.setMeasuredValue(RequirementConstants.AVIF_DEC_REQ, avifDecoderReqSatisfied);
+        }
+
         /**
          * [2.2.7.1/5.1/H-1-15] Must have at least 1 HW video decoder supporting 4K60
          */
@@ -630,6 +660,20 @@ public class PerformanceClassEvaluator {
                 .build();
 
             return new VideoCodecRequirement(RequirementConstants.R5_1__H_1_14, requirement);
+        }
+
+        /**
+         * [5.1/H-1-17] MUST have at least 1 Hw image decoder supporting AVIF Baseline profile.
+         */
+        public static VideoCodecRequirement createRAVIFDecoderReq() {
+            RequiredMeasurement<Boolean> requirement = RequiredMeasurement
+                    .<Boolean>builder()
+                    .setId(RequirementConstants.AVIF_DEC_REQ)
+                    .setPredicate(RequirementConstants.BOOLEAN_EQ)
+                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, true)
+                    .build();
+
+            return new VideoCodecRequirement(RequirementConstants.R5_1__H_1_17, requirement);
         }
     }
 
@@ -1643,6 +1687,10 @@ public class PerformanceClassEvaluator {
         return this.addRequirement(FrameDropRequirement.createR5_3__H_1_1_ST());
     }
 
+    public FrameDropRequirement addR5_3__H_1_1_U() {
+        return this.addRequirement(FrameDropRequirement.createR5_3__H_1_1_U());
+    }
+
     public FrameDropRequirement addR5_3__H_1_2_ST() {
         return this.addRequirement(FrameDropRequirement.createR5_3__H_1_2_ST());
     }
@@ -1677,6 +1725,10 @@ public class PerformanceClassEvaluator {
 
     public VideoCodecRequirement addRAV1DecoderReq() {
         return this.addRequirement(VideoCodecRequirement.createRAV1DecoderReq());
+    }
+
+    public VideoCodecRequirement addRAVIFDecoderReq() {
+        return this.addRequirement(VideoCodecRequirement.createRAVIFDecoderReq());
     }
 
     public SecureCodecRequirement addR5_1__H_1_11() {
