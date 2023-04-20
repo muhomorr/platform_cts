@@ -662,6 +662,7 @@
     <string name="ble_write_descriptor_name">Bluetooth LE Write Descriptor</string>
     <string name="ble_read_rssi_name">Bluetooth LE Read RSSI</string>
     <string name="ble_read_phy_name">Bluetooth LE Read PHY</string>
+    <string name="ble_set_preferred_phy_name">Bluetooth LE Set Preferred PHY</string>
     <string name="ble_on_service_changed">Bluetooth LE On Service Changed</string>
     <string name="ble_client_disconnect_name">Bluetooth LE Client Disconnect</string>
     <string name="ble_insecure_client_test_info">
@@ -5778,6 +5779,7 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="audio_tap2tone_too_many">Too many edges. Use fingernail. Ensure there is
     no background noise.</string>
     <string name="audio_tap2tone_bad_streams">Can\'t open streams.</string>
+    <string name="audio_tap2tone_noio">No mic and/or speaker. PASS</string>
 
     <!-- Strings for 6DoF test -->
     <string name="six_dof_test">6DoF Test</string>
