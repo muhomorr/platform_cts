@@ -51,6 +51,7 @@ import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.CddTest;
 
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -97,14 +98,12 @@ public class BluetoothLeBroadcastTest {
     private static final int TEST_REASON = BluetoothStatusCodes.REASON_LOCAL_STACK_REQUEST;
 
     private Context mContext;
-    private boolean mHasBluetooth;
     private BluetoothAdapter mAdapter;
 
     private BluetoothLeBroadcast mBluetoothLeBroadcast;
-    private boolean mIsLeBroadcastSupported;
     private boolean mIsProfileReady;
-    private Condition mConditionProfileIsConnected;
-    private ReentrantLock mProfileConnectedlock;
+    private Condition mConditionProfileConnection;
+    private ReentrantLock mProfileConnectionlock;
 
     private boolean mOnBroadcastStartedCalled = false;
     private boolean mOnBroadcastStartFailedCalled = false;
@@ -182,58 +181,51 @@ public class BluetoothLeBroadcastTest {
     @Before
     public void setUp() {
         mContext = InstrumentationRegistry.getInstrumentation().getContext();
-        if (!ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
-            return;
-        }
-        mHasBluetooth = TestUtils.hasBluetooth();
-        if (!mHasBluetooth) {
-            return;
-        }
+        Assume.assumeTrue(ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU));
+        Assume.assumeTrue(TestUtils.isBleSupported(mContext));
+
         TestUtils.adoptPermissionAsShellUid(BLUETOOTH_CONNECT, BLUETOOTH_PRIVILEGED);
         mAdapter = TestUtils.getBluetoothAdapterOrDie();
         assertTrue(BTAdapterUtils.enableAdapter(mAdapter, mContext));
 
-        mProfileConnectedlock = new ReentrantLock();
-        mConditionProfileIsConnected = mProfileConnectedlock.newCondition();
+        mProfileConnectionlock = new ReentrantLock();
+        mConditionProfileConnection = mProfileConnectionlock.newCondition();
         mIsProfileReady = false;
         mBluetoothLeBroadcast = null;
 
-        mIsLeBroadcastSupported =
-                mAdapter.isLeAudioBroadcastSourceSupported() == FEATURE_SUPPORTED;
-        if (mIsLeBroadcastSupported) {
-            boolean isBroadcastSourceEnabledInConfig =
-                    TestUtils.isProfileEnabled(BluetoothProfile.LE_AUDIO_BROADCAST);
-            assertTrue("Config must be true when profile is supported",
-                    isBroadcastSourceEnabledInConfig);
-        }
-        if (!mIsLeBroadcastSupported) {
-            return;
-        }
+        Assume.assumeTrue(mAdapter.isLeAudioBroadcastSourceSupported() == FEATURE_SUPPORTED);
+        assertTrue("Config must be true when profile is supported",
+                TestUtils.isProfileEnabled(BluetoothProfile.LE_AUDIO_BROADCAST));
 
-        mIsLeBroadcastSupported = mAdapter.getProfileProxy(mContext, new ServiceListener(),
-                BluetoothProfile.LE_AUDIO_BROADCAST);
         assertTrue("Profile proxy should be accessible when profile is supported",
-                mIsLeBroadcastSupported);
+                mAdapter.getProfileProxy(mContext, new ServiceListener(),
+                        BluetoothProfile.LE_AUDIO_BROADCAST));
     }
 
     @After
     public void tearDown() {
-        if (mHasBluetooth) {
-            if (mBluetoothLeBroadcast != null) {
-                mBluetoothLeBroadcast.close();
-                mBluetoothLeBroadcast = null;
-                mIsProfileReady = false;
-            }
-            mAdapter = null;
-            TestUtils.dropPermissionAsShellUid();
+        if (mBluetoothLeBroadcast != null) {
+            mBluetoothLeBroadcast.close();
+            mBluetoothLeBroadcast = null;
+            mIsProfileReady = false;
         }
+        mAdapter = null;
+        TestUtils.dropPermissionAsShellUid();
+    }
+
+    @Test
+    public void testCloseProfileProxy() {
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mBluetoothLeBroadcast);
+        assertTrue(mIsProfileReady);
+
+        mAdapter.closeProfileProxy(BluetoothProfile.LE_AUDIO_BROADCAST, mBluetoothLeBroadcast);
+        assertTrue(waitForProfileDisconnect());
+        assertFalse(mIsProfileReady);
     }
 
     @Test
     public void testGetConnectedDevices() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -246,9 +238,6 @@ public class BluetoothLeBroadcastTest {
 
     @Test
     public void testGetDevicesMatchingConnectionStates() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -261,10 +250,6 @@ public class BluetoothLeBroadcastTest {
 
     @Test
     public void testGetConnectionState() {
-        if (shouldSkipTest()) {
-            return;
-        }
-
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -274,23 +259,7 @@ public class BluetoothLeBroadcastTest {
     }
 
     @Test
-    public void testProfileSupportLogic() {
-        if (!mHasBluetooth) {
-            return;
-        }
-        if (mAdapter.isLeAudioBroadcastSourceSupported()
-                == BluetoothStatusCodes.FEATURE_NOT_SUPPORTED) {
-            assertFalse(mIsLeBroadcastSupported);
-            return;
-        }
-        assertTrue(mIsLeBroadcastSupported);
-    }
-
-    @Test
     public void testRegisterUnregisterCallback() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -333,10 +302,6 @@ public class BluetoothLeBroadcastTest {
 
     @Test
     public void testRegisterCallbackNoPermission() {
-        if (shouldSkipTest()) {
-            return;
-        }
-
         TestUtils.dropPermissionAsShellUid();
         TestUtils.adoptPermissionAsShellUid(BLUETOOTH_CONNECT);
 
@@ -376,9 +341,6 @@ public class BluetoothLeBroadcastTest {
 
     @Test
     public void testCallbackCalls() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -487,9 +449,6 @@ public class BluetoothLeBroadcastTest {
 
     @Test
     public void testStartBroadcast() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -504,10 +463,6 @@ public class BluetoothLeBroadcastTest {
     @Test
     @CddTest(requirements = {"3.5/C-0-9"})
     public void testStartBroadcastWithoutPrivilegedPermission() {
-        if (shouldSkipTest()) {
-            return;
-        }
-
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -530,9 +485,6 @@ public class BluetoothLeBroadcastTest {
 
     @Test
     public void testStartBroadcastGroup() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -553,10 +505,6 @@ public class BluetoothLeBroadcastTest {
     @Test
     @CddTest(requirements = {"3.5/C-0-9"})
     public void testStartBroadcastGroupWithoutPrivilegedPermission() {
-        if (shouldSkipTest()) {
-            return;
-        }
-
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -585,9 +533,6 @@ public class BluetoothLeBroadcastTest {
 
     @Test
     public void testUpdateBroadcast() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -601,9 +546,6 @@ public class BluetoothLeBroadcastTest {
     @Test
     @CddTest(requirements = {"3.5/C-0-9"})
     public void testUpdateBroadcastWithoutPrivilegedPermission() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -624,9 +566,6 @@ public class BluetoothLeBroadcastTest {
 
     @Test
     public void testUpdateBroadcastGroup() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -648,9 +587,6 @@ public class BluetoothLeBroadcastTest {
     @Test
     @CddTest(requirements = {"3.5/C-0-9"})
     public void testUpdateBroadcastGroupWithoutPrivilegedPermission() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -678,9 +614,6 @@ public class BluetoothLeBroadcastTest {
 
     @Test
     public void testStopBroadcast() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -692,9 +625,6 @@ public class BluetoothLeBroadcastTest {
     @Test
     @CddTest(requirements = {"3.5/C-0-9"})
     public void testStopBroadcastWithoutPrivilegedPermission() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -712,9 +642,6 @@ public class BluetoothLeBroadcastTest {
 
     @Test
     public void testIsPlaying() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -726,9 +653,6 @@ public class BluetoothLeBroadcastTest {
     @Test
     @CddTest(requirements = {"3.5/C-0-9"})
     public void testIsPlayingWithoutPrivilegedPermission() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -746,9 +670,6 @@ public class BluetoothLeBroadcastTest {
 
     @Test
     public void testGetAllBroadcastMetadata() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -762,9 +683,6 @@ public class BluetoothLeBroadcastTest {
     @Test
     @CddTest(requirements = {"3.5/C-0-9"})
     public void testGetAllBroadcastMetadataWithoutPrivilegedPermission() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -782,9 +700,6 @@ public class BluetoothLeBroadcastTest {
 
     @Test
     public void testGetMaximumNumberOfBroadcasts() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -796,9 +711,6 @@ public class BluetoothLeBroadcastTest {
     @Test
     @CddTest(requirements = {"3.5/C-0-9"})
     public void testGetMaximumNumberOfBroadcastsWithoutPrivilegedPermission() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -816,9 +728,6 @@ public class BluetoothLeBroadcastTest {
 
     @Test
     public void testGetMaximumStreamsPerBroadcast() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -830,9 +739,6 @@ public class BluetoothLeBroadcastTest {
     @Test
     @CddTest(requirements = {"3.5/C-0-9"})
     public void testGetMaximumStreamsPerBroadcastWithoutPrivilegedPermission() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -850,9 +756,6 @@ public class BluetoothLeBroadcastTest {
 
     @Test
     public void testGetMaximumSubgroupsPerBroadcast() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -864,9 +767,6 @@ public class BluetoothLeBroadcastTest {
     @Test
     @CddTest(requirements = {"3.5/C-0-9"})
     public void testGetMaximumSubgroupsPerBroadcastWithoutPrivilegedPermission() {
-        if (shouldSkipTest()) {
-            return;
-        }
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothLeBroadcast);
 
@@ -882,16 +782,12 @@ public class BluetoothLeBroadcastTest {
         TestUtils.adoptPermissionAsShellUid(BLUETOOTH_CONNECT, BLUETOOTH_PRIVILEGED);
     }
 
-    private boolean shouldSkipTest() {
-        return !(mHasBluetooth && mIsLeBroadcastSupported);
-    }
-
     private boolean waitForProfileConnect() {
-        mProfileConnectedlock.lock();
+        mProfileConnectionlock.lock();
         try {
             // Wait for the Adapter to be disabled
             while (!mIsProfileReady) {
-                if (!mConditionProfileIsConnected.await(
+                if (!mConditionProfileConnection.await(
                         PROXY_CONNECTION_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
                     // Timeout
                     Log.e(TAG, "Timeout while waiting for Profile Connect");
@@ -901,9 +797,29 @@ public class BluetoothLeBroadcastTest {
         } catch (InterruptedException e) {
             Log.e(TAG, "waitForProfileConnect: interrrupted");
         } finally {
-            mProfileConnectedlock.unlock();
+            mProfileConnectionlock.unlock();
         }
         return mIsProfileReady;
+    }
+
+    private boolean waitForProfileDisconnect() {
+        mConditionProfileConnection = mProfileConnectionlock.newCondition();
+        mProfileConnectionlock.lock();
+        try {
+            while (mIsProfileReady) {
+                if (!mConditionProfileConnection.await(
+                        PROXY_CONNECTION_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                    // Timeout
+                    Log.e(TAG, "Timeout while waiting for Profile Disconnect");
+                    break;
+                } // else spurious wakeups
+            }
+        } catch (InterruptedException e) {
+            Log.e(TAG, "waitForProfileDisconnect: interrrupted");
+        } finally {
+            mProfileConnectionlock.unlock();
+        }
+        return !mIsProfileReady;
     }
 
     private final class ServiceListener implements
@@ -911,18 +827,25 @@ public class BluetoothLeBroadcastTest {
 
         @Override
         public void onServiceConnected(int profile, BluetoothProfile proxy) {
-            mProfileConnectedlock.lock();
+            mProfileConnectionlock.lock();
             mBluetoothLeBroadcast = (BluetoothLeBroadcast) proxy;
             mIsProfileReady = true;
             try {
-                mConditionProfileIsConnected.signal();
+                mConditionProfileConnection.signal();
             } finally {
-                mProfileConnectedlock.unlock();
+                mProfileConnectionlock.unlock();
             }
         }
 
         @Override
         public void onServiceDisconnected(int profile) {
+            mProfileConnectionlock.lock();
+            mIsProfileReady = false;
+            try {
+                mConditionProfileConnection.signal();
+            } finally {
+                mProfileConnectionlock.unlock();
+            }
         }
     }
 

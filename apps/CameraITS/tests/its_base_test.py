@@ -86,9 +86,10 @@ class ItsBaseTest(base_test.BaseTestClass):
     else:
       self.lighting_cntl = 'None'
       self.lighting_ch = '1'
+    if self.user_params.get('tablet_device'):
+      self.tablet_device = self.user_params['tablet_device'] == 'True'
     if self.user_params.get('debug_mode'):
-      self.debug_mode = True if self.user_params[
-          'debug_mode'] == 'True' else False
+      self.debug_mode = self.user_params['debug_mode'] == 'True'
     if self.user_params.get('scene'):
       self.scene = self.user_params['scene']
     camera_id_combo = self.parse_hidden_camera_id()
@@ -103,6 +104,13 @@ class ItsBaseTest(base_test.BaseTestClass):
       try:
         self.tablet = devices[1]
         self.tablet_screen_brightness = self.user_params['brightness']
+        tablet_name_unencoded = self.tablet.adb.shell(
+            ['getprop', 'ro.build.product']
+        )
+        tablet_name = str(tablet_name_unencoded.decode('utf-8')).strip()
+        logging.debug('tablet name: %s', tablet_name)
+        its_session_utils.validate_tablet_brightness(
+            tablet_name, self.tablet_screen_brightness)
       except KeyError:
         logging.debug('Not all tablet arguments set.')
     else:  # sensor_fusion or manual run

@@ -114,7 +114,6 @@ public class AnalogHeadsetAudioActivity
     private static final String KEY_KEYCODE_VOLUME_DOWN = "keycode_volume_down";
 
     public AnalogHeadsetAudioActivity() {
-        super();
     }
 
     @Override
@@ -154,7 +153,9 @@ public class AnalogHeadsetAudioActivity
         mHeadsetVolUpText = (TextView)findViewById(R.id.headset_keycode_volume_up);
         mHeadsetVolDownText = (TextView)findViewById(R.id.headset_keycode_volume_down);
 
-        if (isTelevision()) {
+        mAudioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+
+        if (isTelevisionOrFixedVolume()) {
             mButtonsPromptTxt.setVisibility(View.GONE);
             mHeadsetHookText.setVisibility(View.GONE);
             mHeadsetVolUpText.setVisibility(View.GONE);
@@ -163,8 +164,6 @@ public class AnalogHeadsetAudioActivity
         }
 
         mResultsTxt = (TextView)findViewById(R.id.headset_results);
-
-        mAudioManager = (AudioManager)getSystemService(AUDIO_SERVICE);
 
         setupPlayer();
 
@@ -177,7 +176,7 @@ public class AnalogHeadsetAudioActivity
 
         showKeyMessagesState();
 
-        setInfoResources(R.string.analog_headset_test, isTelevision()
+        setInfoResources(R.string.analog_headset_test, isTelevisionOrFixedVolume()
                 ? R.string.analog_headset_test_info_tv : R.string.analog_headset_test_info, -1);
 
         setPassFailButtonClickListeners();
@@ -196,7 +195,7 @@ public class AnalogHeadsetAudioActivity
                     mPlugIntentReceived &&
                     mHeadsetDeviceInfo != null &&
                     mPlaybackSuccess &&
-                    (isTelevision()
+                    (isTelevisionOrFixedVolume()
                     || ((mHasHeadsetHook || mHasPlayPause) && mHasVolUp && mHasVolDown));
             if (pass) {
                 mResultsTxt.setText(getResources().getString(R.string.analog_headset_pass));
@@ -207,9 +206,11 @@ public class AnalogHeadsetAudioActivity
         }
     }
 
-    //
-    // PassFailButtons Overrides
-    //
+    @Override
+    public boolean requiresReportLog() {
+        return true;
+    }
+
     @Override
     public String getReportFileName() { return PassFailButtons.AUDIO_TESTS_REPORT_LOG_NAME; }
 
@@ -500,7 +501,8 @@ public class AnalogHeadsetAudioActivity
         return super.onKeyDown(keyCode, event);
     }
 
-    private boolean isTelevision() {
-        return getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK);
+    private boolean isTelevisionOrFixedVolume() {
+        return getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+                || mAudioManager.isVolumeFixed();
     }
 }
