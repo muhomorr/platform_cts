@@ -49,7 +49,7 @@
         <item name="android:windowSplashScreenBackground">@drawable/blue</item>
     </style>
 
-    <style name="BackgroundImage" parent="@android:style/Theme.Translucent.NoTitleBar.Fullscreen">
+    <style name="BackgroundImage" parent="@android:style/Theme.NoTitleBar.Fullscreen">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowLayoutInDisplayCutoutMode">always</item>
         <item name="android:windowSoftInputMode">stateHidden</item>
@@ -100,5 +100,8 @@
     <style name="NoInsetsTheme" parent="@android:style/Theme.NoTitleBar">
         <item name="android:windowLayoutInDisplayCutoutMode">always</item>
         <item name="android:windowSoftInputMode">stateHidden</item>
+    </style>
+    <style name="ShowWhenLockedDialogTheme" parent="@android:style/Theme.Material.Dialog">
+        <!-- no-op except on Wear, where dialog theme has been converted to non-floating -->
     </style>
 </resources>

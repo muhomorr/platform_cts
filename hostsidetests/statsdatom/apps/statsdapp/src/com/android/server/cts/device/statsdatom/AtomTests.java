@@ -20,6 +20,8 @@ import static com.android.compatibility.common.util.SystemUtil.runShellCommand;
 
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.junit.Assert.assertNotNull;
+
 import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.app.ActivityManager;
@@ -50,6 +52,7 @@ import android.location.GnssStatus;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.media.MediaDrm;
 import android.media.MediaPlayer;
 import android.net.ConnectivityManager;
 import android.net.Network;
@@ -62,6 +65,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
+import android.os.PerformanceHintManager;
 import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
@@ -92,6 +96,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -1181,5 +1186,37 @@ public class AtomTests {
         Context context = InstrumentationRegistry.getContext();
         GameManager gameManager = context.getSystemService(GameManager.class);
         gameManager.setGameState(new GameState(true, GameState.MODE_CONTENT, 1, 2));
+    }
+
+    @Test
+    public void testCreateHintSession() throws Exception {
+        final long targetNs = 16666666L;
+        Context context = InstrumentationRegistry.getContext();
+        PerformanceHintManager phm = context.getSystemService(PerformanceHintManager.class);
+
+        assertNotNull(phm);
+
+        PerformanceHintManager.Session session =
+                phm.createHintSession(new int[]{Process.myPid()}, targetNs);
+
+        assertNotNull(session);
+    }
+
+    @Test
+    public void testMediaDrmAtoms() throws Exception {
+        UUID clearKeyUuid = new UUID(0xe2719d58a985b3c9L, 0x781ab030af78d30eL);
+        byte[] sid = null;
+        try (MediaDrm drm = new MediaDrm(clearKeyUuid)) {
+            drm.setPropertyString("drmErrorTest", "lostState");
+            for (int i = 0; i < 2; i++) {
+                sid = drm.openSession();
+                Assert.assertNotNull("null session id", sid);
+                try {
+                    drm.closeSession(sid);
+                } catch (MediaDrm.MediaDrmStateException e) {
+                    Log.d(TAG, "expected for lost state");
+                }
+            }
+        }
     }
 }

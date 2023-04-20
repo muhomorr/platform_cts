@@ -60,6 +60,7 @@ import java.util.List;
  */
 @RunWith(Parameterized.class)
 public class VideoEncoderFrameRateTest extends VideoEncoderValidationTestBase {
+    private static final String LOG_TAG = VideoEncoderFrameRateTest.class.getSimpleName();
     private static final int KEY_FRAME_INTERVAL = 1;
     private static final int FRAME_LIMIT = 300;
     private static final int BASE_FRAME_RATE = 30;
@@ -73,7 +74,7 @@ public class VideoEncoderFrameRateTest extends VideoEncoderValidationTestBase {
         for (Object[] arg : exhaustiveArgsList) {
             resources.add((CompressedResource) arg[2]);
         }
-        decodeStreamsToYuv(resources, RES_YUV_MAP);
+        decodeStreamsToYuv(resources, RES_YUV_MAP, LOG_TAG);
     }
 
     @AfterClass
@@ -115,7 +116,7 @@ public class VideoEncoderFrameRateTest extends VideoEncoderValidationTestBase {
         }
     }
 
-    @Parameterized.Parameters(name = "{index}({0}_{1}_{4})")
+    @Parameterized.Parameters(name = "{index}_{0}_{1}_{4}")
     public static Collection<Object[]> input() {
         addParams(1920, 1080, BIRTHDAY_FULLHD_LANDSCAPE);
         addParams(1080, 1920, SELFIEGROUP_FULLHD_PORTRAIT);
@@ -143,7 +144,7 @@ public class VideoEncoderFrameRateTest extends VideoEncoderValidationTestBase {
         boolean testSkipped = false;
         RawResource res = RES_YUV_MAP.getOrDefault(mCRes.uniqueLabel(), null);
         assertNotNull("no raw resource found for testing config : " + mEncCfgParams[0] + mTestConfig
-                + mTestEnv, res);
+                + mTestEnv + DIAGNOSTICS, res);
         for (float scaleFactor : scaleFactors) {
             EncoderConfigParams cfg = mEncCfgParams[0].getBuilder()
                     .setFrameRate((int) (BASE_FRAME_RATE * scaleFactor)).build();

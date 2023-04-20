@@ -19,6 +19,7 @@ package android.jobscheduler.cts;
 import static android.app.job.JobInfo.NETWORK_TYPE_ANY;
 import static android.app.job.JobInfo.NETWORK_TYPE_NONE;
 import static android.jobscheduler.cts.TestAppInterface.TEST_APP_PACKAGE;
+import static android.net.NetworkCapabilities.TRANSPORT_ETHERNET;
 import static android.os.PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED;
 
 import static com.android.compatibility.common.util.TestUtils.waitUntil;
@@ -949,6 +950,7 @@ public class JobThrottlingTest {
         assumeFalse("not testable in leanback device", mLeanbackOnly);
         assumeFalse("not testable, since ethernet is connected", hasEthernetConnection());
 
+        assumeTrue(BatteryUtils.hasBattery());
         assumeTrue(mNetworkingHelper.hasWifiFeature());
         mNetworkingHelper.ensureSavedWifiNetwork();
 

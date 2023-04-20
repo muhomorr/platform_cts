@@ -36,6 +36,9 @@ import androidx.test.core.app.ApplicationProvider;
 
 import java.util.regex.Pattern;
 
+/**
+ * @deprecated , Use {@link UiAutomatorUtils2}, which uses latest androidx automator classes.
+ */
 public class UiAutomatorUtils {
     private UiAutomatorUtils() {}
 

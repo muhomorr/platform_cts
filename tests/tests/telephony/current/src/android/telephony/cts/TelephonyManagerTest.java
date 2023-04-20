@@ -99,6 +99,7 @@ import android.telephony.UiccCardInfo;
 import android.telephony.UiccPortInfo;
 import android.telephony.UiccSlotInfo;
 import android.telephony.UiccSlotMapping;
+import android.telephony.cts.util.TelephonyUtils;
 import android.telephony.data.ApnSetting;
 import android.telephony.data.NetworkSlicingConfig;
 import android.telephony.emergency.EmergencyNumber;
@@ -3622,6 +3623,7 @@ public class TelephonyManagerTest {
 
             ModemActivityInfo diff = activityInfo1.getDelta(activityInfo2);
             assertNotNull(diff);
+            assertTrue("two activityInfo are identical", !activityInfo1.equals(activityInfo2));
             assertTrue("diff is" + diff, diff.isValid() || diff.isEmpty());
         } finally {
             InstrumentationRegistry.getInstrumentation().getUiAutomation()
@@ -4016,6 +4018,38 @@ public class TelephonyManagerTest {
 
         waitForMs(500);
         assertEquals(mmsAlwaysAllowed,
+                ShellIdentityUtils.invokeMethodWithShellPermissions(
+                        mTelephonyManager, getPolicyHelper));
+    }
+
+    @Test
+    public void testAutoDataSwitchPolicy() {
+        assumeTrue(hasFeature(PackageManager.FEATURE_TELEPHONY_DATA));
+
+        ShellIdentityUtils.ShellPermissionMethodHelper<Boolean, TelephonyManager> getPolicyHelper =
+                (tm) -> tm.isMobileDataPolicyEnabled(
+                        TelephonyManager.MOBILE_DATA_POLICY_AUTO_DATA_SWITCH);
+
+        boolean autoDatSwitchAllowed = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, getPolicyHelper);
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager, (tm) -> tm.setMobileDataPolicyEnabled(
+                        TelephonyManager.MOBILE_DATA_POLICY_AUTO_DATA_SWITCH,
+                        !autoDatSwitchAllowed));
+
+        waitForMs(500);
+        assertNotEquals(autoDatSwitchAllowed,
+                ShellIdentityUtils.invokeMethodWithShellPermissions(
+                        mTelephonyManager, getPolicyHelper));
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager, (tm) -> tm.setMobileDataPolicyEnabled(
+                        TelephonyManager.MOBILE_DATA_POLICY_AUTO_DATA_SWITCH,
+                        autoDatSwitchAllowed));
+
+        waitForMs(500);
+        assertEquals(autoDatSwitchAllowed,
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, getPolicyHelper));
     }
