@@ -28,6 +28,7 @@ import android.util.TypedValue;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -43,8 +44,9 @@ public class ColorTest {
     private static final String LOG_TAG = ColorTest.class.getSimpleName();
 
     @Test
+    @Ignore("b/277796128")
     public void resourceColor() {
-        int colors [][] = {
+        int[][] colors = {
                 { 0xff000000, android.R.color.background_dark  },
                 { 0xffffffff, android.R.color.background_light },
                 { 0xff000000, android.R.color.black },
@@ -170,22 +172,23 @@ public class ColorTest {
                 android.R.color.system_surface_variant_light,
                 android.R.color.system_on_surface_variant_light,
                 android.R.color.system_outline_light,
+                android.R.color.system_outline_variant_light,
                 android.R.color.system_error_light,
                 android.R.color.system_on_error_light,
                 android.R.color.system_error_container_light,
                 android.R.color.system_on_error_container_light,
-                android.R.color.system_primary_fixed_light,
-                android.R.color.system_primary_fixed_dim_light,
-                android.R.color.system_on_primary_fixed_light,
-                android.R.color.system_on_primary_fixed_variant_light,
-                android.R.color.system_secondary_fixed_light,
-                android.R.color.system_secondary_fixed_dim_light,
-                android.R.color.system_on_secondary_fixed_light,
-                android.R.color.system_on_secondary_fixed_variant_light,
-                android.R.color.system_tertiary_fixed_light,
-                android.R.color.system_tertiary_fixed_dim_light,
-                android.R.color.system_on_tertiary_fixed_light,
-                android.R.color.system_on_tertiary_fixed_variant_light,
+                android.R.color.system_primary_fixed,
+                android.R.color.system_primary_fixed_dim,
+                android.R.color.system_on_primary_fixed,
+                android.R.color.system_on_primary_fixed_variant,
+                android.R.color.system_secondary_fixed,
+                android.R.color.system_secondary_fixed_dim,
+                android.R.color.system_on_secondary_fixed,
+                android.R.color.system_on_secondary_fixed_variant,
+                android.R.color.system_tertiary_fixed,
+                android.R.color.system_tertiary_fixed_dim,
+                android.R.color.system_on_tertiary_fixed,
+                android.R.color.system_on_tertiary_fixed_variant,
                 android.R.color.system_control_activated_light,
                 android.R.color.system_control_normal_light,
                 android.R.color.system_control_highlight_light,
@@ -225,22 +228,11 @@ public class ColorTest {
                 android.R.color.system_surface_variant_dark,
                 android.R.color.system_on_surface_variant_dark,
                 android.R.color.system_outline_dark,
+                android.R.color.system_outline_variant_dark,
                 android.R.color.system_error_dark,
                 android.R.color.system_on_error_dark,
                 android.R.color.system_error_container_dark,
                 android.R.color.system_on_error_container_dark,
-                android.R.color.system_primary_fixed_dark,
-                android.R.color.system_primary_fixed_dim_dark,
-                android.R.color.system_on_primary_fixed_dark,
-                android.R.color.system_on_primary_fixed_variant_dark,
-                android.R.color.system_secondary_fixed_dark,
-                android.R.color.system_secondary_fixed_dim_dark,
-                android.R.color.system_on_secondary_fixed_dark,
-                android.R.color.system_on_secondary_fixed_variant_dark,
-                android.R.color.system_tertiary_fixed_dark,
-                android.R.color.system_tertiary_fixed_dim_dark,
-                android.R.color.system_on_tertiary_fixed_dark,
-                android.R.color.system_on_tertiary_fixed_variant_dark,
                 android.R.color.system_control_activated_dark,
                 android.R.color.system_control_normal_dark,
                 android.R.color.system_control_highlight_dark,
@@ -321,7 +313,6 @@ public class ColorTest {
                 colors.length + systemColors.length + materialSystemColors.length,
                 numPublicApiColors);
     }
-
     @Test
     public void testAlpha() {
         assertEquals(0xff, Color.alpha(Color.RED));

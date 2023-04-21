@@ -24,6 +24,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Point
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
@@ -258,7 +259,12 @@ fun openUnusedAppsNotification() {
             // Eventually clause because clicking is sometimes inconsistent if the screen is
             // scrolling
             runShellCommandOrThrow(CMD_EXPAND_NOTIFICATIONS)
-            waitFindNotification(notifSelector, NOTIF_FIND_TIMEOUT).click()
+            val notification = waitFindNotification(notifSelector, NOTIF_FIND_TIMEOUT)
+            if (hasFeatureAutomotive()) {
+                notification.click(Point(0, 0))
+            } else {
+                notification.click()
+            }
             wrappingExceptions({ cause: Throwable? -> UiDumpUtils.wrapWithUiDump(cause) }) {
                 assertTrue(
                     "Unused apps page did not open after tapping notification.",
@@ -351,14 +357,18 @@ fun waitFindObject(uiAutomation: UiAutomation, selector: BySelector): UiObject2 
         val title = ui.depthFirstSearch { node ->
             node.viewIdResourceName?.contains("alertTitle") == true
         }
-        val okButton = ui.depthFirstSearch { node ->
-            node.textAsString?.equals("OK", ignoreCase = true) ?: false
+        val okCloseButton = ui.depthFirstSearch { node ->
+            (node.textAsString?.equals("OK", ignoreCase = true) ?: false)  ||
+                (node.textAsString?.equals("Close app", ignoreCase = true) ?: false)
         }
-
-        if (title?.text?.toString() == "Android System" && okButton != null) {
+        val titleString = title?.text?.toString()
+        if (okCloseButton != null &&
+            titleString != null &&
+            (titleString == "Android System" ||
+                titleString.endsWith("keeps stopping"))) {
             // Auto dismiss occasional system dialogs to prevent interfering with the test
             android.util.Log.w(AutoRevokeTest.LOG_TAG, "Ignoring exception", e)
-            okButton.click()
+            okCloseButton.click()
             return UiAutomatorUtils.waitFindObject(selector)
         } else {
             throw e

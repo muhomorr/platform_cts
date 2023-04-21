@@ -21,6 +21,7 @@ import static android.provider.DeviceConfig.NAMESPACE_DEVICE_POLICY_MANAGER;
 
 import static com.android.bedstead.metricsrecorder.truth.MetricQueryBuilderSubject.assertThat;
 import static com.android.bedstead.nene.flags.CommonFlags.DevicePolicyManager.ENABLE_DEVICE_POLICY_ENGINE_FLAG;
+import static com.android.bedstead.nene.flags.CommonFlags.DevicePolicyManager.PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG;
 import static com.android.eventlib.truth.EventLogsSubject.assertThat;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -37,12 +38,15 @@ import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
 import com.android.bedstead.harrier.annotations.EnsureFeatureFlagEnabled;
 import com.android.bedstead.harrier.annotations.Postsubmit;
+import com.android.bedstead.harrier.annotations.RequireFeatureFlagNotEnabled;
 import com.android.bedstead.harrier.annotations.enterprise.CanSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.CannotSetPolicyTest;
+import com.android.bedstead.harrier.annotations.enterprise.CoexistenceFlagsOn;
 import com.android.bedstead.harrier.annotations.enterprise.PolicyAppliesTest;
 import com.android.bedstead.harrier.annotations.enterprise.PolicyDoesNotApplyTest;
 import com.android.bedstead.harrier.policies.ApplicationRestrictions;
 import com.android.bedstead.harrier.policies.ApplicationRestrictionsManagingPackage;
+import com.android.bedstead.harrier.policies.DpcOnlyApplicationRestrictions;
 import com.android.bedstead.metricsrecorder.EnterpriseMetricsRecorder;
 import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppInstance;
@@ -67,7 +71,7 @@ public final class ApplicationRestrictionsTest {
     private static final TestApp sDifferentTestApp = sDeviceState.testApps().any();
 
     @Postsubmit(reason = "New test")
-    @PolicyAppliesTest(policy = ApplicationRestrictions.class)
+    @PolicyAppliesTest(policy = DpcOnlyApplicationRestrictions.class)
     public void setApplicationRestrictions_applicationRestrictionsAreSet() {
         Bundle originalApplicationRestrictions =
                 sDeviceState.dpc().devicePolicyManager()
@@ -93,7 +97,7 @@ public final class ApplicationRestrictionsTest {
     }
 
     @Postsubmit(reason = "New test")
-    @PolicyAppliesTest(policy = ApplicationRestrictions.class)
+    @PolicyAppliesTest(policy = DpcOnlyApplicationRestrictions.class)
     public void setApplicationRestrictions_applicationRestrictionsAlreadySet_setsNewRestrictions() {
         Bundle originalApplicationRestrictions =
                 sDeviceState.dpc().devicePolicyManager()
@@ -251,6 +255,8 @@ public final class ApplicationRestrictionsTest {
     }
 
     @Postsubmit(reason = "New test")
+    @RequireFeatureFlagNotEnabled(namespace = NAMESPACE_DEVICE_POLICY_MANAGER,
+            key = PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG)
     @CanSetPolicyTest(policy = ApplicationRestrictions.class, singleTestOnly = true)
     public void setApplicationRestrictions_nullComponent_throwsException() {
         Bundle bundle = BundleUtils.createBundle(

@@ -102,9 +102,10 @@ public class VirtualDisplayTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
         Context context = getApplicationContext();
-        assumeTrue(
-                context.getPackageManager()
-                        .hasSystemFeature(PackageManager.FEATURE_ACTIVITIES_ON_SECONDARY_DISPLAYS));
+        final PackageManager packageManager = context.getPackageManager();
+        assumeTrue(packageManager.hasSystemFeature(PackageManager.FEATURE_COMPANION_DEVICE_SETUP));
+        assumeTrue(packageManager.hasSystemFeature(
+                PackageManager.FEATURE_ACTIVITIES_ON_SECONDARY_DISPLAYS));
         mVirtualDeviceManager = context.getSystemService(VirtualDeviceManager.class);
         mDisplayManager = context.getSystemService(DisplayManager.class);
         mDisplayListener = new DisplayListenerForTest();
@@ -352,8 +353,8 @@ public class VirtualDisplayTest {
         // last value from getDeviceIdForDisplayId call and the test will fail.
         assertThat(pollForResult(() -> mVirtualDeviceManager.getDeviceIdForDisplayId(
                         virtualDisplay.getDisplay().getDisplayId()),
-                VirtualDeviceManager.DEVICE_ID_DEFAULT)).isEqualTo(
-                VirtualDeviceManager.DEVICE_ID_DEFAULT);
+                Context.DEVICE_ID_DEFAULT)).isEqualTo(
+                Context.DEVICE_ID_DEFAULT);
     }
 
     @Test

@@ -92,6 +92,7 @@ public class StubTvInteractiveAppService extends TvInteractiveAppService {
         public int mErrorCount;
         public int mRecordingStartedCount;
         public int mRecordingStoppedCount;
+        public int mRecordingScheduledCount;
         public int mPlaybackParamCount;
         public int mTimeShiftModeCount;
         public int mAvailableSpeedsCount;
@@ -102,6 +103,7 @@ public class StubTvInteractiveAppService extends TvInteractiveAppService {
         public int mSendTvRecordingInfoCount;
         public int mSendTvRecordingInfoListCount;
         public int mCurrentVideoBoundsCount;
+        public int mRecordingTunedCount;
 
         public Integer mKeyDownCode;
         public Integer mKeyUpCode;
@@ -124,7 +126,7 @@ public class StubTvInteractiveAppService extends TvInteractiveAppService {
         public String mInputId;
         public Long mTimeShiftStartPosition;
         public Long mTimeShiftCurrentPosition;
-        public String mTvMessageType;
+        public Integer mTvMessageType;
         public Bundle mTvMessageData;
         public AdBuffer mAdBuffer;
         public TvRecordingInfo mTvRecordingInfo;
@@ -153,6 +155,7 @@ public class StubTvInteractiveAppService extends TvInteractiveAppService {
             mErrorCount = 0;
             mRecordingStartedCount = 0;
             mRecordingStoppedCount = 0;
+            mRecordingScheduledCount = 0;
             mPlaybackParamCount = 0;
             mTimeShiftModeCount = 0;
             mAvailableSpeedsCount = 0;
@@ -164,6 +167,7 @@ public class StubTvInteractiveAppService extends TvInteractiveAppService {
             mSendTvRecordingInfoCount = 0;
             mSendTvRecordingInfoListCount = 0;
             mCurrentVideoBoundsCount = 0;
+            mRecordingTunedCount = 0;
 
             mKeyDownCode = null;
             mKeyUpCode = null;
@@ -245,8 +249,36 @@ public class StubTvInteractiveAppService extends TvInteractiveAppService {
         }
 
         @Override
+        public void requestScheduleRecording(String requestId, String inputId, Uri channelUri,
+                Uri programUri, Bundle params) {
+            super.requestScheduleRecording(requestId, inputId, channelUri, programUri, params);
+        }
+
+        @Override
+        public void requestScheduleRecording(String requestId, String inputId, Uri channelUri,
+                long startTime, long duration, int repeatedDays, Bundle params) {
+            super.requestScheduleRecording(
+                    requestId, inputId, channelUri, startTime, duration, repeatedDays, params);
+        }
+
+        @Override
+        public void requestAvailableSpeeds() {
+            super.requestAvailableSpeeds();
+        }
+
+        @Override
+        public void requestTimeShiftMode() {
+            super.requestTimeShiftMode();
+        }
+
+        @Override
         public void sendPlaybackCommandRequest(String cmdType, Bundle parameters) {
             super.sendPlaybackCommandRequest(cmdType, parameters);
+        }
+
+        @Override
+        public void sendTimeShiftCommandRequest(String cmdType, Bundle parameters) {
+            super.sendTimeShiftCommandRequest(cmdType, parameters);
         }
 
         @Override
@@ -495,6 +527,14 @@ public class StubTvInteractiveAppService extends TvInteractiveAppService {
         }
 
         @Override
+        public void onRecordingScheduled(String recordingId, String requestId) {
+            super.onRecordingScheduled(recordingId, requestId);
+            mRecordingScheduledCount++;
+            mRecordingId = recordingId;
+            mRequestId = requestId;
+        }
+
+        @Override
         public void onTimeShiftPlaybackParams(PlaybackParams params) {
             super.onTimeShiftPlaybackParams(params);
             mPlaybackParamCount++;
@@ -540,7 +580,7 @@ public class StubTvInteractiveAppService extends TvInteractiveAppService {
         }
 
         @Override
-        public void onTvMessage(String type, Bundle data) {
+        public void onTvMessage(int type, Bundle data) {
             super.onTvMessage(type, data);
             mTvMessageCount++;
             mTvMessageType = type;
@@ -566,6 +606,13 @@ public class StubTvInteractiveAppService extends TvInteractiveAppService {
             super.onTvRecordingInfoList(recordingInfoList);
             mSendTvRecordingInfoListCount++;
             mTvRecordingInfoList = recordingInfoList;
+        }
+
+        @Override
+        public void onRecordingTuned(String recordingId, Uri channelUri) {
+            mRecordingTunedCount++;
+            mRecordingId = recordingId;
+            mTunedUri = channelUri;
         }
     }
 }

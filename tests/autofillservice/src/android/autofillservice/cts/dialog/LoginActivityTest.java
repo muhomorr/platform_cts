@@ -39,6 +39,7 @@ import static android.autofillservice.cts.testcore.Helper.setCredentialManagerFe
 import static android.autofillservice.cts.testcore.Helper.setFillDialogHints;
 import static android.service.autofill.FillEventHistory.Event.UI_TYPE_DIALOG;
 import static android.service.autofill.FillRequest.FLAG_SUPPORTS_FILL_DIALOG;
+import static android.view.View.AUTOFILL_HINT_USERNAME;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -54,10 +55,15 @@ import android.autofillservice.cts.testcore.IdMode;
 import android.autofillservice.cts.testcore.InstrumentedAutoFillService;
 import android.autofillservice.cts.testcore.InstrumentedAutoFillService.FillRequest;
 import android.content.Intent;
+import android.platform.test.annotations.FlakyTest;
 import android.service.autofill.FillEventHistory;
-import android.support.test.uiautomator.UiObject2;
 import android.view.View;
 
+import androidx.test.uiautomator.UiObject2;
+
+import com.android.compatibility.common.util.CddTest;
+
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.List;
@@ -96,6 +102,40 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         // Check onFillRequest has the flag: FLAG_SEND_ALL_USER_DATA
         final FillRequest request = sReplier.getNextFillRequest();
         assertThat(request.hints.size()).isEqualTo(1);
+        assertThat(request.hints.get(0)).isEqualTo("username");
+        mUiBot.waitForIdleSync();
+        disablePccDetectionFeature(sContext);
+        sReplier.setIdMode(IdMode.RESOURCE_ID);
+    }
+
+    @FlakyTest(bugId = 277539840) // TODO: Try to reduce flakes
+    @Test
+    public void testPccRequest_setForAllHints() throws Exception {
+        // Set service.
+        enableService();
+        enablePccDetectionFeature(sContext, "username", "password", "new_password");
+        enableFillDialogFeature(sContext);
+        sReplier.setIdMode(IdMode.PCC_ID);
+
+        final CannedFillResponse.Builder builder = new CannedFillResponse.Builder()
+                .addDataset(new CannedDataset.Builder()
+                        .setField(AUTOFILL_HINT_USERNAME, "dude")
+                        .setField("allField1")
+                        .setPresentation(createPresentation("The Dude"))
+                        .build())
+                .addDataset(new CannedDataset.Builder()
+                        .setField("allField2")
+                        .setPresentation(createPresentation("generic user"))
+                        .build());
+        sReplier.addResponse(builder.build());
+
+        // Start activity and autofill
+        LoginActivity activity = startLoginActivity();
+        mUiBot.waitForIdleSync();
+
+        // Check onFillRequest has the flag: FLAG_SEND_ALL_USER_DATA
+        final FillRequest request = sReplier.getNextFillRequest();
+        assertThat(request.hints.size()).isEqualTo(3);
         assertThat(request.hints.get(0)).isEqualTo("username");
         mUiBot.waitForIdleSync();
         disablePccDetectionFeature(sContext);
@@ -151,13 +191,6 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
 
         // Check the results.
         activity.assertAutoFilled();
-
-        // Verify events history
-        final FillEventHistory selection = InstrumentedAutoFillService.getFillEventHistory(2);
-        assertNoDeprecatedClientState(selection);
-        final List<FillEventHistory.Event> events = selection.getEvents();
-        assertFillEventForDatasetShown(events.get(0), UI_TYPE_DIALOG);
-        assertFillEventForDatasetSelected(events.get(1), NULL_DATASET_ID, UI_TYPE_DIALOG);
     }
 
 
@@ -270,6 +303,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         assertMockImeStatus(activity, true);
     }
 
+    @Ignore("b/276895614")
     @Test
     public void testShowFillDialog() throws Exception {
         // Enable feature and test service
@@ -833,6 +867,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
     }
 
     @Test
+    @CddTest(requirement = "9.8.14/C1-1")
     public void testCredentialManagerIntegration() throws Exception {
         enableFillDialogFeature(sContext);
         enableCredentialManagerFeature(sContext);

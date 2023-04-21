@@ -16,6 +16,8 @@
 
 package android.widget.cts;
 
+import static android.server.wm.CtsWindowInfoUtils.waitForWindowOnTop;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -80,6 +82,8 @@ public class NumberPickerTest {
     private static final String[] NUMBER_NAMES5 = {"One", "Two", "Three", "Four", "Five"};
 
     private Instrumentation mInstrumentation;
+    private CtsTouchUtils mCtsTouchUtils;
+    private CtsKeyEventUtil mCtsKeyEventUtil;
     private NumberPickerCtsActivity mActivity;
     private NumberPicker mNumberPicker;
     @Mock
@@ -90,12 +94,15 @@ public class NumberPickerTest {
             new ActivityTestRule<>(NumberPickerCtsActivity.class);
 
     @Before
-    public void setup() {
+    public void setup() throws Throwable {
         MockitoAnnotations.initMocks(this);
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
+        mCtsTouchUtils = new CtsTouchUtils(mInstrumentation.getTargetContext());
+        mCtsKeyEventUtil = new CtsKeyEventUtil(mInstrumentation.getTargetContext());
         // Create a UiAutomation, which will enable accessibility and allow us to test ally events.
         mInstrumentation.getUiAutomation();
         mActivity = mActivityRule.getActivity();
+        assertTrue("Window did not become visible", waitForWindowOnTop(mActivity.getWindow()));
         mNumberPicker = (NumberPicker) mActivity.findViewById(R.id.number_picker);
     }
 
@@ -376,7 +383,7 @@ public class NumberPickerTest {
                     + mNumberPicker.getWidth() / 2;
             int numberPickerStartY = numberPickerLocationOnScreen[1] + 1;
 
-            CtsTouchUtils.emulateDragGesture(mInstrumentation, mActivityRule,
+            mCtsTouchUtils.emulateDragGesture(mInstrumentation, mActivityRule,
                     numberPickerMiddleX,
                     numberPickerStartY,
                     0,
@@ -446,7 +453,7 @@ public class NumberPickerTest {
             int numberPickerMiddleX =
                     numberPickerLocationOnScreen[0] + mNumberPicker.getWidth() / 2;
             int numberPickerEndY = numberPickerLocationOnScreen[1] + mNumberPicker.getHeight() - 1;
-            CtsTouchUtils.emulateDragGesture(mInstrumentation, mActivityRule,
+            mCtsTouchUtils.emulateDragGesture(mInstrumentation, mActivityRule,
                     numberPickerMiddleX,
                     numberPickerEndY,
                     0,
@@ -553,7 +560,7 @@ public class NumberPickerTest {
         mInstrumentation.sendPointerSync(event);
 
         // Send enter key to call removeAllCallbacks including longpressed
-        CtsKeyEventUtil.sendKeyDownUp(mInstrumentation, mNumberPicker, KeyEvent.KEYCODE_ENTER);
+        mCtsKeyEventUtil.sendKeyDownUp(mInstrumentation, mNumberPicker, KeyEvent.KEYCODE_ENTER);
         reset(mockValueChangeListener);
 
         // Wait a second to check if value is changed or not.
@@ -570,7 +577,7 @@ public class NumberPickerTest {
         mInstrumentation.sendPointerSync(event);
 
         // Send numpad enter key. we expect it works like enter key.
-        CtsKeyEventUtil.sendKeyDownUp(mInstrumentation, mNumberPicker,
+        mCtsKeyEventUtil.sendKeyDownUp(mInstrumentation, mNumberPicker,
                 KeyEvent.KEYCODE_NUMPAD_ENTER);
         reset(mockValueChangeListener);
 

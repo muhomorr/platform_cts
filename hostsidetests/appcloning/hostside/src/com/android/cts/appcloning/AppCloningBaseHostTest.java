@@ -19,15 +19,18 @@ package com.android.cts.appcloning;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.log.LogUtil;
 import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 import com.android.tradefed.util.CommandResult;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -39,11 +42,11 @@ public class AppCloningBaseHostTest extends BaseHostTestCase {
     private static final String TEST_CLASS_A = APP_A_PACKAGE + ".AppCloningDeviceTest";
     private static final long DEFAULT_INSTRUMENTATION_TIMEOUT_MS = 600_000; // 10min
 
-    protected static final String CONTENT_PROVIDER_URL =
-            "content://android.tradefed.contentprovider";
     protected static final String MEDIA_PROVIDER_URL = "content://media";
 
     protected static String sCloneUserId;
+
+    protected static String sPublicSdCardVol;
 
     protected static void createAndStartCloneUser() throws Exception {
         // create clone user
@@ -58,8 +61,40 @@ public class AppCloningBaseHostTest extends BaseHostTestCase {
         assertThat(isSuccessful(out)).isTrue();
     }
 
+    protected static void waitForBroadcastIdle() throws DeviceNotAvailableException {
+        CommandResult out = sDevice.executeShellV2Command(
+                "am wait-for-broadcast-idle", 120, TimeUnit.SECONDS);
+        assertThat(isSuccessful(out)).isTrue();
+        if (!out.getStdout().contains("All broadcast queues are idle!")) {
+            LogUtil.CLog.e("Output from 'am wait-for-broadcast-idle': %s", out);
+            fail("'am wait-for-broadcase-idle' did not complete.");
+        }
+    }
+
     protected static void removeCloneUser() throws Exception {
         sDevice.executeShellCommand("pm remove-user " + sCloneUserId);
+    }
+
+    protected static void createSDCardVirtualDisk() throws Exception {
+        //remove any existing volume that was mounted before
+        removeVirtualDisk();
+        String existingPublicVolume = getPublicVolumeExcluding(null);
+        sDevice.executeShellCommand("sm set-force-adoptable on");
+        sDevice.executeShellCommand("sm set-virtual-disk true");
+        eventually(AppCloningBaseHostTest::partitionDisks, 15000,
+                "Could not create public volume in time");
+        // Need to do a short wait, to allow the newly created volume to mount.
+        Thread.sleep(2000);
+        sPublicSdCardVol = getPublicVolumeExcluding(existingPublicVolume);
+        assertThat(sPublicSdCardVol).isNotNull();
+        assertThat(sPublicSdCardVol).isNotEmpty();
+        assertThat(sPublicSdCardVol).isNotEqualTo("null");
+    }
+
+    protected static void removeVirtualDisk() throws Exception {
+        sDevice.executeShellCommand("sm set-virtual-disk false");
+        //sleep to make sure that it is unmounted
+        Thread.sleep(4000);
     }
 
     public static void baseHostSetup(ITestDevice device) throws Exception {

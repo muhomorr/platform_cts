@@ -17,6 +17,7 @@
 package android.server.wm;
 
 import static android.server.wm.ComponentNameUtils.getActivityName;
+import static android.server.wm.ShellCommandHelper.executeShellCommand;
 import static android.server.wm.app.Components.ALT_LAUNCHING_ACTIVITY;
 import static android.server.wm.app.Components.LAUNCHING_ACTIVITY;
 import static android.server.wm.app.Components.RESIZEABLE_ACTIVITY;
@@ -29,11 +30,12 @@ import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import android.content.ComponentName;
-import android.platform.test.annotations.FlakyTest;
 import android.platform.test.annotations.Presubmit;
 import android.provider.Settings;
 import android.server.wm.WindowManagerState.DisplayContent;
 import android.server.wm.settings.SettingsSession;
+
+import androidx.test.filters.FlakyTest;
 
 import com.android.cts.verifier.vr.MockVrListenerService;
 

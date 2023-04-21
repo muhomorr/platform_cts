@@ -24,6 +24,7 @@ import static android.app.AppOpsManager.MODE_ALLOWED;
 import static android.app.AppOpsManager.MODE_DEFAULT;
 import static android.app.AppOpsManager.MODE_ERRORED;
 import static android.app.Notification.FLAG_FOREGROUND_SERVICE;
+import static android.app.Notification.FLAG_USER_INITIATED_JOB;
 import static android.app.NotificationManager.IMPORTANCE_DEFAULT;
 import static android.app.NotificationManager.IMPORTANCE_HIGH;
 import static android.app.NotificationManager.IMPORTANCE_LOW;
@@ -76,7 +77,6 @@ import android.platform.test.annotations.AsbSecurityTest;
 import android.provider.Settings;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
-import android.support.test.uiautomator.UiDevice;
 import android.util.ArrayMap;
 import android.util.Log;
 import android.widget.RemoteViews;
@@ -84,6 +84,7 @@ import android.widget.RemoteViews;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.uiautomator.UiDevice;
 
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.SystemUtil;
@@ -404,7 +405,7 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
         UiDevice.getInstance(mInstrumentation).pressHome();
     }
 
-    private void verifyCanSendFullScreenIntent(int appOpState, boolean canSend) throws Exception {
+    private void verifyCanUseFullScreenIntent(int appOpState, boolean canSend) throws Exception {
         final int previousState = PermissionUtils.getAppOp(STUB_PACKAGE_NAME,
                 Manifest.permission.USE_FULL_SCREEN_INTENT);
         try {
@@ -413,9 +414,9 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
                     appOpState);
 
             if (canSend) {
-                assertTrue(mNotificationManager.canSendFullScreenIntent());
+                assertTrue(mNotificationManager.canUseFullScreenIntent());
             } else {
-                assertFalse(mNotificationManager.canSendFullScreenIntent());
+                assertFalse(mNotificationManager.canUseFullScreenIntent());
             }
 
         } finally {
@@ -426,16 +427,19 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
         }
     }
 
-    public void testCanSendFullScreenIntent_modeDefault_returnsTrue() throws Exception {
-        verifyCanSendFullScreenIntent(MODE_DEFAULT, /*canSend=*/ true);
+    public void testCanSendFullScreenIntent_modeDefault_returnsIsPermissionGranted()
+            throws Exception {
+        final boolean isPermissionGranted = PermissionUtils.isPermissionGranted(STUB_PACKAGE_NAME,
+                Manifest.permission.USE_FULL_SCREEN_INTENT);
+        verifyCanUseFullScreenIntent(MODE_DEFAULT, /*canSend=*/ isPermissionGranted);
     }
 
     public void testCanSendFullScreenIntent_modeAllowed_returnsTrue() throws Exception {
-        verifyCanSendFullScreenIntent(MODE_ALLOWED, /*canSend=*/ true);
+        verifyCanUseFullScreenIntent(MODE_ALLOWED, /*canSend=*/ true);
     }
 
     public void testCanSendFullScreenIntent_modeErrored_returnsFalse() throws Exception {
-        verifyCanSendFullScreenIntent(MODE_ERRORED, /*canSend=*/ false);
+        verifyCanUseFullScreenIntent(MODE_ERRORED, /*canSend=*/ false);
     }
 
     public void testCreateChannelGroup() throws Exception {
@@ -1354,7 +1358,7 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
         mNotificationManager.notifyAsPackage(TEST_APP, "tag", 0, n);
 
         assertNotNull(mNotificationHelper.findPostedNotification("tag", 0, SEARCH_TYPE.APP));
-        final Intent revokeIntent = new Intent();
+        final Intent revokeIntent = new Intent(Intent.ACTION_MAIN);
         revokeIntent.setClassName(TEST_APP, REVOKE_CLASS);
         activity.startActivityForResult(revokeIntent, REQUEST_CODE);
         assertEquals(RESULT_OK, activity.getResult().resultCode);
@@ -1385,7 +1389,7 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
                 SEARCH_TYPE.APP));
         mNotificationManager.cancelAsPackage(TEST_APP, "toBeCanceled", 10000);
         assertTrue(mNotificationHelper.isNotificationGone(10000, SEARCH_TYPE.APP));
-        final Intent revokeIntent = new Intent();
+        final Intent revokeIntent = new Intent(Intent.ACTION_MAIN);
         revokeIntent.setClassName(TEST_APP, REVOKE_CLASS);
         activity.startActivityForResult(revokeIntent, REQUEST_CODE);
         assertEquals(RESULT_OK, activity.getResult().resultCode);
@@ -1406,7 +1410,7 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
         assertNotNull(mListener);
 
         // grant this test permission to post
-        final Intent activityIntent = new Intent();
+        final Intent activityIntent = new Intent(Intent.ACTION_MAIN);
         activityIntent.setClassName(TEST_APP, DELEGATE_POST_CLASS);
 
         activity.startActivityForResult(activityIntent, REQUEST_CODE);
@@ -1424,7 +1428,7 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
         // double check that the notification does still exist
         assertNotNull(mNotificationHelper.findPostedNotification(null, 9, SEARCH_TYPE.LISTENER));
 
-        final Intent revokeIntent = new Intent();
+        final Intent revokeIntent = new Intent(Intent.ACTION_MAIN);
         revokeIntent.setClassName(TEST_APP, REVOKE_CLASS);
         activity.startActivityForResult(revokeIntent, REQUEST_CODE);
         assertEquals(RESULT_OK, activity.getResult().resultCode);
@@ -1453,7 +1457,7 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
 
         assertNotNull(channels);
 
-        final Intent revokeIntent = new Intent();
+        final Intent revokeIntent = new Intent(Intent.ACTION_MAIN);
         revokeIntent.setClassName(TEST_APP, REVOKE_CLASS);
         activity.startActivityForResult(revokeIntent, REQUEST_CODE);
         assertEquals(RESULT_OK, activity.getResult().resultCode);
@@ -1482,7 +1486,7 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
 
         assertNotNull(channel);
 
-        final Intent revokeIntent = new Intent();
+        final Intent revokeIntent = new Intent(Intent.ACTION_MAIN);
         revokeIntent.setClassName(TEST_APP, REVOKE_CLASS);
         activity.startActivityForResult(revokeIntent, REQUEST_CODE);
         assertEquals(RESULT_OK, activity.getResult().resultCode);
@@ -1506,7 +1510,7 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
 
         assertTrue(mNotificationManager.canNotifyAsPackage(TEST_APP));
 
-        final Intent revokeIntent = new Intent();
+        final Intent revokeIntent = new Intent(Intent.ACTION_MAIN);
         revokeIntent.setClassName(TEST_APP, REVOKE_CLASS);
         activity.startActivityForResult(revokeIntent, REQUEST_CODE);
         assertEquals(RESULT_OK, activity.getResult().resultCode);
@@ -1589,7 +1593,7 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
 
     private void performNotificationProviderAction(@NonNull String action) {
         // Create an intent to launch an activity which just posts or cancels notifications
-        Intent activityIntent = new Intent();
+        Intent activityIntent = new Intent(Intent.ACTION_MAIN);
         activityIntent.setClassName(NOTIFICATIONPROVIDER, RICH_NOTIFICATION_ACTIVITY);
         activityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         activityIntent.putExtra("action", action);
@@ -2529,6 +2533,58 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
                 .getParcelable(Notification.EXTRA_MEDIA_REMOTE_INTENT));
     }
 
+    public void testCustomMediaStyleRemotePlayback_noPermission() throws Exception {
+        int id = 99;
+        final String deviceName = "device name";
+        final int deviceIcon = 123;
+        final PendingIntent deviceIntent = getPendingIntent();
+        final Notification notification =
+                new Notification.Builder(mContext, NOTIFICATION_CHANNEL_ID)
+                        .setSmallIcon(R.drawable.black)
+                        .setStyle(new Notification.DecoratedMediaCustomViewStyle()
+                                .setRemotePlaybackInfo(deviceName, deviceIcon, deviceIntent))
+                        .build();
+        mNotificationManager.notify(id, notification);
+
+        StatusBarNotification sbn = mNotificationHelper.findPostedNotification(
+                null, id, SEARCH_TYPE.APP);
+        assertNotNull(sbn);
+
+        assertFalse(sbn.getNotification().extras
+                .containsKey(Notification.EXTRA_MEDIA_REMOTE_DEVICE));
+        assertFalse(sbn.getNotification().extras
+                .containsKey(Notification.EXTRA_MEDIA_REMOTE_ICON));
+        assertFalse(sbn.getNotification().extras
+                .containsKey(Notification.EXTRA_MEDIA_REMOTE_INTENT));
+    }
+
+    public void testCustomMediaStyleRemotePlayback_hasPermission() throws Exception {
+        int id = 99;
+        final String deviceName = "device name";
+        final int deviceIcon = 123;
+        final PendingIntent deviceIntent = getPendingIntent();
+        final Notification notification =
+                new Notification.Builder(mContext, NOTIFICATION_CHANNEL_ID)
+                        .setSmallIcon(R.drawable.black)
+                        .setStyle(new Notification.DecoratedMediaCustomViewStyle()
+                                .setRemotePlaybackInfo(deviceName, deviceIcon, deviceIntent))
+                        .build();
+
+        SystemUtil.runWithShellPermissionIdentity(() -> {
+            mNotificationManager.notify(id, notification);
+        }, android.Manifest.permission.MEDIA_CONTENT_CONTROL);
+
+        StatusBarNotification sbn = mNotificationHelper.findPostedNotification(
+                null, id, SEARCH_TYPE.APP);
+        assertNotNull(sbn);
+        assertEquals(deviceName, sbn.getNotification().extras
+                .getString(Notification.EXTRA_MEDIA_REMOTE_DEVICE));
+        assertEquals(deviceIcon, sbn.getNotification().extras
+                .getInt(Notification.EXTRA_MEDIA_REMOTE_ICON));
+        assertEquals(deviceIntent, sbn.getNotification().extras
+                .getParcelable(Notification.EXTRA_MEDIA_REMOTE_INTENT));
+    }
+
     public void testNoPermission() throws Exception {
         int id = 7;
         SystemUtil.runWithShellPermissionIdentity(
@@ -2607,6 +2663,26 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
                 "testFlagForegroundServiceNeedsRealFgs", 1, SEARCH_TYPE.POSTED);
 
         assertEquals(0, (sbn.getNotification().flags & FLAG_FOREGROUND_SERVICE));
+    }
+
+    public void testFlagUserInitiatedJobNeedsRealUij() throws Exception {
+        toggleListenerAccess(true);
+        Thread.sleep(500); // wait for listener to be allowed
+
+        mListener = TestNotificationListener.getInstance();
+        assertNotNull(mListener);
+
+        final Notification n =
+                new Notification.Builder(mContext, NOTIFICATION_CHANNEL_ID)
+                        .setSmallIcon(R.drawable.black)
+                        .setFlag(FLAG_USER_INITIATED_JOB, true)
+                        .build();
+        mNotificationManager.notify("testFlagUserInitiatedJobNeedsRealUij", 1, n);
+
+        StatusBarNotification sbn = mNotificationHelper.findPostedNotification(
+                "testFlagUserInitiatedJobNeedsRealUij", 1, SEARCH_TYPE.POSTED);
+
+        assertFalse(sbn.getNotification().isUserInitiatedJob());
     }
 
     private static class EventCallback extends Handler {

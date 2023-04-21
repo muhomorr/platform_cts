@@ -21,6 +21,7 @@ import android.app.Activity
 import android.app.ActivityOptions
 import android.app.Instrumentation
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
@@ -76,7 +77,7 @@ class TouchModeTest {
 
     @Rule
     fun permissionsRule() = AdoptShellPermissionsRule(
-        instrumentation.getUiAutomation(), ADD_TRUSTED_DISPLAY_PERMISSION
+            instrumentation.getUiAutomation(), ADD_TRUSTED_DISPLAY_PERMISSION
     )
 
     @Before
@@ -108,6 +109,11 @@ class TouchModeTest {
 
     fun isInTouchMode(): Boolean {
         return activity.window.decorView.isInTouchMode
+    }
+
+    fun isRunningActivitiesOnSecondaryDisplaysSupported(): Boolean {
+        return instrumentation.context.packageManager.hasSystemFeature(
+                PackageManager.FEATURE_ACTIVITIES_ON_SECONDARY_DISPLAYS)
     }
 
     @Test
@@ -182,6 +188,7 @@ class TouchModeTest {
      */
     @Test
     fun testTouchModeUpdate_PerDisplayFocusDisabled() {
+        assumeTrue(isRunningActivitiesOnSecondaryDisplaysSupported())
         assumeFalse("This test requires config_perDisplayFocusEnabled to be false",
                 targetContext.resources.getBoolean(targetContext.resources.getIdentifier(
                         "config_perDisplayFocusEnabled", "bool", "android")))
@@ -204,6 +211,7 @@ class TouchModeTest {
      */
     @Test
     fun testTouchModeUpdate_PerDisplayFocusEnabled() {
+        assumeTrue(isRunningActivitiesOnSecondaryDisplaysSupported())
         assumeTrue("This test requires config_perDisplayFocusEnabled to be true",
                 targetContext.resources.getBoolean(targetContext.resources.getIdentifier(
                         "config_perDisplayFocusEnabled", "bool", "android")))
@@ -228,6 +236,7 @@ class TouchModeTest {
      */
     @Test
     fun testTouchModeUpdate_DisplayHasOwnFocus() {
+        assumeTrue(isRunningActivitiesOnSecondaryDisplaysSupported())
         createVirtualDisplay(VIRTUAL_DISPLAY_FLAG_OWN_FOCUS or VIRTUAL_DISPLAY_FLAG_TRUSTED)
         injectMotionEventOnMainDisplay()
 
@@ -294,20 +303,21 @@ class TouchModeTest {
 
     private fun createVirtualDisplay(flags: Int) {
         val displayCreated = CountDownLatch(1)
-                displayManager.registerDisplayListener(object : DisplayManager.DisplayListener {
-                    override fun onDisplayAdded(displayId: Int) {}
-                    override fun onDisplayRemoved(displayId: Int) {}
-                    override fun onDisplayChanged(displayId: Int) {
-                        displayCreated.countDown()
-                        displayManager.unregisterDisplayListener(this)
-                    }
-                }, Handler(Looper.getMainLooper()))
+        displayManager.registerDisplayListener(object : DisplayManager.DisplayListener {
+            override fun onDisplayAdded(displayId: Int) {}
+            override fun onDisplayRemoved(displayId: Int) {}
+            override fun onDisplayChanged(displayId: Int) {
+                displayCreated.countDown()
+                displayManager.unregisterDisplayListener(this)
+            }
+        }, Handler(Looper.getMainLooper()))
         imageReader = ImageReader.newInstance(WIDTH, HEIGHT, PixelFormat.RGBA_8888, 2)
         val reader = imageReader
         virtualDisplay = displayManager.createVirtualDisplay(
                 VIRTUAL_DISPLAY_NAME, WIDTH, HEIGHT, DENSITY, reader!!.surface, flags)
 
         assertThat(displayCreated.await(5, TimeUnit.SECONDS)).isTrue()
+        assertThat(virtualDisplay).isNotNull()
         instrumentation.setInTouchMode(false)
     }
 
@@ -319,8 +329,10 @@ class TouchModeTest {
 
         /** See [DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_FOCUS].  */
         const val VIRTUAL_DISPLAY_FLAG_OWN_FOCUS = 1 shl 14
+
         /** See [DisplayManager.VIRTUAL_DISPLAY_FLAG_TRUSTED].  */
         const val VIRTUAL_DISPLAY_FLAG_TRUSTED = 1 shl 10
     }
 }
+
 private val ADD_TRUSTED_DISPLAY_PERMISSION: String = android.Manifest.permission.ADD_TRUSTED_DISPLAY

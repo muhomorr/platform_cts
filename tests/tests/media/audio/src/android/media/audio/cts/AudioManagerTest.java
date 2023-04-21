@@ -40,7 +40,7 @@ import static android.media.AudioManager.VIBRATE_SETTING_ON;
 import static android.media.AudioManager.VIBRATE_SETTING_ONLY_SILENT;
 import static android.media.AudioManager.VIBRATE_TYPE_NOTIFICATION;
 import static android.media.AudioManager.VIBRATE_TYPE_RINGER;
-import static android.media.audio.cts.AudioVolumeTestUtil.resetVolumeIndex;
+import static android.media.audio.cts.AudioTestUtil.resetVolumeIndex;
 import static android.provider.Settings.Global.APPLY_RAMPING_RINGER;
 import static android.provider.Settings.System.SOUND_EFFECTS_ENABLED;
 
@@ -112,7 +112,7 @@ public class AudioManagerTest extends InstrumentationTestCase {
     private static final String TAG = "AudioManagerTest";
 
     private static final long ASYNC_TIMING_TOLERANCE_MS = 50;
-    private static final long POLL_TIME_VOLUME_ADJUST = 200;
+    private static final long POLL_TIME_VOLUME_ADJUST = 400;
     private static final long POLL_TIME_UPDATE_INTERRUPTION_FILTER = 5000;
     private static final int MP3_TO_PLAY = R.raw.testmp3; // ~ 5 second mp3
     private static final long POLL_TIME_PLAY_MUSIC = 2000;

@@ -21,6 +21,8 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assume.assumeFalse;
 import static org.testng.Assert.assertThrows;
 
+import android.content.Context;
+
 import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
 import com.android.bedstead.harrier.annotations.Postsubmit;
@@ -47,6 +49,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 @RunWith(BedsteadJUnit4.class)
+@com.android.bedstead.harrier.annotations.enterprise.CoexistenceFlagsOn
 public final class UserRestrictionsTest {
 
     @StringTestParameter({
@@ -326,9 +329,11 @@ public final class UserRestrictionsTest {
     }
 
     @CannotSetPolicyTest(
-            policy = com.android.bedstead.harrier.policies.DeviceOwnerOnlyUserRestrictions.class,
-            includeNonDeviceAdminStates = false)
+            policy = com.android.bedstead.harrier.policies.DeviceOwnerOnlyUserRestrictions.class)
     @Postsubmit(reason = "new test")
+    @com.android.bedstead.harrier.annotations.RequireNotHeadlessSystemUserMode(
+            reason = "Since ag/I94c63d0492034af39608c3d81700f71e89e37d0e we special case main user "
+                    + "which is not taken care of in tests currently")
     public void addUserRestriction_deviceOwnerOnlyRestriction_throwsSecurityException(
             @DeviceOwnerOnlyUserRestrictions String restriction) {
         skipTestForFinancedDevice();

@@ -347,15 +347,21 @@ public class AppEnumerationTests extends AppEnumerationTestsBase {
         assertNotVisible(QUERIES_NOTHING_RECEIVES_PERM_URI, QUERIES_NOTHING_PERM);
 
         // send with uri but no grant flags; shouldn't be visible
+        // Setting a dummy type to mitigate test failure. Bug: b/273465805
         startExplicitActivityWithIntent(QUERIES_NOTHING_PERM, QUERIES_NOTHING_RECEIVES_PERM_URI,
                 new Intent(ACTION_JUST_FINISH)
-                        .setData(Uri.parse("content://" + QUERIES_NOTHING_PERM + "2/test")));
+                        .setDataAndType(
+                                Uri.parse("content://" + QUERIES_NOTHING_PERM + "2/test"),
+                                "null"));
+
         assertNotVisible(QUERIES_NOTHING_RECEIVES_PERM_URI, QUERIES_NOTHING_PERM);
 
         // send again with uri bug grant flags now set; should be visible
         startExplicitActivityWithIntent(QUERIES_NOTHING_PERM, QUERIES_NOTHING_RECEIVES_PERM_URI,
                 new Intent(ACTION_JUST_FINISH)
-                        .setData(Uri.parse("content://" + QUERIES_NOTHING_PERM + "2/test"))
+                        .setDataAndType(
+                                Uri.parse("content://" + QUERIES_NOTHING_PERM + "2/test"),
+                                "null")
                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
         assertVisible(QUERIES_NOTHING_RECEIVES_PERM_URI, QUERIES_NOTHING_PERM);
     }
@@ -365,10 +371,13 @@ public class AppEnumerationTests extends AppEnumerationTestsBase {
         assertNotVisible(QUERIES_NOTHING_RECEIVES_NON_PERSISTABLE_URI, QUERIES_NOTHING_PERM);
 
         // send with uri grant flags; should be visible
+        // Setting a dummy type to mitigate test failure. Bug: b/273465805
         startExplicitActivityWithIntent(QUERIES_NOTHING_PERM,
                 QUERIES_NOTHING_RECEIVES_NON_PERSISTABLE_URI,
                 new Intent(ACTION_JUST_FINISH)
-                        .setData(Uri.parse("content://" + QUERIES_NOTHING_PERM + "3/test"))
+                        .setDataAndType(
+                                Uri.parse("content://" + QUERIES_NOTHING_PERM + "3/test"),
+                                "null")
                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
         assertVisible(QUERIES_NOTHING_RECEIVES_NON_PERSISTABLE_URI, QUERIES_NOTHING_PERM);
 
@@ -387,10 +396,13 @@ public class AppEnumerationTests extends AppEnumerationTestsBase {
         assertNotVisible(QUERIES_NOTHING_RECEIVES_PERSISTABLE_URI, QUERIES_NOTHING_PERM);
 
         // send with persistable uri grant flags; should be visible
+        // Setting a dummy type to mitigate test failure. Bug: b/273465805
         startExplicitActivityWithIntent(QUERIES_NOTHING_PERM,
                 QUERIES_NOTHING_RECEIVES_PERSISTABLE_URI,
                 new Intent(ACTION_TAKE_PERSISTABLE_URI_PERMISSION)
-                        .setData(Uri.parse("content://" + QUERIES_NOTHING_PERM + "3/test"))
+                        .setDataAndType(
+                                Uri.parse("content://" + QUERIES_NOTHING_PERM + "3/test"),
+                                "null")
                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
                                 | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION));
         assertVisible(QUERIES_NOTHING_RECEIVES_PERSISTABLE_URI, QUERIES_NOTHING_PERM);

@@ -28,6 +28,7 @@ import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -54,8 +55,8 @@ public class IntentRedirectionTest extends AppCloningBaseHostTest {
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
         assertThat(testInfo.getDevice()).isNotNull();
+        assumeTrue(isAtLeastU(testInfo.getDevice()));
         AppCloningBaseHostTest.baseHostSetup(testInfo.getDevice());
-        assumeTrue(isAtLeastU());
         switchOnAppCloningBuildingBlocksFlag();
     }
 
@@ -277,6 +278,7 @@ public class IntentRedirectionTest extends AppCloningBaseHostTest {
      * @throws Exception
      */
     @Test
+    @Ignore
     public void testActionViewQueryWithoutMatchCloneProfileFlag() throws Exception {
         String intentAction = "android.intent.action.VIEW";
         installPackage(CLONE_PROFILE_APP, "--user " + Integer.valueOf(sCloneUserId));

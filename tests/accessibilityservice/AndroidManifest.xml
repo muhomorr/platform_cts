@@ -29,6 +29,8 @@
 
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
+    <uses-feature android:name="android.software.companion_device_setup" />
+
     <application android:theme="@android:style/Theme.Holo.NoActionBar"
          android:requestLegacyExternalStorage="true">
 
@@ -73,8 +75,8 @@
                   android:name=".activities.ProxyDisplayActivity"
                   android:screenOrientation="locked"/>
 
-        <activity android:label="@string/proxy_concurrent_activity"
-                  android:name=".activities.ProxyConcurrentActivity"
+        <activity android:label="@string/non_proxy_activity"
+                  android:name=".activities.NonProxyActivity"
                   android:screenOrientation="locked"/>
 
         <activity android:label="Full screen activity for gesture dispatch testing"

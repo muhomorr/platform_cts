@@ -47,6 +47,7 @@ import com.android.bedstead.nene.annotations.Experimental;
 import com.android.bedstead.nene.exceptions.AdbException;
 import com.android.bedstead.nene.exceptions.AdbParseException;
 import com.android.bedstead.nene.exceptions.NeneException;
+import com.android.bedstead.nene.logcat.BlockingLogcatListener;
 import com.android.bedstead.nene.packages.ComponentReference;
 import com.android.bedstead.nene.packages.Package;
 import com.android.bedstead.nene.permissions.CommonPermissions;
@@ -107,12 +108,18 @@ public final class DevicePolicy {
         try {
             Retry.logic(command::execute)
                     .terminalException((ex) -> {
+
                         if (!Versions.meetsMinimumSdkVersionRequirement(Build.VERSION_CODES.S)) {
                             return false; // Just retry on old versions as we don't have stderr
                         }
                         if (ex instanceof AdbException) {
                             String error = ((AdbException) ex).error();
-                            if (error.contains("is being removed")) {
+                            if (error != null && error.contains("is already set")) {
+                                // This can happen for a while when it is being tidied up
+                                return false;
+                            }
+
+                            if (error != null && error.contains("is being removed")) {
                                 return false;
                             }
                         }
@@ -136,6 +143,21 @@ public final class DevicePolicy {
                 TestApis.packages().find(
                         profileOwnerComponent.getPackageName()), profileOwnerComponent);
     }
+
+    /**
+     * Get the organization owned profile owner for the device, if any, otherwise null.
+     */
+    public ProfileOwner getOrganizationOwnedProfileOwner() {
+        for (UserReference user : TestApis.users().all()) {
+            ProfileOwner profileOwner = getProfileOwner(user);
+            if (profileOwner != null && profileOwner.isOrganizationOwned()) {
+                return profileOwner;
+            }
+        }
+
+        return null;
+    }
+
 
     /**
      * Get the profile owner for the instrumented user.
@@ -200,7 +222,7 @@ public final class DevicePolicy {
                     .timeout(Duration.ofMinutes(5))
                     .run();
         } catch (Throwable e) {
-            throw new NeneException("Error setting device owner", e);
+            throw new NeneException("Error setting device owner.", e);
         }
 
         Package deviceOwnerPackage = TestApis.packages().find(
@@ -773,6 +795,37 @@ public final class DevicePolicy {
             List<PersistableBundle> configurations = devicePolicyManager(user)
                     .getTrustAgentConfiguration(/* componentName= */ null, trustAgent);
             return configurations == null ? Set.of() : Set.copyOf(configurations);
+        }
+    }
+
+    /**
+     * True if either this is the system user or the user is affiliated with a device owner on
+     * the device.
+     */
+    @Experimental
+    public boolean isAffiliated() {
+        return isAffiliated(TestApis.users().instrumented());
+    }
+
+    // TODO(276248451): Make user handle aware so it'll work cross-user
+    @Experimental
+    private boolean isAffiliated(UserReference user) {
+        return devicePolicyManager(user).isAffiliatedUser();
+    }
+
+    /**
+     * Recalculate the "hasIncompatibleAccounts" cache inside DevicePolicyManager.
+     */
+    @Experimental
+    public void calculateHasIncompatibleAccounts() {
+        if (!Versions.meetsMinimumSdkVersionRequirement(Versions.U)) {
+            // Nothing to calculate pre-U
+            return;
+        }
+        try (BlockingLogcatListener b =
+                     TestApis.logcat().listen(
+                             l -> l.contains("Finished calculating hasIncompatibleAccountsTask"))) {
+            sDevicePolicyManager.calculateHasIncompatibleAccounts();
         }
     }
 }

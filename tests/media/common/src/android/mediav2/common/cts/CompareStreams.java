@@ -34,7 +34,11 @@ import java.util.ArrayList;
  * accepts YUV as well as compressed streams for validation.
  * <p>
  * Before validation, the class checks if the input and output have same width, height and bitdepth.
+ *
+ * @deprecated This class decodes the clips to yuv and stores them in app cache directory. For
+ * very large resolutions it is possible to run out of storage. Use {@link CompareStreams2} instead.
  */
+@Deprecated
 public class CompareStreams {
     private static final String LOG_TAG = CompareStreams.class.getSimpleName();
 
@@ -43,54 +47,57 @@ public class CompareStreams {
     private final ArrayList<String> mTmpFiles = new ArrayList<>();
 
     public CompareStreams(String refMediaType, String refFile, String testMediaType,
-            String testFile, boolean allowRefResize, boolean allowRefLoopBack)
-            throws IOException, InterruptedException {
+            String testFile, boolean allowRefResize, boolean allowRefLoopBack) throws IOException {
         DecodeStreamToYuv ref = new DecodeStreamToYuv(refMediaType, refFile);
         RawResource refYuv = ref.getDecodedYuv();
         mTmpFiles.add(refYuv.mFileName);
-        setUp(refYuv, testMediaType, testFile, allowRefResize, allowRefLoopBack);
-    }
 
-    public CompareStreams(RawResource ref, String testMediaType, String testFile,
-            boolean allowRefResize, boolean allowRefLoopBack)
-            throws IOException, InterruptedException {
-        setUp(ref, testMediaType, testFile, allowRefResize, allowRefLoopBack);
-    }
-
-    private void setUp(RawResource ref, String testMediaType, String testFile,
-            boolean allowRefResize, boolean allowRefLoopBack)
-            throws IOException, InterruptedException {
         DecodeStreamToYuv test = new DecodeStreamToYuv(testMediaType, testFile);
         RawResource testYuv = test.getDecodedYuv();
         mTmpFiles.add(testYuv.mFileName);
-        if (ref.mBytesPerSample != testYuv.mBytesPerSample) {
+
+        init(refYuv, testYuv, allowRefResize, allowRefLoopBack);
+    }
+
+    public CompareStreams(RawResource refYuv, String testMediaType, String testFile,
+            boolean allowRefResize, boolean allowRefLoopBack) throws IOException {
+        DecodeStreamToYuv test = new DecodeStreamToYuv(testMediaType, testFile);
+        RawResource testYuv = test.getDecodedYuv();
+        mTmpFiles.add(testYuv.mFileName);
+
+        init(refYuv, testYuv, allowRefResize, allowRefLoopBack);
+    }
+
+    private void init(RawResource refYuv, RawResource testYuv, boolean allowRefResize,
+            boolean allowRefLoopBack) throws IOException {
+        if (refYuv.mBytesPerSample != testYuv.mBytesPerSample) {
             String msg = String.format(
                     "Reference file bytesPerSample and Test file bytesPerSample are not same. "
                             + "Reference bytesPerSample : %d, Test bytesPerSample : %d",
-                    ref.mBytesPerSample, testYuv.mBytesPerSample);
+                    refYuv.mBytesPerSample, testYuv.mBytesPerSample);
             cleanUp();
             throw new IllegalArgumentException(msg);
         }
-        RawResource refYuv;
-        if (ref.mHeight == testYuv.mHeight && ref.mWidth == testYuv.mWidth) {
-            refYuv = ref;
+        RawResource refYuvResized;
+        if (refYuv.mHeight == testYuv.mHeight && refYuv.mWidth == testYuv.mWidth) {
+            refYuvResized = refYuv;
         } else {
             if (allowRefResize) {
-                refYuv = readAndResizeInputRawYUV(ref, testYuv.mWidth, testYuv.mHeight,
+                refYuvResized = readAndResizeInputRawYUV(refYuv, testYuv.mWidth, testYuv.mHeight,
                         testYuv.mBytesPerSample);
-                mTmpFiles.add(refYuv.mFileName);
+                mTmpFiles.add(refYuvResized.mFileName);
             } else {
                 String msg = String.format(
                         "Reference file attributes and Test file attributes are not same. "
                                 + "Reference width : %d, height : %d, bytesPerSample : %d, Test "
                                 + "width : %d, height : %d, bytesPerSample : %d",
-                        ref.mWidth, ref.mHeight, ref.mBytesPerSample, testYuv.mWidth,
+                        refYuv.mWidth, refYuv.mHeight, refYuv.mBytesPerSample, testYuv.mWidth,
                         testYuv.mHeight, testYuv.mBytesPerSample);
                 cleanUp();
                 throw new IllegalArgumentException(msg);
             }
         }
-        mStatistics = new VideoErrorManager(refYuv, testYuv, allowRefLoopBack);
+        mStatistics = new VideoErrorManager(refYuvResized, testYuv, allowRefLoopBack);
     }
 
     private RawResource readAndResizeInputRawYUV(RawResource res, int width, int height,
@@ -116,25 +123,24 @@ public class CompareStreams {
                 .build();
     }
 
-    private void fillAndWriteByteBuffer(int frameWidth, int frameHeight, int bytesPerSample,
-            int inpFrameWidth, int inpFrameHeight, byte[] inputData, File outFile)
-            throws IOException {
-        byte[] outputData = new byte[((3 * frameWidth * frameHeight * bytesPerSample) / 2)];
-        int outOffset = 0;
+    static YUVImage fillByteArray(int tgtFrameWidth, int tgtFrameHeight,
+            int bytesPerSample, int inpFrameWidth, int inpFrameHeight, byte[] inputData) {
+        YUVImage yuvImage = new YUVImage();
         int inOffset = 0;
         for (int plane = 0; plane < 3; plane++) {
             int width, height, tileWidth, tileHeight;
             if (plane != 0) {
-                width = frameWidth / 2;
-                height = frameHeight / 2;
+                width = tgtFrameWidth / 2;
+                height = tgtFrameHeight / 2;
                 tileWidth = inpFrameWidth / 2;
                 tileHeight = inpFrameHeight / 2;
             } else {
-                width = frameWidth;
-                height = frameHeight;
+                width = tgtFrameWidth;
+                height = tgtFrameHeight;
                 tileWidth = inpFrameWidth;
                 tileHeight = inpFrameHeight;
             }
+            byte[] outputData = new byte[width * height * bytesPerSample];
             for (int k = 0; k < height; k += tileHeight) {
                 int rowsToCopy = Math.min(height - k, tileHeight);
                 for (int j = 0; j < rowsToCopy; j++) {
@@ -143,16 +149,26 @@ public class CompareStreams {
                         System.arraycopy(inputData,
                                 inOffset + j * tileWidth * bytesPerSample,
                                 outputData,
-                                outOffset + (k + j) * width * bytesPerSample + i * bytesPerSample,
+                                (k + j) * width * bytesPerSample + i * bytesPerSample,
                                 colsToCopy * bytesPerSample);
                     }
                 }
             }
-            outOffset += width * height * bytesPerSample;
             inOffset += tileWidth * tileHeight * bytesPerSample;
+            yuvImage.mData.add(outputData);
         }
+        return yuvImage;
+    }
+
+    private void fillAndWriteByteBuffer(int tgtFrameWidth, int tgtFrameHeight, int bytesPerSample,
+            int inpFrameWidth, int inpFrameHeight, byte[] inputData, File outFile)
+            throws IOException {
+        YUVImage yuvImage = fillByteArray(tgtFrameWidth, tgtFrameHeight, bytesPerSample,
+                inpFrameWidth, inpFrameHeight, inputData);
         try (FileOutputStream os = new FileOutputStream(outFile, true)) {
-            os.write(outputData);
+            for (int i = 0; i < yuvImage.mData.size(); i++) {
+                os.write(yuvImage.mData.get(i));
+            }
         }
     }
 

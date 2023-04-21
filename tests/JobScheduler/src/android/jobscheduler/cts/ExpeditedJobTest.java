@@ -82,7 +82,7 @@ public class ExpeditedJobTest {
         assertTrue("Job did not start after scheduling",
                 mTestAppInterface.awaitJobStart(DEFAULT_WAIT_TIMEOUT_MS));
         mTestAppInterface.assertJobUidState(ActivityManager.PROCESS_STATE_TRANSIENT_BACKGROUND,
-                ActivityManager.PROCESS_CAPABILITY_NETWORK,
+                ActivityManager.PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK,
                 227 /* ProcessList.PERCEPTIBLE_MEDIUM_APP_ADJ + 2 */);
     }
 
@@ -97,6 +97,8 @@ public class ExpeditedJobTest {
             mTestAppInterface.scheduleJob(
                     Map.of(TestJobSchedulerReceiver.EXTRA_AS_EXPEDITED, true),
                     Map.of(TestJobSchedulerReceiver.EXTRA_JOB_ID_KEY, i));
+        }
+        for (int i = 0; i < numEjs; ++i) {
             assertTrue("Job did not start after scheduling",
                     mTestAppInterface.awaitJobStart(i, DEFAULT_WAIT_TIMEOUT_MS));
         }

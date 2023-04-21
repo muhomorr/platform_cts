@@ -30,6 +30,7 @@ import android.service.credentials.Action;
 import android.service.credentials.CallingAppInfo;
 import android.service.credentials.CreateEntry;
 import android.service.credentials.CredentialEntry;
+import android.service.credentials.RemoteEntry;
 
 import java.util.Random;
 
@@ -41,12 +42,13 @@ public class TestUtils {
         assertEquals(a.getCandidateQueryData(), b.getCandidateQueryData());
         assertEquals(a.getCredentialRetrievalData(), b.getCredentialRetrievalData());
         assertThat(a.isSystemProviderRequired()).isEqualTo(b.isSystemProviderRequired());
+        assertThat(a.getAllowedProviders()).containsExactlyElementsIn(b.getAllowedProviders());
     }
 
     public static void assertEquals(CredentialDescription a, CredentialDescription b) {
         assertThat(a.getType()).isEqualTo(b.getType());
-        assertThat(a.getFlattenedRequestString()).isEqualTo(b.getFlattenedRequestString());
-        assertThat(a.getCredentialEntries()).isSameInstanceAs(b.getCredentialEntries());
+        assertThat(a.getSupportedElementKeys()).isEqualTo(b.getSupportedElementKeys());
+        assertThat(a.getCredentialEntries()).isEqualTo(b.getCredentialEntries());
     }
 
     public static void assertEquals(Slice a, Slice b) {
@@ -59,6 +61,10 @@ public class TestUtils {
     }
 
     public static void assertEquals(CreateEntry a, CreateEntry b) {
+        assertEquals(a.getSlice(), b.getSlice());
+    }
+
+    public static void assertEquals(RemoteEntry a, RemoteEntry b) {
         assertEquals(a.getSlice(), b.getSlice());
     }
 

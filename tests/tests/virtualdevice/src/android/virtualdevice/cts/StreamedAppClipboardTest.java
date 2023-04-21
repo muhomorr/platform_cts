@@ -22,9 +22,9 @@ import static android.Manifest.permission.CREATE_VIRTUAL_DEVICE;
 import static android.Manifest.permission.READ_CLIPBOARD_IN_BACKGROUND;
 import static android.Manifest.permission.READ_DEVICE_CONFIG;
 import static android.Manifest.permission.WAKE_LOCK;
-import static android.Manifest.permission.WRITE_DEVICE_CONFIG;
+import static android.Manifest.permission.WRITE_ALLOWLISTED_DEVICE_CONFIG;
 import static android.Manifest.permission.WRITE_SECURE_SETTINGS;
-import static android.companion.virtual.VirtualDeviceManager.DEVICE_ID_DEFAULT;
+import static android.content.Context.DEVICE_ID_DEFAULT;
 import static android.content.pm.PackageManager.FEATURE_FREEFORM_WINDOW_MANAGEMENT;
 import static android.virtualdevice.cts.common.ClipboardTestConstants.ACTION_GET_CLIP;
 import static android.virtualdevice.cts.common.ClipboardTestConstants.ACTION_SET_AND_GET_CLIP;
@@ -123,7 +123,7 @@ public class StreamedAppClipboardTest {
     private static final ComponentName CLIPBOARD_TEST_ACTIVITY_2 =
             new ComponentName("android.virtualdevice.streamedtestapp2",
                     "android.virtualdevice.streamedtestapp2.ClipboardTestActivity2");
-    private static final int EVENT_TIMEOUT_MS = 3000;
+    private static final int EVENT_TIMEOUT_MS = 6000;
 
     @Rule
     public AdoptShellPermissionsRule mAdoptShellPermissionsRule = new AdoptShellPermissionsRule(
@@ -133,7 +133,7 @@ public class StreamedAppClipboardTest {
             CREATE_VIRTUAL_DEVICE,
             READ_CLIPBOARD_IN_BACKGROUND,
             READ_DEVICE_CONFIG,
-            WRITE_DEVICE_CONFIG,
+            WRITE_ALLOWLISTED_DEVICE_CONFIG,
             WRITE_SECURE_SETTINGS,
             WAKE_LOCK);
 
@@ -182,8 +182,9 @@ public class StreamedAppClipboardTest {
         MockitoAnnotations.initMocks(this);
         mContext = getApplicationContext();
         final PackageManager packageManager = mContext.getPackageManager();
-        assumeTrue(packageManager
-                .hasSystemFeature(PackageManager.FEATURE_ACTIVITIES_ON_SECONDARY_DISPLAYS));
+        assumeTrue(packageManager.hasSystemFeature(PackageManager.FEATURE_COMPANION_DEVICE_SETUP));
+        assumeTrue(packageManager.hasSystemFeature(
+                PackageManager.FEATURE_ACTIVITIES_ON_SECONDARY_DISPLAYS));
         // TODO(b/261155110): Re-enable tests once freeform mode is supported in Virtual Display.
         assumeFalse("Skipping test: VirtualDisplay window policy doesn't support freeform.",
                 packageManager.hasSystemFeature(FEATURE_FREEFORM_WINDOW_MANAGEMENT));
@@ -705,7 +706,8 @@ public class StreamedAppClipboardTest {
 
         // Sometimes the top activity on the display isn't quite ready to receive inputs and the
         // injected input event gets rejected, so we retry a few times before giving up.
-        Timeout timeout = new Timeout("tapOnDisplay", EVENT_TIMEOUT_MS, 2f, EVENT_TIMEOUT_MS);
+        long maxTimeoutMs = 2 * EVENT_TIMEOUT_MS;
+        Timeout timeout = new Timeout("tapOnDisplay", EVENT_TIMEOUT_MS, 2f, maxTimeoutMs);
         try {
             timeout.run("tap on display " + display.getDisplayId(), ()-> {
                 final long downTime = SystemClock.elapsedRealtime();

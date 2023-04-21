@@ -51,6 +51,7 @@ public class AppCloningHostTest extends AppCloningBaseHostTest {
 
     private static final String IMAGE_NAME_TO_BE_CREATED_KEY = "imageNameToBeCreated";
     private static final String IMAGE_NAME_TO_BE_DISPLAYED_KEY = "imageNameToBeDisplayed";
+    private static final String PUBLIC_SD_CARD_VOLUME_KEY = "publicSdCardVol";
     private static final String EXTERNAL_STORAGE_PATH = "/storage/emulated/%d/";
     private static final String IMAGE_NAME_TO_BE_VERIFIED_IN_OWNER_PROFILE_KEY =
             "imageNameToBeVerifiedInOwnerProfile";
@@ -247,7 +248,7 @@ public class AppCloningHostTest extends AppCloningBaseHostTest {
     @Test
     public void testDeletionOfPrimaryApp_deleteAppWithParentPropertyTrue_deletesCloneApp()
             throws Exception {
-        assumeTrue(isAtLeastU());
+        assumeTrue(isAtLeastU(sDevice));
 
         int currentUserId = getCurrentUserId();
 

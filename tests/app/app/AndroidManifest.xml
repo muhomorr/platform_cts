@@ -16,6 +16,7 @@
  -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools"
      package="android.app.stubs">
 
     <permission android:name="android.app.stubs.permission.TEST_GRANTED"
@@ -163,9 +164,6 @@
         <service android:name="android.app.stubs.LocalService"
              android:attributionTags="localService"
              android:exported="true">
-            <intent-filter>
-                <action android:name="android.app.stubs.activity.SERVICE_LOCAL"/>
-            </intent-filter>
             <meta-data android:name="android.app.stubs.string"
                  android:value="foo"/>
             <meta-data android:name="android.app.stubs.boolean"
@@ -184,51 +182,27 @@
 
         <service android:name="android.app.stubs.LocalForegroundService"
              android:foregroundServiceType="camera|microphone"
-             android:exported="true">
-            <intent-filter>
-                <action android:name="android.app.stubs.FOREGROUND_SERVICE"/>
-            </intent-filter>
-        </service>
+             android:exported="true" />
 
         <service android:name="android.app.stubs.LocalPhoneCallService"
              android:foregroundServiceType="microphone|phoneCall"
-             android:exported="true">
-            <intent-filter>
-                <action android:name="android.app.stubs.FOREGROUND_SERVICE" />
-            </intent-filter>
-        </service>
+             android:exported="true" />
 
         <service android:name="android.app.stubs.LocalForegroundServiceLocation"
              android:foregroundServiceType="location|camera|microphone"
-             android:exported="true">
-            <intent-filter>
-                <action android:name="android.app.stubs.FOREGROUND_SERVICE_LOCATION"/>
-            </intent-filter>
-        </service>
+             android:exported="true" />
 
         <service android:name="android.app.stubs.LocalForegroundServiceSticky"
                  android:foregroundServiceType="location|camera|microphone"
-                 android:exported="true">
-            <intent-filter>
-                <action android:name="android.app.stubs.FOREGROUND_SERVICE"/>
-            </intent-filter>
-        </service>
+                 android:exported="true" />
 
         <service android:name="android.app.stubs.LocalGrantedService"
              android:permission="android.app.stubs.permission.TEST_GRANTED"
-             android:exported="true">
-            <intent-filter>
-                <action android:name="android.app.stubs.activity.SERVICE_LOCAL_GRANTED"/>
-            </intent-filter>
-        </service>
+             android:exported="true" />
 
         <service android:name="android.app.stubs.LocalDeniedService"
              android:permission="android.app.stubs.permission.TEST_DENIED"
-             android:exported="true">
-            <intent-filter>
-                <action android:name="android.app.stubs.activity.SERVICE_LOCAL_DENIED"/>
-            </intent-filter>
-        </service>
+             android:exported="true" />
 
         <service android:name="android.app.stubs.IsolatedService"
              android:isolatedProcess="true"
@@ -444,7 +418,7 @@
              android:theme="@android:style/Theme.Material.Light.NoActionBar"/>
 
         <service android:name="android.app.stubs.TestNotificationListener"
-             android:exported="true"
+             android:exported="false"
              android:label="TestNotificationListener"
              android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
@@ -606,6 +580,11 @@
             android:launchMode="singleInstance"
             android:exported="true" />
 
+        <!-- (b/197936012) Remove startup provider due to test timeout issue -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            tools:node="remove" />
     </application>
 
 </manifest>
