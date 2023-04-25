@@ -22,7 +22,6 @@ import android.app.UiAutomation
 import android.content.Context
 import android.content.Intent
 import android.platform.test.annotations.AppModeFull
-import android.platform.test.rule.ScreenRecordRule
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.AndroidJUnit4
 import androidx.test.uiautomator.By
@@ -35,7 +34,6 @@ import com.android.compatibility.common.util.UiAutomatorUtils2.waitFindObjectOrN
 import java.util.regex.Pattern
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -54,9 +52,6 @@ class ReviewAccessibilityServicesTest {
     }
 
     @get:Rule
-    val screenRecordRule = ScreenRecordRule()
-
-    @get:Rule
     val accessibilityServiceRule =
         InstrumentedAccessibilityServiceTestRule(AccessibilityTestService1::class.java, false)
 
@@ -69,15 +64,9 @@ class ReviewAccessibilityServicesTest {
             UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES
     }
 
-    @Before
-    fun setup() {
-        InstrumentedAccessibilityService.disableAllServices()
-    }
-
     @After
     fun cleanUp() {
         uiDevice.pressHome()
-        InstrumentedAccessibilityService.disableAllServices()
     }
 
     @Test
@@ -98,7 +87,6 @@ class ReviewAccessibilityServicesTest {
     }
 
     @Test
-    @ScreenRecordRule.ScreenRecord
     fun testClickingSettingsGoesToIndividualSettingsWhenOneServiceEnabled() {
         accessibilityServiceRule.enableService()
         startAccessibilityActivity()
@@ -109,7 +97,6 @@ class ReviewAccessibilityServicesTest {
     }
 
     @Test
-    @ScreenRecordRule.ScreenRecord
     fun testClickingSettingsGoesToGeneralSettingsWhenMultipleServicesEnabled() {
         accessibilityServiceRule.enableService()
         accessibilityServiceRule2.enableService()
@@ -121,7 +108,6 @@ class ReviewAccessibilityServicesTest {
     }
 
     @Test
-    @ScreenRecordRule.ScreenRecord
     fun testClickingIndividualGoesToIndividualSettingsWhenMultipleServicesEnabled() {
         accessibilityServiceRule.enableService()
         accessibilityServiceRule2.enableService()
