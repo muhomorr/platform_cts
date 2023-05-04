@@ -18,7 +18,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           package="com.android.cts.verifier"
           android:versionCode="5"
-          android:versionName="13_r4">
+          android:versionName="13_r5">
 
     <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="33"/>
 
@@ -265,6 +265,7 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_features" />
+            <meta-data android:name="test_required_configs" android:value="config_no_emulator"/>
             <meta-data android:name="test_required_features"
                        android:value="android.software.companion_device_setup" />
             <meta-data android:name="display_mode"
@@ -284,6 +285,7 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_features" />
+            <meta-data android:name="test_required_configs" android:value="config_no_emulator"/>
             <meta-data android:name="test_required_features"
                        android:value="android.software.companion_device_setup" />
             <meta-data android:name="display_mode"
