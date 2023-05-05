@@ -37,13 +37,14 @@ _MIN_PHONE_MOVEMENT_ANGLE = 5  # degrees
 _NAME = os.path.splitext(os.path.basename(__file__))[0]
 _NUM_ROTATIONS = 24
 _START_FRAME = 30  # give 3A some frames to warm up
+_TABLET_SERVO_SPEED = 20
 _VIDEO_DELAY_TIME = 5.5  # seconds
 _VIDEO_DURATION = 5.5  # seconds
 _PREVIEW_STABILIZATION_FACTOR = 0.7  # 70% of gyro movement allowed
 _PREVIEW_STABILIZATION_MODE_PREVIEW = 2
 
 
-def _collect_data(cam, video_size, rot_rig):
+def _collect_data(cam, tablet_device, video_size, rot_rig):
   """Capture a new set of data from the device.
 
   Captures camera preview frames while the user is moving the device in
@@ -51,6 +52,7 @@ def _collect_data(cam, video_size, rot_rig):
 
   Args:
     cam: camera object
+    tablet_device: boolean; based on config file
     video_size: str; video resolution. ex. '1920x1080'
     rot_rig: dict with 'cntl' and 'ch' defined
 
@@ -61,6 +63,10 @@ def _collect_data(cam, video_size, rot_rig):
   logging.debug('Starting sensor event collection')
 
   # Start camera vibration
+  if tablet_device:
+    servo_speed = _TABLET_SERVO_SPEED
+  else:
+    servo_speed = _ARDUINO_SERVO_SPEED
   p = multiprocessing.Process(
       target=sensor_fusion_utils.rotation_rig,
       args=(
@@ -68,7 +74,7 @@ def _collect_data(cam, video_size, rot_rig):
           rot_rig['ch'],
           _NUM_ROTATIONS,
           _ARDUINO_ANGLES,
-          _ARDUINO_SERVO_SPEED,
+          servo_speed,
           _ARDUINO_MOVE_TIME,
       ),
   )
@@ -151,21 +157,19 @@ class PreviewStabilizationTest(its_base_test.ItsBaseTest):
             f'You must use the arduino controller for {_NAME}.')
 
       # List of video resolutions to test
-      if camera_fov > opencv_processing_utils.FOV_THRESH_WFOV:
-        low_resolution_sizes = video_processing_utils.LOW_RESOLUTION_SIZES['UW']
-      else:
-        low_resolution_sizes = video_processing_utils.LOW_RESOLUTION_SIZES['W']
+      lowest_res_tested = video_processing_utils.LOWEST_RES_TESTED_AREA
+      resolution_to_area = lambda s: int(s.split('x')[0])*int(s.split('x')[1])
       supported_preview_sizes = cam.get_supported_preview_sizes(self.camera_id)
-      for size in low_resolution_sizes:
-        if size in supported_preview_sizes:
-          supported_preview_sizes.remove(size)
+      supported_preview_sizes = [size for size in supported_preview_sizes
+                                 if resolution_to_area(size)
+                                 >= lowest_res_tested]
       logging.debug('Supported preview resolutions: %s',
                     supported_preview_sizes)
 
       max_cam_gyro_angles = {}
 
       for video_size in supported_preview_sizes:
-        recording_obj = _collect_data(cam, video_size, rot_rig)
+        recording_obj = _collect_data(cam, self.tablet_device, video_size, rot_rig)
 
         # Grab the video from the save location on DUT
         self.dut.adb.pull([recording_obj['recordedOutputPath'], log_path])
