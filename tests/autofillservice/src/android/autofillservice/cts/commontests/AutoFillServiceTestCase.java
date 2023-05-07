@@ -25,8 +25,6 @@ import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentat
 
 import static com.android.compatibility.common.util.ShellUtils.runShellCommand;
 
-import static org.junit.Assume.assumeFalse;
-
 import android.app.PendingIntent;
 import android.autofillservice.cts.R;
 import android.autofillservice.cts.activities.AbstractAutoFillActivity;
@@ -134,6 +132,19 @@ public final class AutoFillServiceTestCase {
 
         @Override
         protected TestRule getMainTestRule() {
+            try {
+                // Set orientation as portrait before auto-launch an activity,
+                // otherwise some tests might fail due to elements not fitting
+                // in, IME orientation, etc...
+                // Many tests will hold Activity in afterActivityLaunched() by
+                // overriding ActivityRule. If rotating after the activity has
+                // started, these tests will keep the old activity. All actions
+                // on the wrong activity did not happen as expected.
+                getDropdownUiBot().setScreenOrientation(UiBot.PORTRAIT);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+
             return getActivityRule();
         }
 
@@ -413,8 +424,6 @@ public final class AutoFillServiceTestCase {
 
             // Collapse notifications.
             runShellCommand("cmd statusbar collapse");
-
-            assumeFalse("Device is half-folded", Helper.isDeviceHalfFolded(mContext));
 
             // Set orientation as portrait, otherwise some tests might fail due to elements not
             // fitting in, IME orientation, etc...
