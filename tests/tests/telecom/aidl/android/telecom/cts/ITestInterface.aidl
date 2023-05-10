@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,12 @@
  * limitations under the License.
  */
 
-package com.android.interactive.annotations;
+package android.telecom.cts;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-
-/**
- * Annotation to mark either that a Step can not be automated, or that a test makes use of steps
- * which cannot be automated.
- */
-@Target({ElementType.METHOD, ElementType.TYPE})
-@Retention(RetentionPolicy.RUNTIME)
-public @interface NotFullyAutomated {
-    String reason();
+interface ITestInterface {
+    /**
+     * Simple method that just sends back the String that it was given. Used for testing Bundle
+     * and IPC capabilities.
+     */
+    String testLoopback(String testString);
 }
