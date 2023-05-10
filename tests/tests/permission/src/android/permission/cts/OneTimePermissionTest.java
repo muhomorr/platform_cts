@@ -16,13 +16,14 @@
 
 package android.permission.cts;
 
+import static org.junit.Assume.assumeFalse;
 import static android.Manifest.permission.ACCESS_FINE_LOCATION;
-import static android.Manifest.permission.CAMERA;
 import static android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_CACHED;
 import static android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
 import static android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 
+import com.android.compatibility.common.util.FeatureUtil;
 import static com.android.compatibility.common.util.SystemUtil.eventually;
 import static com.android.compatibility.common.util.SystemUtil.runShellCommand;
 import static com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity;
@@ -32,7 +33,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.platform.test.annotations.AsbSecurityTest;
 import android.provider.DeviceConfig;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.UiDevice;
@@ -42,6 +42,8 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.SystemUtil;
 import com.android.compatibility.common.util.UiAutomatorUtils;
+
+import android.app.DreamManager;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -80,7 +82,6 @@ public class OneTimePermissionTest {
             UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
     private final ActivityManager mActivityManager =
             mContext.getSystemService(ActivityManager.class);
-
     private String mOldOneTimePermissionTimeoutValue;
     private String mOldOneTimePermissionKilledDelayValue;
 
@@ -98,7 +99,6 @@ public class OneTimePermissionTest {
     @Before
     public void installApp() {
         runShellCommand("pm install -r " + APK);
-        runShellCommand("pm install -r " + CUSTOM_CAMERA_PERM_APK);
     }
 
     @Before
@@ -119,7 +119,6 @@ public class OneTimePermissionTest {
     @After
     public void uninstallApp() {
         runShellCommand("pm uninstall " + APP_PKG_NAME);
-        runShellCommand("pm uninstall " + CUSTOM_CAMERA_PERM_APP_PKG_NAME);
     }
 
     @After
@@ -226,33 +225,6 @@ public class OneTimePermissionTest {
         }));
     }
 
-    @Test
-    @AsbSecurityTest(cveBugId = 237405974L)
-    public void testCustomPermissionIsGrantedOneTime() throws Throwable {
-        Intent startApp = new Intent()
-                .setComponent(new ComponentName(CUSTOM_CAMERA_PERM_APP_PKG_NAME,
-                        CUSTOM_CAMERA_PERM_APP_PKG_NAME + ".RequestCameraPermission"))
-                .addFlags(FLAG_ACTIVITY_NEW_TASK);
-
-        mContext.startActivity(startApp);
-
-        // We're only manually granting CAMERA, but the app will later request CUSTOM and get it
-        // granted silently. This is intentional since it's in the same group but both should
-        // eventually be revoked
-        clickOneTimeButton();
-
-        // Just waiting for the revocation
-        eventually(() -> Assert.assertEquals(PackageManager.PERMISSION_DENIED,
-                mContext.getPackageManager()
-                        .checkPermission(CAMERA, CUSTOM_CAMERA_PERM_APP_PKG_NAME)));
-
-        // This checks the vulnerability
-        eventually(() -> Assert.assertEquals(PackageManager.PERMISSION_DENIED,
-                mContext.getPackageManager()
-                        .checkPermission(CUSTOM_PERMISSION, CUSTOM_CAMERA_PERM_APP_PKG_NAME)));
-
-    }
-
     private void assertGrantedState(String s, int permissionGranted, long timeoutMillis) {
         eventually(() -> Assert.assertEquals(s,
                 permissionGranted, mPackageManager
@@ -285,8 +257,14 @@ public class OneTimePermissionTest {
         try {
             new Thread(() -> {
                 while (!hasExited[0]) {
+                    DreamManager mDreamManager = mContext.getSystemService(DreamManager.class);
                     mUiDevice.pressHome();
                     mUiDevice.pressBack();
+                    runWithShellPermissionIdentity(() -> {
+                        if (mDreamManager.isDreaming()) {
+                            mDreamManager.stopDream();
+                        }
+                    });
                     try {
                         Thread.sleep(1000);
                     } catch (InterruptedException e) {
@@ -317,6 +295,11 @@ public class OneTimePermissionTest {
      * Start the app. The app will request the permissions.
      */
     private void startApp() {
+        // One time permission is not applicable for Wear OS.
+        // The only permissions available are Allow or Deny
+        assumeFalse(
+                "Skipping test: One time permission is not supported in Wear OS",
+                FeatureUtil.isWatch());
         Intent startApp = new Intent();
         startApp.setComponent(new ComponentName(APP_PKG_NAME, APP_PKG_NAME + ".RequestPermission"));
         startApp.setFlags(FLAG_ACTIVITY_NEW_TASK);

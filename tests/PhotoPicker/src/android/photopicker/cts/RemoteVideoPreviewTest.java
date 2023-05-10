@@ -16,7 +16,7 @@
 
 package android.photopicker.cts;
 
-import static android.os.SystemProperties.getBoolean;
+import static android.photopicker.cts.PhotoPickerCloudUtils.enableCloudMediaAndSetAllowedCloudProviders;
 import static android.photopicker.cts.PickerProviderMediaGenerator.setCloudProvider;
 import static android.photopicker.cts.PickerProviderMediaGenerator.syncCloudProvider;
 import static android.photopicker.cts.util.PhotoPickerFilesUtils.deleteMedia;
@@ -41,18 +41,19 @@ import static org.mockito.ArgumentMatchers.eq;
 import android.content.Intent;
 import android.graphics.PixelFormat;
 import android.net.Uri;
+import android.os.Build;
 import android.photopicker.cts.PickerProviderMediaGenerator.MediaGenerator;
 import android.photopicker.cts.cloudproviders.CloudProviderPrimary;
 import android.photopicker.cts.cloudproviders.CloudProviderPrimary.CloudMediaSurfaceControllerImpl;
 import android.provider.MediaStore;
 import android.util.Pair;
 
+import androidx.test.filters.SdkSuppress;
 import androidx.test.runner.AndroidJUnit4;
 import androidx.test.uiautomator.UiObject;
 import androidx.test.uiautomator.UiSelector;
 
 import org.junit.After;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -69,6 +70,7 @@ import java.util.List;
  * End-to-end coverage for video preview controls is present in {@link PhotoPickerTest}
  */
 @RunWith(AndroidJUnit4.class)
+@SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
 public class RemoteVideoPreviewTest extends PhotoPickerBaseTest {
 
     private MediaGenerator mCloudPrimaryMediaGenerator;
@@ -90,15 +92,14 @@ public class RemoteVideoPreviewTest extends PhotoPickerBaseTest {
     public void setUp() throws Exception {
         super.setUp();
 
-        Assume.assumeTrue(getBoolean("sys.photopicker.pickerdb.enabled", true));
-
-        sDevice.executeShellCommand("setprop sys.photopicker.remote_preview true");
-        Assume.assumeTrue(getBoolean("sys.photopicker.remote_preview", true));
-
         mCloudPrimaryMediaGenerator = PickerProviderMediaGenerator.getMediaGenerator(
                 mContext, CloudProviderPrimary.AUTHORITY);
         mCloudPrimaryMediaGenerator.resetAll();
         mCloudPrimaryMediaGenerator.setMediaCollectionId(COLLECTION_1);
+
+        // This is a self-instrumentation test, so both "target" package name and "own" package name
+        // should be the same (android.photopicker.cts).
+        enableCloudMediaAndSetAllowedCloudProviders(sTargetPackageName);
 
         setCloudProvider(mContext, CloudProviderPrimary.AUTHORITY);
         assertThat(MediaStore.isCurrentCloudMediaProviderAuthority(mContext.getContentResolver(),
@@ -114,8 +115,12 @@ public class RemoteVideoPreviewTest extends PhotoPickerBaseTest {
             deleteMedia(uri, mContext);
         }
         mUriList.clear();
-        mActivity.finish();
-        setCloudProvider(mContext, null);
+        if (mActivity != null) {
+            mActivity.finish();
+        }
+        if (mCloudPrimaryMediaGenerator != null) {
+            setCloudProvider(mContext, null);
+        }
     }
 
     @Test
@@ -170,16 +175,14 @@ public class RemoteVideoPreviewTest extends PhotoPickerBaseTest {
 
         // Remote Preview calls onSurfaceCreated with monotonically increasing surfaceIds
         final int surfaceIdForSecondVideoPreview = 1;
-        verifyAdjacentVideoSwipe(surfaceIdForFirstVideoPreview, surfaceIdForSecondVideoPreview,
-                CLOUD_ID1);
+        verifyAdjacentVideoSwipe(surfaceIdForSecondVideoPreview, CLOUD_ID1);
 
         // Swipe right in preview mode and go to first video, but the surface id will have
         // increased monotonically
         swipeRightAndWait();
 
         final int surfaceIdForThirdVideoPreview = 2;
-        verifyAdjacentVideoSwipe(surfaceIdForSecondVideoPreview, surfaceIdForThirdVideoPreview,
-                CLOUD_ID2);
+        verifyAdjacentVideoSwipe(surfaceIdForThirdVideoPreview, CLOUD_ID2);
 
         final UiObject addButton = findPreviewAddButton();
         addButton.click();
@@ -264,18 +267,16 @@ public class RemoteVideoPreviewTest extends PhotoPickerBaseTest {
      * Verify surface controller interactions on swiping from one video to another.
      * Note: This test assumes that the first video is in playing state.
      *
-     * @param oldSurfaceId the Surface ID which we are swiping away from
      * @param newSurfaceId the Surface ID to which we are swiping
      * @param newMediaId   the media ID of the video we are swiping to
      */
-    private void verifyAdjacentVideoSwipe(int oldSurfaceId, int newSurfaceId, String newMediaId)
+    private void verifyAdjacentVideoSwipe(int newSurfaceId, String newMediaId)
             throws Exception {
+        // We cannot be sure of the order of onSurfaceDestroyed(oldSurfaceId) and
+        // onSurfaceCreated(newSurfaceId) calls since the Surface lifecycle is not in our control,
+        // hence we cannot verify the two calls were made using InOrder mock.
         mAssertInOrder.verify(mSurfaceControllerListener).onSurfaceCreated(eq(newSurfaceId),
                 any(), eq(newMediaId));
-
-        // The surface for the first video is destroyed when it is no longer visible on the screen
-        // (swipe is complete).
-        mAssertInOrder.verify(mSurfaceControllerListener).onSurfaceDestroyed(eq(oldSurfaceId));
 
         verifyPlaybackStartedWhenPlayerReady(newSurfaceId);
     }
