@@ -14,29 +14,20 @@
  * limitations under the License.
  */
 
-package com.google.android.interactive.steps.enterprise.sharesheet;
+
+package com.google.android.interactive.steps.enterprise.launcher;
 
 import androidx.test.uiautomator.By;
-import androidx.test.uiautomator.UiDevice;
-import androidx.test.uiautomator.Until;
 
 import com.android.bedstead.nene.TestApis;
 import com.android.interactive.Automation;
 import com.android.interactive.annotations.AutomationFor;
 
-import java.util.Locale;
-
-@AutomationFor("com.google.android.interactive.steps.enterprise.sharesheet"
-        + ".DoesDialogShowWorkProfileMapsAppStep")
-public final class DoesDialogShowWorkProfileMapsAppStepAutomation implements
-        Automation<Boolean> {
+@AutomationFor("com.google.android.interactive.steps.enterprise.launcher"
+        + ".IsSmsAppShortcutWorkBadgedStep")
+public class IsSmsAppShortcutWorkBadgedStepAutomation implements Automation<Boolean> {
     @Override
     public Boolean automate() throws Exception {
-        UiDevice device = TestApis.ui().device();
-        device.wait(Until.findObject(By.res("android:id/open_cross_profile")), 2000);
-        String resolverTitle = device.findObject(
-                By.res("android:id/open_cross_profile")).getText().toLowerCase(Locale.getDefault());
-        return resolverTitle.contains("open") && resolverTitle.contains("maps")
-                && resolverTitle.contains("work");
+        return TestApis.ui().device().findObject(By.desc("Work SmsApp")) != null;
     }
 }
