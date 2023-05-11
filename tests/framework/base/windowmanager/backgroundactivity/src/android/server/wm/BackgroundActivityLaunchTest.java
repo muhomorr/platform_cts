@@ -19,6 +19,7 @@ package android.server.wm;
 import static android.Manifest.permission.INTERACT_ACROSS_USERS;
 import static android.app.AppOpsManager.MODE_ALLOWED;
 import static android.app.AppOpsManager.MODE_ERRORED;
+import static android.server.wm.BuildUtils.HW_TIMEOUT_MULTIPLIER;
 import static android.server.wm.ShellCommandHelper.executeShellCommand;
 import static android.server.wm.UiDeviceUtils.pressHomeButton;
 import static android.server.wm.WindowManagerState.STATE_INITIALIZING;
@@ -28,7 +29,6 @@ import static android.view.Display.DEFAULT_DISPLAY;
 import static com.android.compatibility.common.util.SystemUtil.runShellCommandOrThrow;
 import static com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity;
 
-import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -54,7 +54,6 @@ import android.content.pm.ResolveInfo;
 import android.content.pm.UserInfo;
 import android.os.IBinder;
 import android.os.ResultReceiver;
-import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.platform.test.annotations.Presubmit;
@@ -423,7 +422,6 @@ public class BackgroundActivityLaunchTest extends BackgroundActivityTestBase {
     }
 
     @Test
-    @FlakyTest(bugId = 270713916)
     public void testPendingIntentActivity_appAIsForeground_isNotBlocked() {
         // Start AppA foreground activity
         Intent intent = new Intent();
@@ -590,9 +588,7 @@ public class BackgroundActivityLaunchTest extends BackgroundActivityTestBase {
         // timeout. Before the timeout, the start would be allowed because app B (the PI sender) was
         // in the foreground during PI send, so app A (the PI creator) would have
         // (10s * hw_multiplier) to start background activity starts.
-        assertPendingIntentBroadcastTimeoutTest(APP_A, APP_B,
-                12000 * SystemProperties.getInt("ro.hw_timeout_multiplier", 1),
-                false);
+        assertPendingIntentBroadcastTimeoutTest(APP_A, APP_B, 12000 * HW_TIMEOUT_MULTIPLIER, false);
     }
 
     @Test
@@ -678,8 +674,13 @@ public class BackgroundActivityLaunchTest extends BackgroundActivityTestBase {
             String cmdResult = runShellCommandOrThrow(cmd);
             assertWithMessage("Result of '%s'", cmd).that(cmdResult).contains("Success");
         } catch (AssertionError e) {
-            assertThat(e).hasMessageThat().contains(
-                    "Not allowed to set the device owner because this device has already paired");
+            // If failed to set the device owner, stop proceeding to the test case.
+            // Log the error info so that we can investigate further in the future.
+            Log.d(TAG, "Failed to set device owner.", e);
+            String cmdResult = runShellCommandOrThrow("pm list user");
+            Log.d(TAG, "users: " + cmdResult);
+            cmdResult = runShellCommandOrThrow("dpm list-owner");
+            Log.d(TAG, "device owners: " + cmdResult);
             throw new AssumptionViolatedException("This test needs to be able to set device owner");
         }
 

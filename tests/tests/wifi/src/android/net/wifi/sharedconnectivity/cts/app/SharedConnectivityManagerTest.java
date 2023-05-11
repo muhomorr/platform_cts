@@ -69,7 +69,7 @@ import java.util.concurrent.Executor;
  * CTS tests for {@link SharedConnectivityManager}.
  */
 @RunWith(AndroidJUnit4.class)
-@SdkSuppress(minSdkVersion = Build.VERSION_CODES.UPSIDE_DOWN_CAKE, codeName = "UpsideDownCake")
+@SdkSuppress(minSdkVersion = Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 @NonMainlineTest
 public class SharedConnectivityManagerTest {
     private static final long DEVICE_ID = 11L;
@@ -115,6 +115,13 @@ public class SharedConnectivityManagerTest {
     @Test
     public void resourcesNotDefined_createShouldReturnNull() {
         when(mResources.getString(anyInt())).thenThrow(new Resources.NotFoundException());
+
+        assertThat(SharedConnectivityManager.create(mContext)).isNull();
+    }
+
+    @Test
+    public void resourceStringsAreEmpty_createShouldReturnNull() {
+        when(mResources.getString(anyInt())).thenReturn("");
 
         assertThat(SharedConnectivityManager.create(mContext)).isNull();
     }

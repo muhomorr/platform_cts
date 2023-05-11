@@ -21,6 +21,7 @@ import static android.server.wm.CtsWindowInfoUtils.tapOnWindowCenter;
 import static android.server.wm.CtsWindowInfoUtils.waitForWindowFocus;
 import static android.server.wm.CtsWindowInfoUtils.waitForWindowInfo;
 import static android.server.wm.CtsWindowInfoUtils.waitForWindowInfos;
+import static android.server.wm.CtsWindowInfoUtils.waitForWindowVisible;
 import static android.server.wm.MockImeHelper.createManagedMockImeSession;
 import static android.view.SurfaceControlViewHost.SurfacePackage;
 import static android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
@@ -75,7 +76,6 @@ import android.widget.PopupWindow;
 import android.window.WindowInfosListenerForTest.WindowInfo;
 
 import androidx.test.InstrumentationRegistry;
-import androidx.test.filters.FlakyTest;
 import androidx.test.rule.ActivityTestRule;
 
 import com.android.compatibility.common.util.CtsTouchUtils;
@@ -106,11 +106,11 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
 
     public static class TestActivity extends Activity {}
 
-    private final CtsTouchUtils mCtsTouchUtils = new CtsTouchUtils();
     private final ActivityTestRule<TestActivity> mActivityRule = new ActivityTestRule<>(
             TestActivity.class);
 
     private Instrumentation mInstrumentation;
+    private CtsTouchUtils mCtsTouchUtils;
     private Activity mActivity;
     private SurfaceView mSurfaceView;
     private ViewGroup mViewParent;
@@ -177,6 +177,7 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
         }
 
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
+        mCtsTouchUtils = new CtsTouchUtils(mInstrumentation.getTargetContext());
         mActivity = mActivityRule.launchActivity(null);
         mInstrumentation.waitForIdleSync();
 
@@ -226,7 +227,6 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
 
     private void addViewToSurfaceView(SurfaceView sv, View v, int width, int height) {
         mVr = new SurfaceControlViewHost(mActivity, mActivity.getDisplay(), sv.getHostToken());
-
 
         if (mEmbeddedLayoutParams == null) {
             mVr.setView(v, width, height);
@@ -296,11 +296,39 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
         return false;
     }
 
+    public static boolean waitForViewFocus(final View view, boolean hasViewFocus) {
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        view.getHandler().post(() -> {
+            if (view.hasFocus() == hasViewFocus) {
+                latch.countDown();
+                return;
+            }
+            view.setOnFocusChangeListener((v, hasFocus) -> {
+                if (hasViewFocus == hasFocus) {
+                    view.setOnFocusChangeListener(null);
+                    latch.countDown();
+                }
+            });
+        });
+
+        try {
+            if (!latch.await(3, TimeUnit.SECONDS)) {
+                return false;
+            }
+        } catch (InterruptedException e) {
+            return false;
+        }
+        return true;
+    }
+
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
         if (mTestService == null) {
-            addViewToSurfaceView(mSurfaceView, mEmbeddedView,
-                mEmbeddedViewWidth, mEmbeddedViewHeight);
+            if (mEmbeddedView != null) {
+                addViewToSurfaceView(mSurfaceView, mEmbeddedView,
+                        mEmbeddedViewWidth, mEmbeddedViewHeight);
+            }
         } else if (mRemoteSurfacePackage == null) {
             try {
                 mRemoteSurfacePackage = mTestService.getSurfacePackage(mSurfaceView.getHostToken());
@@ -401,7 +429,6 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
 
     @Test
     @RequiresDevice
-    @FlakyTest(bugId = 152103238)
     public void testEmbeddedViewIsHardwareAccelerated() throws Throwable {
         // Hardware accel may not be supported on devices without GLES 2.0
         if (getGlEsVersion(mActivity) < 2) {
@@ -701,6 +728,24 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
         assertWindowFocused(mSurfaceView, true);
     }
 
+    @Test
+    public void testFocusBeforeAddingEmbedded() throws Throwable {
+        addSurfaceView(DEFAULT_SURFACE_VIEW_WIDTH, DEFAULT_SURFACE_VIEW_HEIGHT);
+        // Request focus to the SV before adding the embedded.
+        requestSurfaceViewFocus();
+        mSvCreatedLatch.await();
+        assertTrue("Failed to wait for sv to gain focus", waitForViewFocus(mSurfaceView, true));
+
+        mEmbeddedView = new Button(mActivity);
+        mActivityRule.runOnUiThread(() -> {
+            addViewToSurfaceView(mSurfaceView, mEmbeddedView, mEmbeddedViewWidth,
+                    mEmbeddedViewHeight);
+        });
+        waitForWindowVisible(mEmbeddedView);
+        assertWindowFocused(mEmbeddedView, true);
+        assertWindowFocused(mSurfaceView, false);
+    }
+
     private static class SurfaceCreatedCallback implements SurfaceHolder.Callback {
         private final CountDownLatch mSurfaceCreated;
         SurfaceCreatedCallback(CountDownLatch latch) {
@@ -848,7 +893,7 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
                 mSurfaceView = new SurfaceView(mActivity);
                 mSurfaceView.setZOrderOnTop(true);
                 content.addView(mSurfaceView, new FrameLayout.LayoutParams(
-                        DEFAULT_SURFACE_VIEW_WIDTH, DEFAULT_SURFACE_VIEW_HEIGHT, 
+                        DEFAULT_SURFACE_VIEW_WIDTH, DEFAULT_SURFACE_VIEW_HEIGHT,
                         Gravity.LEFT | Gravity.TOP));
                 mActivity.setContentView(content, new ViewGroup.LayoutParams(
                         DEFAULT_SURFACE_VIEW_WIDTH, DEFAULT_SURFACE_VIEW_HEIGHT));
@@ -1030,7 +1075,7 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
         addForwardingSurfaceView(100, 100);
         mInstrumentation.waitForIdleSync();
         waitUntilEmbeddedViewDrawn();
-        
+
         assertFalse(drv.mDetached);
         mActivityRule.runOnUiThread(() -> {
             mViewParent.removeView(mSurfaceView);
@@ -1125,23 +1170,31 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
         return connection;
     }
 
-    @androidx.test.filters.FlakyTest(bugId = 270554470)
     @Test
     public void testHostInputTokenAllowsObscuredTouches() throws Throwable {
-        SurfaceControlViewHost.SurfacePackage p = null;
-
         mTestService = getService();
         assertTrue(mTestService != null);
 
         addSurfaceView(DEFAULT_SURFACE_VIEW_WIDTH, DEFAULT_SURFACE_VIEW_HEIGHT, false);
+        assertTrue("Failed to wait for SV to get created",
+                mSvCreatedLatch.await(5, TimeUnit.SECONDS));
         mActivityRule.runOnUiThread(() -> {
             mSurfaceView.getRootSurfaceControl().setTouchableRegion(new Region());
         });
-        mInstrumentation.waitForIdleSync();
+        // TODO(b/279051608): Add touchable regions in WindowInfo test so we can make sure the
+        // touchable regions for the host have been set before proceeding.
+        waitForWindowVisible(mSurfaceView);
         mCtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mSurfaceView);
-        mInstrumentation.waitForIdleSync();
 
-        assertTrue(mTestService.getViewIsTouchedAndObscured());
+        int retryCount = 0;
+        boolean isViewTouchedAndObscured = mTestService.getViewIsTouchedAndObscured();
+        while (!isViewTouchedAndObscured && retryCount < 3) {
+            retryCount++;
+            Thread.sleep(100);
+            isViewTouchedAndObscured = mTestService.getViewIsTouchedAndObscured();
+        }
+
+        assertTrue(isViewTouchedAndObscured);
     }
 
     @Test
@@ -1151,12 +1204,15 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
         assertTrue(mRemoteSurfacePackage != null);
 
         addSurfaceView(DEFAULT_SURFACE_VIEW_WIDTH, DEFAULT_SURFACE_VIEW_HEIGHT, false);
+        assertTrue("Failed to wait for SV to get created",
+                mSvCreatedLatch.await(5, TimeUnit.SECONDS));
         mActivityRule.runOnUiThread(() -> {
             mSurfaceView.getRootSurfaceControl().setTouchableRegion(new Region());
         });
-        mInstrumentation.waitForIdleSync();
+        // TODO(b/279051608): Add touchable regions in WindowInfo test so we can make sure the
+        // touchable regions for the host have been set before proceeding.
+        waitForWindowVisible(mSurfaceView);
         mCtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mSurfaceView);
-        mInstrumentation.waitForIdleSync();
 
         assertFalse(mTestService.getViewIsTouched());
     }

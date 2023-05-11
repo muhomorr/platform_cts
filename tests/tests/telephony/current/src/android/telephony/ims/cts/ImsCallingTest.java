@@ -276,7 +276,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testIncomingCallReturnListener() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
         bindImsService();
@@ -308,7 +308,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testIncomingCallReject() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
         bindImsService();
@@ -508,7 +508,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testOutGoingCallReceivedHoldResume() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -676,6 +676,7 @@ public class ImsCallingTest extends ImsCallingBase {
             }
         }
 
+        ImsUtils.waitInCurrentState(WAIT_IN_CURRENT_STATE);
         // simulate user hanging up the MT call at the same time as accept.
         mtCallSession.terminateIncomingCall();
         isCallDisconnected(mtCall, mtCallSession);
@@ -699,7 +700,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testOutGoingIncomingMultiCallHoldFailedTerminateByRemote() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -918,7 +919,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testConferenceCallFailureByRemoteTerminated() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -954,7 +955,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testCallJoinExistingConferenceCall() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -989,7 +990,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testCallJoinExistingConferenceCallAfterCallSwap() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -1039,7 +1040,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testCallJoinExistingConferenceCallAfterCallSwapFail() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -1092,7 +1093,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testSetCallAudioHandler() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -1170,7 +1171,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testNotifyCallStateChanged() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -1254,7 +1255,7 @@ public class ImsCallingTest extends ImsCallingBase {
 
     @Test
     public void testNotifyMediaCallStatusChanged() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsCall()) {
             return;
         }
 
@@ -1546,12 +1547,14 @@ public class ImsCallingTest extends ImsCallingBase {
     }
 
     private void makeConferenceCall() throws Exception {
+        // Initialize the MERGE_START latch with a count of 2 (one for each call of the conference):
+        overrideLatchCount(LATCH_IS_ON_MERGE_START, 2);
+
         addOutgoingCalls();
         addConferenceCall(mCall1, mCall2);
 
         // Wait for merge start first and second call
-        callingTestLatchCountdown(LATCH_IS_ON_MERGE_START, WAIT_FOR_CALL_STATE);
-        callingTestLatchCountdown(LATCH_IS_ON_MERGE_START, WAIT_FOR_CALL_STATE);
+        assertTrue(callingTestLatchCountdown(LATCH_IS_ON_MERGE_START, WAIT_FOR_CALL_STATE));
         // Wait for merge complete background call:
         assertTrue(callingTestLatchCountdown(LATCH_IS_ON_MERGE_COMPLETE, WAIT_FOR_CALL_STATE));
         // Wait for remove first call

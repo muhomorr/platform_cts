@@ -21,8 +21,11 @@ import static android.net.wifi.sharedconnectivity.app.NetworkProviderInfo.DEVICE
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assert.assertThrows;
+
 import android.net.wifi.sharedconnectivity.app.NetworkProviderInfo;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Parcel;
 
 import androidx.test.filters.SdkSuppress;
@@ -34,7 +37,7 @@ import org.junit.Test;
 /**
  * CTS tests for {@link NetworkProviderInfo}.
  */
-@SdkSuppress(minSdkVersion = Build.VERSION_CODES.UPSIDE_DOWN_CAKE, codeName = "UpsideDownCake")
+@SdkSuppress(minSdkVersion = Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 @NonMainlineTest
 public class NetworkProviderInfoTest {
 
@@ -43,6 +46,8 @@ public class NetworkProviderInfoTest {
     private static final String DEVICE_MODEL = "TEST_MODEL";
     private static final int BATTERY_PERCENTAGE = 50;
     private static final int CONNECTION_STRENGTH = 2;
+    private static final String BUNDLE_KEY = "INT-KEY";
+    private static final int BUNDLE_VALUE = 1;
 
     private static final int DEVICE_TYPE_1 = DEVICE_TYPE_LAPTOP;
     private static final String DEVICE_NAME_1 = "TEST_NAME1";
@@ -101,6 +106,7 @@ public class NetworkProviderInfoTest {
         assertThat(info.getModelName()).isEqualTo(DEVICE_MODEL);
         assertThat(info.getBatteryPercentage()).isEqualTo(BATTERY_PERCENTAGE);
         assertThat(info.getConnectionStrength()).isEqualTo(CONNECTION_STRENGTH);
+        assertThat(info.getExtras().getInt(BUNDLE_KEY)).isEqualTo(BUNDLE_VALUE);
     }
 
     @Test
@@ -111,9 +117,71 @@ public class NetworkProviderInfoTest {
         assertThat(info1.hashCode()).isEqualTo(info2.hashCode());
     }
 
+    @Test
+    public void deviceNameIsSetAsNull_shouldThrowException() {
+        assertThrows(NullPointerException.class, () -> new NetworkProviderInfo.Builder(
+                null, DEVICE_MODEL));
+    }
+
+    @Test
+    public void deviceModelIsSetAsNull_shouldThrowException() {
+        assertThrows(NullPointerException.class, () -> new NetworkProviderInfo.Builder(
+                DEVICE_NAME, null));
+    }
+
+    @Test
+    public void illegalDeviceTypeValueIsSet_shouldThrowException() {
+        NetworkProviderInfo.Builder builder = new NetworkProviderInfo.Builder(DEVICE_NAME,
+                DEVICE_MODEL);
+        builder.setDeviceType(1000);
+
+        Exception e = assertThrows(IllegalArgumentException.class, builder::build);
+        assertThat(e.getMessage()).contains("Illegal device type");
+    }
+
+    @Test
+    public void illegalBatteryPercentageValueIsSet_shouldThrowException() {
+        NetworkProviderInfo.Builder builder = new NetworkProviderInfo.Builder(DEVICE_NAME,
+                DEVICE_MODEL);
+        builder.setDeviceType(DEVICE_TYPE);
+        builder.setBatteryPercentage(-1);
+
+        Exception e = assertThrows(IllegalArgumentException.class, builder::build);
+        assertThat(e.getMessage()).contains("BatteryPercentage must be");
+
+        builder.setBatteryPercentage(101);
+
+        e = assertThrows(IllegalArgumentException.class, builder::build);
+        assertThat(e.getMessage()).contains("BatteryPercentage must be");
+    }
+
+    @Test
+    public void illegalConnectionStrengthValueIsSet_shouldThrowException() {
+        NetworkProviderInfo.Builder builder = new NetworkProviderInfo.Builder(DEVICE_NAME,
+                DEVICE_MODEL);
+        builder.setDeviceType(DEVICE_TYPE);
+        builder.setBatteryPercentage(BATTERY_PERCENTAGE);
+        builder.setConnectionStrength(-1);
+
+        Exception e = assertThrows(IllegalArgumentException.class, builder::build);
+        assertThat(e.getMessage()).contains("ConnectionStrength must be");
+
+        builder.setConnectionStrength(5);
+
+        e = assertThrows(IllegalArgumentException.class, builder::build);
+        assertThat(e.getMessage()).contains("ConnectionStrength must be");
+    }
+
     private NetworkProviderInfo.Builder buildNetworkProviderInfoBuilder() {
         return new NetworkProviderInfo.Builder(DEVICE_NAME, DEVICE_MODEL).setDeviceType(DEVICE_TYPE)
                 .setBatteryPercentage(BATTERY_PERCENTAGE)
-                .setConnectionStrength(CONNECTION_STRENGTH);
+                .setConnectionStrength(CONNECTION_STRENGTH)
+                .setExtras(buildBundle());
+    }
+
+    private Bundle buildBundle() {
+        Bundle bundle = new Bundle();
+        bundle.putInt(BUNDLE_KEY, BUNDLE_VALUE);
+        return bundle;
     }
 }

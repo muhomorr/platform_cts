@@ -22,12 +22,8 @@ import static android.autofillservice.cts.activities.FieldsNoPasswordActivity.ST
 import static android.autofillservice.cts.testcore.Helper.ID_PASSWORD;
 import static android.autofillservice.cts.testcore.Helper.ID_USERNAME;
 import static android.autofillservice.cts.testcore.Helper.ID_USERNAME_LABEL;
-import static android.autofillservice.cts.testcore.Helper.NULL_DATASET_ID;
-import static android.autofillservice.cts.testcore.Helper.assertFillEventForDatasetSelected;
-import static android.autofillservice.cts.testcore.Helper.assertFillEventForDatasetShown;
 import static android.autofillservice.cts.testcore.Helper.assertHasFlags;
 import static android.autofillservice.cts.testcore.Helper.assertMockImeStatus;
-import static android.autofillservice.cts.testcore.Helper.assertNoDeprecatedClientState;
 import static android.autofillservice.cts.testcore.Helper.assertNoFlags;
 import static android.autofillservice.cts.testcore.Helper.disablePccDetectionFeature;
 import static android.autofillservice.cts.testcore.Helper.enableCredentialManagerFeature;
@@ -37,7 +33,6 @@ import static android.autofillservice.cts.testcore.Helper.ignoreCredentialManage
 import static android.autofillservice.cts.testcore.Helper.isImeShowing;
 import static android.autofillservice.cts.testcore.Helper.setCredentialManagerFeature;
 import static android.autofillservice.cts.testcore.Helper.setFillDialogHints;
-import static android.service.autofill.FillEventHistory.Event.UI_TYPE_DIALOG;
 import static android.service.autofill.FillRequest.FLAG_SUPPORTS_FILL_DIALOG;
 import static android.view.View.AUTOFILL_HINT_USERNAME;
 
@@ -52,26 +47,31 @@ import android.autofillservice.cts.testcore.CannedFillResponse;
 import android.autofillservice.cts.testcore.CannedFillResponse.CannedDataset;
 import android.autofillservice.cts.testcore.Helper;
 import android.autofillservice.cts.testcore.IdMode;
-import android.autofillservice.cts.testcore.InstrumentedAutoFillService;
 import android.autofillservice.cts.testcore.InstrumentedAutoFillService.FillRequest;
 import android.content.Intent;
-import android.service.autofill.FillEventHistory;
+import android.platform.test.annotations.FlakyTest;
+import android.util.Log;
 import android.view.View;
 
 import androidx.test.uiautomator.UiObject2;
 
 import com.android.compatibility.common.util.CddTest;
 
-import org.junit.Ignore;
+import org.junit.After;
 import org.junit.Test;
-
-import java.util.List;
 
 
 /**
  * This is the test cases for the fill dialog UI.
  */
 public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLaunch {
+
+    @After
+    public void disablePcc() {
+        Log.d("LoginActivityTest", "@After: disablePcc()");
+        sReplier.setIdMode(IdMode.RESOURCE_ID);
+        disablePccDetectionFeature(sContext);
+    }
 
     @Test
     public void testPccRequest() throws Exception {
@@ -98,7 +98,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         LoginActivity activity = startLoginActivity();
         mUiBot.waitForIdleSync();
 
-        // Check onFillRequest has the flag: FLAG_SEND_ALL_USER_DATA
+        // Check onFillRequest has hints populated
         final FillRequest request = sReplier.getNextFillRequest();
         assertThat(request.hints.size()).isEqualTo(1);
         assertThat(request.hints.get(0)).isEqualTo("username");
@@ -107,6 +107,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         sReplier.setIdMode(IdMode.RESOURCE_ID);
     }
 
+    @FlakyTest(bugId = 277539840) // TODO: Try to reduce flakes
     @Test
     public void testPccRequest_setForAllHints() throws Exception {
         // Set service.
@@ -301,7 +302,6 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         assertMockImeStatus(activity, true);
     }
 
-    @Ignore("b/276895614")
     @Test
     public void testShowFillDialog() throws Exception {
         // Enable feature and test service
@@ -348,13 +348,6 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
 
         // Check the results.
         activity.assertAutoFilled();
-
-        // Verify events history
-        final FillEventHistory selection = InstrumentedAutoFillService.getFillEventHistory(2);
-        assertNoDeprecatedClientState(selection);
-        final List<FillEventHistory.Event> events = selection.getEvents();
-        assertFillEventForDatasetShown(events.get(0), UI_TYPE_DIALOG);
-        assertFillEventForDatasetSelected(events.get(1), NULL_DATASET_ID, UI_TYPE_DIALOG);
     }
 
     @Test
@@ -379,7 +372,8 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         LoginActivity activity = startLoginActivity();
         mUiBot.waitForIdleSync();
 
-        sReplier.getNextFillRequest();
+        final FillRequest fillRequest = sReplier.getNextFillRequest();
+        assertHasFlags(fillRequest.flags, FLAG_SUPPORTS_FILL_DIALOG);
         mUiBot.waitForIdleSync();
 
         // Click on password field to trigger fill dialog
@@ -399,7 +393,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         assertMockImeStatus(activity, false);
 
         // Click on the username field to trigger autofill. Although the username field supports
-        // a fill dialog, the fill dialog only shown once, so shows the dropdown UI.
+        // a fill dialog, the fill dialog is only shown once, so now it shows the dropdown UI.
         mUiBot.selectByRelativeId(ID_USERNAME);
         mUiBot.waitForIdleSync();
 

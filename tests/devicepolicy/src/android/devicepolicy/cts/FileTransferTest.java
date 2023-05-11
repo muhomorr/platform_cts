@@ -28,6 +28,7 @@ import com.android.bedstead.harrier.annotations.EnsureDoesNotHaveUserRestriction
 import com.android.bedstead.harrier.annotations.EnsureHasUserRestriction;
 import com.android.bedstead.harrier.annotations.Postsubmit;
 import com.android.bedstead.harrier.annotations.enterprise.CannotSetPolicyTest;
+import com.android.bedstead.harrier.annotations.enterprise.CoexistenceFlagsOn;
 import com.android.bedstead.harrier.annotations.enterprise.PolicyAppliesTest;
 import com.android.bedstead.harrier.annotations.enterprise.PolicyDoesNotApplyTest;
 import com.android.bedstead.harrier.policies.DisallowUsbFileTransfer;
@@ -39,11 +40,13 @@ import com.android.interactive.steps.enterprise.settings.NavigateToPersonalUsbSe
 import com.android.interactive.steps.settings.CanYouEnableUsbFileTransferStep;
 
 import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(BedsteadJUnit4.class)
+@CoexistenceFlagsOn
 public final class FileTransferTest {
 
     @ClassRule @Rule
@@ -96,6 +99,8 @@ public final class FileTransferTest {
     @Postsubmit(reason = "new test")
     @Interactive
     @ApiTest(apis = "android.os.UserManager#DISALLOW_USB_FILE_TRANSFER")
+    @Ignore // Enabling usb file transfer disconnects adb - we can re-enable if we use
+    // adb-over-wifi or similar
     public void disallowUsbFileTransferIsNotSet_canEnableUsbFileTransfer() throws Exception {
         Step.execute(NavigateToPersonalUsbSettingsStep.class);
 

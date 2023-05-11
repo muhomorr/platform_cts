@@ -149,6 +149,7 @@ public final class AccountManagementTest {
 
     @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = AccountManagement.class)
+    // Not passing for permission based caller as AccountManagerService is special casing DO/PO
     public void addAccount_fromDpcWithAccountManagementDisabled_accountAdded()
             throws Exception {
         try {
@@ -173,6 +174,7 @@ public final class AccountManagementTest {
 
     @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = AccountManagement.class)
+    // Not passing for permission based caller as AccountManagerService is special casing DO/PO
     public void addAccount_fromDpcWithDisallowModifyAccountsRestriction_accountAdded()
             throws Exception {
         try {
@@ -194,6 +196,7 @@ public final class AccountManagementTest {
 
     @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = AccountManagement.class)
+    // Not passing for permission based caller as AccountManagerService is special casing DO/PO
     public void removeAccount_fromDpcWithDisallowModifyAccountsRestriction_accountRemoved()
             throws Exception {
         try {
@@ -289,5 +292,14 @@ public final class AccountManagementTest {
             mDpm.setAccountManagementDisabled(mAdmin,
                     sDeviceState.accounts().accountType(), /* disabled= */ false);
         }
+    }
+
+    @Postsubmit(reason = "new test")
+    @CanSetPolicyTest(policy = AccountManagement.class)
+    public void setAccountManagementDisabled_accountTypeTooLong_throws() {
+        // String too long for account type, cannot be serialized correctly
+        String badAccountType = new String(new char[100000]).replace('\0', 'A');
+        assertThrows(IllegalArgumentException.class, () ->
+                mDpm.setAccountManagementDisabled(mAdmin, badAccountType, /* disabled= */ false));
     }
 }

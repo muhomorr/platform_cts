@@ -39,16 +39,17 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class SatelliteManagerTest extends SatelliteManagerTestBase {
-    private boolean mIsSatelliteSupported = false;
-    private boolean mOriginalIsSatelliteEnabled = false;
-    private boolean mOriginalIsSatelliteProvisioned = false;
-    private boolean mIsProvisionable = false;
+    private static boolean sIsSatelliteSupported = false;
+    private static boolean sOriginalIsSatelliteEnabled = false;
+    private static boolean sOriginalIsSatelliteProvisioned = false;
+    private static boolean sIsProvisionable = false;
 
     @BeforeClass
     public static void beforeAllTests() throws Exception {
@@ -57,6 +58,49 @@ public class SatelliteManagerTest extends SatelliteManagerTestBase {
         if (!shouldTestSatellite()) return;
 
         beforeAllTestsBase();
+
+        grantSatellitePermission();
+        sIsSatelliteSupported = isSatelliteSupported();
+        if (sIsSatelliteSupported) {
+            sOriginalIsSatelliteProvisioned = isSatelliteProvisioned();
+
+            boolean provisioned = sOriginalIsSatelliteProvisioned;
+            if (!sOriginalIsSatelliteProvisioned) {
+                SatelliteProvisionStateCallbackTest satelliteProvisionStateCallback =
+                        new SatelliteProvisionStateCallbackTest();
+                long registerError = sSatelliteManager.registerForSatelliteProvisionStateChanged(
+                        getContext().getMainExecutor(), satelliteProvisionStateCallback);
+                assertEquals(SatelliteManager.SATELLITE_ERROR_NONE, registerError);
+
+                provisioned = provisionSatellite();
+                if (provisioned) {
+                    sIsProvisionable = true;
+                    assertTrue(satelliteProvisionStateCallback.waitUntilResult(1));
+                    assertTrue(satelliteProvisionStateCallback.isProvisioned);
+                }
+                sSatelliteManager.unregisterForSatelliteProvisionStateChanged(
+                        satelliteProvisionStateCallback);
+            }
+
+            sOriginalIsSatelliteEnabled = isSatelliteEnabled();
+            if (provisioned && !sOriginalIsSatelliteEnabled) {
+                logd("Enable satellite");
+
+                SatelliteStateCallbackTest callback = new SatelliteStateCallbackTest();
+                long registerResult = sSatelliteManager.registerForSatelliteModemStateChanged(
+                        getContext().getMainExecutor(), callback);
+                assertEquals(SatelliteManager.SATELLITE_ERROR_NONE, registerResult);
+                assertTrue(callback.waitUntilResult(1));
+
+                requestSatelliteEnabled(true);
+
+                assertTrue(callback.waitUntilResult(1));
+                assertEquals(SatelliteManager.SATELLITE_MODEM_STATE_IDLE, callback.modemState);
+                assertTrue(isSatelliteEnabled());
+                sSatelliteManager.unregisterForSatelliteModemStateChanged(callback);
+            }
+        }
+        revokeSatellitePermission();
     }
 
     @AfterClass
@@ -64,6 +108,54 @@ public class SatelliteManagerTest extends SatelliteManagerTestBase {
         logd("afterAllTests");
 
         if (!shouldTestSatellite()) return;
+
+        grantSatellitePermission();
+        if (sIsSatelliteSupported) {
+            logd("Restore enabled state");
+            if (isSatelliteEnabled() != sOriginalIsSatelliteEnabled) {
+                SatelliteStateCallbackTest callback = new SatelliteStateCallbackTest();
+                long registerResult = sSatelliteManager.registerForSatelliteModemStateChanged(
+                        getContext().getMainExecutor(), callback);
+                assertEquals(SatelliteManager.SATELLITE_ERROR_NONE, registerResult);
+                assertTrue(callback.waitUntilResult(1));
+
+                requestSatelliteEnabled(sOriginalIsSatelliteEnabled);
+
+                assertTrue(callback.waitUntilResult(1));
+                assertEquals(sOriginalIsSatelliteEnabled
+                        ? SatelliteManager.SATELLITE_MODEM_STATE_IDLE :
+                        SatelliteManager.SATELLITE_MODEM_STATE_OFF, callback.modemState);
+                assertTrue(isSatelliteEnabled() == sOriginalIsSatelliteEnabled);
+                sSatelliteManager.unregisterForSatelliteModemStateChanged(callback);
+            }
+
+            logd("Restore provision state");
+            SatelliteProvisionStateCallbackTest satelliteProvisionStateCallback =
+                    new SatelliteProvisionStateCallbackTest();
+            long registerError = sSatelliteManager.registerForSatelliteProvisionStateChanged(
+                    getContext().getMainExecutor(), satelliteProvisionStateCallback);
+            assertEquals(SatelliteManager.SATELLITE_ERROR_NONE, registerError);
+
+            if (sOriginalIsSatelliteProvisioned) {
+                if (!isSatelliteProvisioned()) {
+                    boolean provisioned = provisionSatellite();
+                    if (provisioned) {
+                        sIsProvisionable = true;
+                        assertTrue(satelliteProvisionStateCallback.waitUntilResult(1));
+                        assertTrue(satelliteProvisionStateCallback.isProvisioned);
+                    }
+                }
+            } else {
+                if (isSatelliteProvisioned()) {
+                    assertTrue(deprovisionSatellite());
+                    assertTrue(satelliteProvisionStateCallback.waitUntilResult(1));
+                    assertFalse(satelliteProvisionStateCallback.isProvisioned);
+                }
+            }
+            sSatelliteManager.unregisterForSatelliteProvisionStateChanged(
+                    satelliteProvisionStateCallback);
+        }
+        revokeSatellitePermission();
 
         afterAllTestsBase();
     }
@@ -73,62 +165,11 @@ public class SatelliteManagerTest extends SatelliteManagerTestBase {
 
         if (!shouldTestSatellite()) return;
         assumeTrue(sSatelliteManager != null);
-
-        grantSatellitePermission();
-        mIsSatelliteSupported = isSatelliteSupported();
-        if (mIsSatelliteSupported) {
-            mOriginalIsSatelliteProvisioned = isSatelliteProvisioned();
-
-            boolean provisioned = mOriginalIsSatelliteProvisioned;
-            if (!mOriginalIsSatelliteProvisioned) {
-                SatelliteProvisionStateCallbackTest satelliteProvisionStateCallback =
-                        new SatelliteProvisionStateCallbackTest();
-                long registerError = sSatelliteManager.registerForSatelliteProvisionStateChanged(
-                        getContext().getMainExecutor(), satelliteProvisionStateCallback);
-                assertEquals(SatelliteManager.SATELLITE_ERROR_NONE, registerError);
-
-                provisioned = provisionSatellite();
-                if (provisioned) {
-                    mIsProvisionable = true;
-                    assertTrue(satelliteProvisionStateCallback.waitUntilResult(1));
-                    assertTrue(satelliteProvisionStateCallback.isProvisioned);
-                }
-                sSatelliteManager.unregisterForSatelliteProvisionStateChanged(
-                        satelliteProvisionStateCallback);
-            }
-
-            mOriginalIsSatelliteEnabled = isSatelliteEnabled();
-            if (provisioned && !mOriginalIsSatelliteEnabled) {
-                requestSatelliteEnabled(true);
-            }
-        }
-        revokeSatellitePermission();
     }
 
     @After
     public void tearDown() {
         logd("tearDown");
-
-        if (!shouldTestSatellite()) return;
-        assumeTrue(sSatelliteManager != null);
-
-        grantSatellitePermission();
-        if (mIsSatelliteSupported) {
-            logd("Restore enabled state");
-            requestSatelliteEnabled(mOriginalIsSatelliteEnabled);
-
-            logd("Restore provision state");
-            if (mOriginalIsSatelliteProvisioned) {
-                if (!isSatelliteProvisioned()) {
-                    provisionSatellite();
-                }
-            } else {
-                if (isSatelliteProvisioned()) {
-                    assertTrue(deprovisionSatellite());
-                }
-            }
-        }
-        revokeSatellitePermission();
     }
 
     @Test
@@ -182,7 +223,7 @@ public class SatelliteManagerTest extends SatelliteManagerTestBase {
                         "", testProvisionData, null,
                         getContext().getMainExecutor(), error::offer));
 
-        if (!mIsSatelliteSupported) {
+        if (!sIsSatelliteSupported) {
             Log.d(TAG, "testProvisionSatelliteService: Satellite is not supported "
                     + "on the device.");
             return;
@@ -219,7 +260,7 @@ public class SatelliteManagerTest extends SatelliteManagerTestBase {
         assertNotNull(errorCode);
         Log.d(TAG, "testProvisionSatelliteService: provision result=" + errorCode);
 
-        if (mIsProvisionable) {
+        if (sIsProvisionable) {
             /**
              * Modem might send either 1 or 2 provision state change events.
              */
@@ -402,7 +443,7 @@ public class SatelliteManagerTest extends SatelliteManagerTestBase {
         assertThrows(SecurityException.class, ()-> sSatelliteManager
                 .unregisterForSatelliteModemStateChanged(callback));
 
-        if (!mIsSatelliteSupported) {
+        if (!sIsSatelliteSupported) {
             Log.d(TAG, "Satellite is not supported on the device");
             return;
         }
@@ -425,9 +466,10 @@ public class SatelliteManagerTest extends SatelliteManagerTestBase {
             assertTrue(callback.waitUntilResult(1));
 
             requestSatelliteEnabled(false);
-            assertFalse(isSatelliteEnabled());
+
             assertTrue(callback.waitUntilResult(1));
             assertEquals(SatelliteManager.SATELLITE_MODEM_STATE_OFF, callback.modemState);
+            assertFalse(isSatelliteEnabled());
         }
         if (!registerCallback) {
             long registerResult = sSatelliteManager
@@ -439,9 +481,9 @@ public class SatelliteManagerTest extends SatelliteManagerTestBase {
         }
 
         requestSatelliteEnabled(true);
-        assertTrue(isSatelliteEnabled());
         assertTrue(callback.waitUntilResult(1));
         assertEquals(SatelliteManager.SATELLITE_MODEM_STATE_IDLE, callback.modemState);
+        assertTrue(isSatelliteEnabled());
 
         SatelliteStateCallbackTest callback1 = new SatelliteStateCallbackTest();
         long registerResult = sSatelliteManager
@@ -502,10 +544,11 @@ public class SatelliteManagerTest extends SatelliteManagerTestBase {
         if (!originalEnabledState) {
             // Restore original modem enabled state.
             requestSatelliteEnabled(false);
-            assertFalse(isSatelliteEnabled());
+
             assertFalse(callback.waitUntilResult(1));
             assertTrue(callback1.waitUntilResult(1));
             assertEquals(SatelliteManager.SATELLITE_MODEM_STATE_OFF, callback1.modemState);
+            assertFalse(isSatelliteEnabled());
         }
         sSatelliteManager.unregisterForSatelliteModemStateChanged(callback1);
 
@@ -604,4 +647,87 @@ public class SatelliteManagerTest extends SatelliteManagerTestBase {
                 () -> sSatelliteManager.requestTimeForNextSatelliteVisibility(
                         getContext().getMainExecutor(), receiver));
     }
+
+
+    @Test
+    public void testSatelliteDatagramDemoMode() {
+        if (!shouldTestSatellite()) return;
+
+        if (!sIsSatelliteSupported) {
+            Log.d(TAG, "Satellite is not supported on the device");
+            return;
+        }
+
+        grantSatellitePermission();
+
+        if (!isSatelliteProvisioned()) {
+            Log.d(TAG, "Satellite is not provisioned yet");
+            return;
+        }
+
+        boolean originalEnabledState = isSatelliteEnabled();
+        boolean originalDemoModeState = isSatelliteDemoModeEnabled();
+        SatelliteStateCallbackTest stateCallback = new SatelliteStateCallbackTest();
+        sSatelliteManager.registerForSatelliteModemStateChanged(
+                getContext().getMainExecutor(), stateCallback);
+
+        // request enable satellite with demo mode on
+        if (isSatelliteEnabled()) {
+            requestSatelliteEnabled(false);
+            assertTrue(stateCallback.waitUntilResult(1));
+        }
+        requestSatelliteEnabledForDemoMode(true);
+        sSatelliteManager.onDeviceAlignedWithSatellite(true);
+        assertTrue(stateCallback.waitUntilResult(1));
+
+        assertTrue(isSatelliteEnabled());
+
+        // Test send satellite datagram for demo mode
+        LinkedBlockingQueue<Integer> resultListener = new LinkedBlockingQueue<>(1);
+        String mText = "This is a test datagram message";
+        SatelliteDatagram datagram = new SatelliteDatagram(mText.getBytes());
+        sSatelliteManager.sendSatelliteDatagram(
+                SatelliteManager.DATAGRAM_TYPE_SOS_MESSAGE, datagram, true,
+                getContext().getMainExecutor(), resultListener::offer);
+
+        Integer errorCode;
+        try {
+            errorCode = resultListener.poll(TIMEOUT, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException ex) {
+            fail("testSatelliteDatagramDemoMode: Got InterruptedException in waiting"
+                    + " for the sendSatelliteDatagram result code");
+            return;
+        }
+        assertNotNull(errorCode);
+        Log.d(TAG, "testSatelliteDatagramDemoMode: sendSatelliteDatagram errorCode="
+                + errorCode);
+
+        sSatelliteManager.sendSatelliteDatagram(
+                SatelliteManager.DATAGRAM_TYPE_SOS_MESSAGE, datagram, true,
+                getContext().getMainExecutor(), resultListener::offer);
+
+        // Test poll pending satellite datagram for demo mode
+        SatelliteDatagramCallbackTest datagramCallback = new SatelliteDatagramCallbackTest();
+        assertTrue(SatelliteManager.SATELLITE_ERROR_NONE
+                == sSatelliteManager.registerForSatelliteDatagram(getContext().getMainExecutor(),
+                datagramCallback));
+
+        sSatelliteManager.pollPendingSatelliteDatagrams(getContext().getMainExecutor(),
+                resultListener::offer);
+        assertTrue(datagramCallback.waitUntilResult(1));
+        assertTrue(Arrays.equals(
+                datagramCallback.mDatagram.getSatelliteDatagram(), mText.getBytes()));
+        sSatelliteManager.unregisterForSatelliteDatagram(datagramCallback);
+
+        // Restore original modem enabled state.
+        if (originalEnabledState != isSatelliteEnabled()
+                || originalDemoModeState != isSatelliteDemoModeEnabled()) {
+            requestSatelliteEnabledForDemoMode(originalEnabledState);
+            assertTrue(stateCallback.waitUntilResult(1));
+        }
+        sSatelliteManager.unregisterForSatelliteModemStateChanged(stateCallback);
+        sSatelliteManager.onDeviceAlignedWithSatellite(false);
+        revokeSatellitePermission();
+    }
+
 }

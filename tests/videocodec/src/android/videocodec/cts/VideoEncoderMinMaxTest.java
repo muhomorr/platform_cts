@@ -23,6 +23,7 @@ import static android.mediav2.common.cts.CodecTestBase.ComponentClass.HARDWARE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
@@ -64,6 +65,7 @@ import java.util.List;
  */
 @RunWith(Parameterized.class)
 public class VideoEncoderMinMaxTest extends VideoEncoderValidationTestBase {
+    private static final String LOG_TAG = VideoEncoderMinMaxTest.class.getSimpleName();
     private static final float MIN_ACCEPTABLE_QUALITY = 20.0f;  // psnr in dB
     private static final int FRAME_LIMIT = 300;
     private static final int TARGET_WIDTH = 1280;
@@ -79,7 +81,7 @@ public class VideoEncoderMinMaxTest extends VideoEncoderValidationTestBase {
         for (Object[] arg : exhaustiveArgsList) {
             resources.add((CompressedResource) arg[2]);
         }
-        decodeStreamsToYuv(resources, RES_YUV_MAP);
+        decodeStreamsToYuv(resources, RES_YUV_MAP, LOG_TAG);
     }
 
     @AfterClass
@@ -216,20 +218,24 @@ public class VideoEncoderMinMaxTest extends VideoEncoderValidationTestBase {
         return cfgObjects;
     }
 
-    private static List<Object> getMinMaxRangeCfgObjects(Object codecName, Object mediaType,
-            Object cfgObject) throws CloneNotSupportedException {
-        for (MediaCodecInfo codecInfo : MEDIA_CODEC_LIST_REGULAR.getCodecInfos()) {
-            if (codecName.equals(codecInfo.getName())) {
-                for (String type : codecInfo.getSupportedTypes()) {
+    private static MediaCodecInfo getCodecInfo(String codecName, String mediaType) {
+        for (MediaCodecInfo info : MEDIA_CODEC_LIST_REGULAR.getCodecInfos()) {
+            if (info.getName().equals(codecName)) {
+                for (String type : info.getSupportedTypes()) {
                     if (mediaType.equals(type)) {
-                        MediaCodecInfo.CodecCapabilities caps =
-                                codecInfo.getCapabilitiesForType(type);
-                        return applyMinMaxRanges(caps.getVideoCapabilities(), cfgObject);
+                        return info;
                     }
                 }
             }
         }
         return null;
+    }
+
+    private static List<Object> getMinMaxRangeCfgObjects(Object codecName, Object mediaType,
+            Object cfgObject) throws CloneNotSupportedException {
+        MediaCodecInfo info = getCodecInfo((String) codecName, (String) mediaType);
+        MediaCodecInfo.CodecCapabilities caps = info.getCapabilitiesForType((String) mediaType);
+        return applyMinMaxRanges(caps.getVideoCapabilities(), cfgObject);
     }
 
     private static Collection<Object[]> updateParamList(Collection<Object[]> paramList)
@@ -285,13 +291,18 @@ public class VideoEncoderMinMaxTest extends VideoEncoderValidationTestBase {
     @Test
     public void testMinMaxSupport() throws IOException, InterruptedException {
         MediaFormat format = mEncCfgParams[0].getFormat();
+        MediaCodecInfo info = getCodecInfo(mCodecName, mMediaType);
+        assumeTrue(mCodecName + " does not support bitrate mode : " + bitRateModeToString(
+                        mEncCfgParams[0].mBitRateMode),
+                info.getCapabilitiesForType(mMediaType).getEncoderCapabilities()
+                        .isBitrateModeSupported(mEncCfgParams[0].mBitRateMode));
         ArrayList<MediaFormat> formats = new ArrayList<>();
         formats.add(format);
         assertTrue("Encoder: " + mCodecName + " doesn't support format: " + format,
                 areFormatsSupported(mCodecName, mMediaType, formats));
         RawResource res = RES_YUV_MAP.getOrDefault(mCRes.uniqueLabel(), null);
         assertNotNull("no raw resource found for testing config : " + mEncCfgParams[0]
-                + mTestConfig + mTestEnv, res);
+                + mTestConfig + mTestEnv + DIAGNOSTICS, res);
         encodeToMemory(mCodecName, mEncCfgParams[0], res, FRAME_LIMIT, false, true);
         CompareStreams cs = null;
         StringBuilder msg = new StringBuilder();

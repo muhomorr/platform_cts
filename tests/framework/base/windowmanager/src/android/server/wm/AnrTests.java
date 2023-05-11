@@ -34,10 +34,6 @@ import android.platform.test.annotations.Presubmit;
 import android.provider.Settings;
 import android.server.wm.app.Components.RenderService;
 import android.server.wm.settings.SettingsSession;
-import android.support.test.uiautomator.By;
-import android.support.test.uiautomator.UiDevice;
-import android.support.test.uiautomator.UiObject2;
-import android.support.test.uiautomator.Until;
 import android.util.EventLog;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -45,6 +41,10 @@ import android.view.KeyEvent;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.filters.FlakyTest;
 import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.uiautomator.By;
+import androidx.test.uiautomator.UiDevice;
+import androidx.test.uiautomator.UiObject2;
+import androidx.test.uiautomator.Until;
 
 import org.junit.After;
 import org.junit.Before;
@@ -60,7 +60,7 @@ import java.util.concurrent.CountDownLatch;
  *     atest CtsWindowManagerDeviceTestCases:AnrTests
  */
 @Presubmit
-@FlakyTest(bugId = 143047723)
+@FlakyTest(bugId = 280027157)
 @android.server.wm.annotation.Group3
 public class AnrTests extends ActivityManagerTestBase {
     private static final String TAG = "AnrTests";

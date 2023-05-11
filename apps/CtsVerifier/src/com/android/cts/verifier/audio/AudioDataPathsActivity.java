@@ -273,17 +273,11 @@ public class AudioDataPathsActivity
 
             //TODO - Also add test specs for MMAP vs Legacy
             TestSpec testSpec;
+
             //
             // Built-in Speaker/Mic
             //
             // - Mono
-            testSpec = new TestSpec(
-                    AudioDeviceInfo.TYPE_BUILTIN_SPEAKER, 48000, 1,
-                    AudioDeviceInfo.TYPE_BUILTIN_MIC, 48000, 1);
-            testSpec.setSources(sinSourceProvider, mMicSinkProvider);
-            testSpec.setDescription("Speaker:1 Mic:1");
-            mTestSpecs.add(testSpec);
-
             testSpec = new TestSpec(
                     AudioDeviceInfo.TYPE_BUILTIN_SPEAKER, 48000, 1,
                     AudioDeviceInfo.TYPE_BUILTIN_MIC, 48000, 1);
@@ -314,21 +308,28 @@ public class AudioDataPathsActivity
                     AudioDeviceInfo.TYPE_BUILTIN_SPEAKER, 11025, 2,
                     AudioDeviceInfo.TYPE_BUILTIN_MIC, 48000, 1);
             testSpec.setSources(sinSourceProvider, mMicSinkProvider);
-            testSpec.setDescription("Speaker:2:11025 Mic:1");
+            testSpec.setDescription("Speaker:2:11025 Mic:1:48000");
+            mTestSpecs.add(testSpec);
+
+            testSpec = new TestSpec(
+                    AudioDeviceInfo.TYPE_BUILTIN_SPEAKER, 48000, 2,
+                    AudioDeviceInfo.TYPE_BUILTIN_MIC, 44100, 1);
+            testSpec.setSources(sinSourceProvider, mMicSinkProvider);
+            testSpec.setDescription("Speaker:2:48000 Mic:1:44100");
             mTestSpecs.add(testSpec);
 
             testSpec = new TestSpec(
                     AudioDeviceInfo.TYPE_BUILTIN_SPEAKER, 44100, 2,
                     AudioDeviceInfo.TYPE_BUILTIN_MIC, 48000, 1);
             testSpec.setSources(sinSourceProvider, mMicSinkProvider);
-            testSpec.setDescription("Speaker:2:44100 Mic:1");
+            testSpec.setDescription("Speaker:2:44100 Mic:1:48000");
             mTestSpecs.add(testSpec);
 
             testSpec = new TestSpec(
                     AudioDeviceInfo.TYPE_BUILTIN_SPEAKER, 96000, 2,
                     AudioDeviceInfo.TYPE_BUILTIN_MIC, 48000, 1);
             testSpec.setSources(sinSourceProvider, mMicSinkProvider);
-            testSpec.setDescription("Speaker:2:96000 Mic:1");
+            testSpec.setDescription("Speaker:2:96000 Mic:1:48000");
             mTestSpecs.add(testSpec);
 
             //
@@ -483,6 +484,7 @@ public class AudioDataPathsActivity
             AudioDeviceInfo inDevInfo = testSpec.mInDeviceInfo;
             if (outDevInfo != null && inDevInfo != null) {
                 mAnalyzer.reset();
+                mAnalyzer.setSampleRate(testSpec.mInSampleRate);
 
                 mDuplexAudioManager.stop();
 
@@ -501,9 +503,19 @@ public class AudioDataPathsActivity
                 // Recorder
                 mDuplexAudioManager.setRecorderRouteDevice(inDevInfo);
                 mDuplexAudioManager.setInputPreset(testSpec.mInputPreset);
-                mDuplexAudioManager.setRecorderSampleRate(testSpec.mOutSampleRate);
+                mDuplexAudioManager.setRecorderSampleRate(testSpec.mInSampleRate);
                 mDuplexAudioManager.setNumRecorderChannels(testSpec.mInChannelCount);
                 mDuplexAudioManager.setupStreams(mAudioApi, mAudioApi);
+
+                // Adjust the player frequency to match with the quantized frequency
+                // of the analyzer.
+                float freq = (float) mAnalyzer.getAdjustedFrequency();
+                Log.i(TAG, "freq:" + freq);
+                if (mActiveTestAPI == TEST_API_NATIVE) {
+                    mNativeSinSource.setFreq(freq);
+                } else {
+                    mJavaSinSource.setFreq(freq);
+                }
 
                 mWaveView.setNumChannels(testSpec.mInChannelCount);
 

@@ -36,6 +36,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -79,7 +80,10 @@ public class TestUtils {
             case BluetoothProfile.HEADSET_CLIENT:
                 return BluetoothProperties.isProfileHfpHfEnabled().orElse(false);
             case BluetoothProfile.HEARING_AID:
-                return BluetoothProperties.isProfileAshaCentralEnabled().orElse(false);
+                if (!isBleSupported(InstrumentationRegistry.getInstrumentation().getContext())) {
+                    return false;
+                }
+                return BluetoothProperties.isProfileAshaCentralEnabled().orElse(true);
             case BluetoothProfile.HID_DEVICE:
                 return BluetoothProperties.isProfileHidDeviceEnabled().orElse(false);
             case BluetoothProfile.HID_HOST:
@@ -133,6 +137,14 @@ public class TestUtils {
     public static void dropPermissionAsShellUid() {
         InstrumentationRegistry.getInstrumentation().getUiAutomation()
                 .dropShellPermissionIdentity();
+    }
+
+    /**
+     * @return permissions adopted from Shell
+     */
+    public static Set<String> getAdoptedShellPermissions() {
+        return InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .getAdoptedShellPermissions();
     }
 
     /**
@@ -245,7 +257,7 @@ public class TestUtils {
         private final int mProfileId;
         private final BluetoothAdapter mAdapter;
         private final Context mContext;
-        BluetoothCtsServiceConnector(String logTag, int profileId, BluetoothAdapter adapter,
+        public BluetoothCtsServiceConnector(String logTag, int profileId, BluetoothAdapter adapter,
                 Context context) {
             mLogTag = logTag;
             mProfileId = profileId;

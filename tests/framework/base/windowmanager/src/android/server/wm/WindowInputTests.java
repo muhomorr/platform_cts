@@ -97,7 +97,7 @@ public class WindowInputTests {
     private static final int PARTIAL_OBSCURING_WINDOW_SIZE = 30;
 
     private Instrumentation mInstrumentation;
-    private final CtsTouchUtils mCtsTouchUtils = new CtsTouchUtils();
+    private CtsTouchUtils mCtsTouchUtils;
     private final WindowManagerStateHelper mWmState = new WindowManagerStateHelper();
     private TestActivity mActivity;
     private InputManager mInputManager;
@@ -114,6 +114,7 @@ public class WindowInputTests {
         launchHomeActivityNoWait();
 
         mInstrumentation = getInstrumentation();
+        mCtsTouchUtils = new CtsTouchUtils(mInstrumentation.getTargetContext());
         mActivity = mActivityRule.launchActivity(null);
         mInputManager = mActivity.getSystemService(InputManager.class);
         mInstrumentation.waitForIdleSync();
@@ -121,7 +122,6 @@ public class WindowInputTests {
     }
 
     @Test
-    @FlakyTest(bugId = 188207199)
     public void testMoveWindowAndTap() throws Throwable {
         final WindowManager wm = mActivity.getWindowManager();
         final WindowManager.LayoutParams p = new WindowManager.LayoutParams();
@@ -143,9 +143,13 @@ public class WindowInputTests {
         });
         mInstrumentation.waitForIdleSync();
 
+        // The window location will be picked randomly from the selectBounds. Because the x, y of
+        // LayoutParams is the offset from the gravity edge, make sure it offsets to (0,0) in case
+        // the activity is not fullscreen, and insets system bar and window width.
         final WindowMetrics windowMetrics = wm.getCurrentWindowMetrics();
         final WindowInsets windowInsets = windowMetrics.getWindowInsets();
         final Rect selectBounds = new Rect(windowMetrics.getBounds());
+        selectBounds.offsetTo(0, 0);
         final Insets insets = windowInsets.getInsetsIgnoringVisibility(p.getFitInsetsTypes());
         selectBounds.inset(0, 0, insets.left + insets.right + p.width,
                 insets.top + insets.bottom + p.height);
@@ -383,7 +387,6 @@ public class WindowInputTests {
     }
 
     @Test
-    @FlakyTest(bugId = 263497259)
     public void testDoNotFlagTouchesWhenObscuredByZeroOpacityWindow() throws Throwable {
         final WindowManager.LayoutParams p = new WindowManager.LayoutParams();
 
@@ -763,36 +766,31 @@ public class WindowInputTests {
 
         final long downTime = SystemClock.uptimeMillis();
         final MotionEvent eventDown = MotionEvent.obtain(
-                downTime, downTime, MotionEvent.ACTION_DOWN, testPoint.x, testPoint.y, 1);
+                downTime, downTime, MotionEvent.ACTION_DOWN, testPoint.x, testPoint.y,
+                /*metaState=*/0);
         mInstrumentation.sendPointerSync(eventDown);
 
         final ExecutorService executor = Executors.newSingleThreadExecutor();
         boolean[] securityExceptionCaught = new boolean[1];
         Exception[] illegalArgumentException = new Exception[1];
         executor.execute(() -> {
-            try {
-                mInstrumentation.sendPointerSync(eventDown);
-            } catch (IllegalArgumentException e) {
-                // InputManagerService throws IllegalArgumentException when input target mismatch.
-                // Store the exception, and raise test failure later to avoid cts thread crash.
-                illegalArgumentException[0] = e;
-                return;
-            }
             for (int i = 0; i < 20; i++) {
                 final long eventTime = SystemClock.uptimeMillis();
                 final MotionEvent eventMove = MotionEvent.obtain(
-                        downTime, eventTime, MotionEvent.ACTION_MOVE, testPoint.x, testPoint.y, 1);
+                        downTime, eventTime, MotionEvent.ACTION_MOVE, testPoint.x, testPoint.y,
+                        /*metaState=*/0);
                 try {
                     mInstrumentation.sendPointerSync(eventMove);
                 } catch (SecurityException e) {
                     securityExceptionCaught[0] = true;
                     return;
                 } catch (IllegalArgumentException e) {
+                    // InputManagerService throws this exception when input target does not match.
+                    // Store the exception, and raise test failure later to avoid cts thread crash.
                     illegalArgumentException[0] = e;
                     return;
                 }
             }
-
         });
 
         // Launch another activity, should not crash the process.

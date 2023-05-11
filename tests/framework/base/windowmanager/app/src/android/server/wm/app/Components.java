@@ -137,7 +137,6 @@ public class Components extends ComponentsBase {
             component("SingleSecondaryHomeActivity");
     public static final ComponentName SINGLE_TASK_ACTIVITY = component("SingleTaskActivity");
     public static final ComponentName SINGLE_TOP_ACTIVITY = component("SingleTopActivity");
-    public static final ComponentName SLOW_CREATE_ACTIVITY = component("SlowCreateActivity");
     public static final ComponentName SPLASHSCREEN_ACTIVITY = component("SplashscreenActivity");
     public static final ComponentName DISABLE_PREVIEW_ACTIVITY =
             component("DisablePreviewActivity");
@@ -421,6 +420,7 @@ public class Components extends ComponentsBase {
 
     /** Extra key constants for {@link android.server.wm.app.FontScaleActivity}. */
     public static class FontScaleActivity {
+        public static final String EXTRA_FONT_SCALE = "fontScale";
         public static final String EXTRA_FONT_PIXEL_SIZE = "fontPixelSize";
         public static final String EXTRA_FONT_ACTIVITY_DPI = "fontActivityDpi";
     }

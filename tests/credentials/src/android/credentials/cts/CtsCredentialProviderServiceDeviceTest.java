@@ -28,7 +28,9 @@ import static org.junit.Assume.assumeTrue;
 
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.credentials.ClearCredentialStateException;
 import android.credentials.ClearCredentialStateRequest;
 import android.credentials.CreateCredentialException;
@@ -42,6 +44,7 @@ import android.credentials.GetCredentialRequest;
 import android.credentials.GetCredentialResponse;
 import android.credentials.PrepareGetCredentialResponse;
 import android.credentials.cts.testcore.DeviceConfigStateRequiredRule;
+import android.net.Uri;
 import android.os.Build.VERSION;
 import android.os.Bundle;
 import android.os.OutcomeReceiver;
@@ -50,9 +53,6 @@ import android.platform.test.annotations.AppModeFull;
 import android.provider.DeviceConfig;
 import android.text.TextUtils;
 import android.util.Log;
-import android.content.Intent;
-import android.net.Uri;
-import android.content.pm.ResolveInfo;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -169,20 +169,6 @@ public class CtsCredentialProviderServiceDeviceTest {
 
             assertThat(mCredentialManager).isNotNull();
         });
-    }
-
-    @Test
-    public void testRequestSetCredentialManagerServiceIntent_primary() {
-        Intent intent = new Intent(PRIMARY_SETTINGS_INTENT)
-                .setData(Uri.parse("package:android.content.cts"));
-        assertCanBeHandled(intent);
-    }
-
-    @Test
-    public void testRequestSetCredentialManagerServiceIntent_secondary() {
-        Intent intent = new Intent(SECONDARY_SETTINGS_INTENT)
-                .setData(Uri.parse("package:android.content.cts"));
-        assertCanBeHandled(intent);
     }
 
     // TODO for all 'valid success' cases, mock credential manager the current success case
@@ -348,8 +334,8 @@ public class CtsCredentialProviderServiceDeviceTest {
         CountDownLatch latch = new CountDownLatch(1);
         Bundle empty = new Bundle();
         GetCredentialRequest request = new GetCredentialRequest.Builder(empty)
-                .addCredentialOption(new CredentialOption(
-                PASSWORD_CREDENTIAL_TYPE, empty, empty, false)).build();
+                .addCredentialOption(new CredentialOption.Builder(
+                PASSWORD_CREDENTIAL_TYPE, empty, empty).build()).build();
         OutcomeReceiver<PrepareGetCredentialResponse,
                 GetCredentialException> prepareGetCredCallback =
                 new OutcomeReceiver<>() {

@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -329,7 +328,7 @@ public final class Processor extends AbstractProcessor {
                 logicLambda.addStatement(
                         "mProfileClass.other().$L($L)",
                         method.getSimpleName(), String.join(", ", params));
-                logicLambda.addStatement("return new $T(mConnector, $L)",
+                logicLambda.addStatement("return new $T(mConnector, $L, mUser, mPackage)",
                         REMOTE_DEVICE_POLICY_MANAGER_PARENT_WRAPPER_CLASSNAME,
                         String.join(", ", params));
             } else if (method.getReturnType().toString().equals(
@@ -429,12 +428,24 @@ public final class Processor extends AbstractProcessor {
                 FieldSpec.builder(COMPONENT_NAME_CLASSNAME, "mProfileOwnerComponentName")
                         .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                         .build());
+        classBuilder.addField(
+                FieldSpec.builder(USER_REFERENCE_CLASSNAME, "mUser")
+                        .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                        .build());
+        classBuilder.addField(
+                FieldSpec.builder(PACKAGE_CLASSNAME, "mPackage")
+                        .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                        .build());
 
         classBuilder.addMethod(MethodSpec.constructorBuilder()
                 .addModifiers(Modifier.PUBLIC)
                 .addParameter(TEST_APP_CONNECTOR_CLASSNAME, "connector")
                 .addParameter(COMPONENT_NAME_CLASSNAME, "profileOwnerComponentName")
+                .addParameter(USER_REFERENCE_CLASSNAME, "user")
+                .addParameter(PACKAGE_CLASSNAME, "pkg")
                 .addStatement("mConnector = connector")
+                .addStatement("mUser = user")
+                .addStatement("mPackage = pkg")
                 .addStatement("mProfileOwnerComponentName = profileOwnerComponentName")
                 .addStatement("mProfileClass = $T.create(connector)", profileClassName)
                 .build());
@@ -505,7 +516,7 @@ public final class Processor extends AbstractProcessor {
                     "catch ($T e)", PROFILE_RUNTIME_EXCEPTION_CLASSNAME)
                     .addStatement("throw ($T) e.getCause()", RuntimeException.class)
                     .nextControlFlow("catch ($T e)", Throwable.class)
-                    .addStatement("throw $T.dealWithConnectedAppsSdkException(null, null, e)",
+                    .addStatement("throw $T.dealWithConnectedAppsSdkException(mUser, mPackage, e)",
                             TESTAPP_UTILS_CLASSNAME)
                     .endControlFlow();
 
@@ -521,6 +532,15 @@ public final class Processor extends AbstractProcessor {
                         TARGETED_REMOTE_ACTIVITY_IMPL_CLASSNAME)
                         .addSuperinterface(TARGETED_REMOTE_ACTIVITY_CLASSNAME)
                         .addModifiers(Modifier.PUBLIC, Modifier.FINAL);
+
+        classBuilder.addField(FieldSpec.builder(CONTEXT_CLASSNAME, "mContext")
+                        .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .build());
+
+        classBuilder.addMethod(MethodSpec.constructorBuilder()
+                        .addParameter(CONTEXT_CLASSNAME, "context")
+                        .addStatement("mContext = context")
+                .build());
 
         for (ExecutableElement method : getMethods(neneActivityInterface,
                 processingEnv.getElementUtils())) {
@@ -550,11 +570,11 @@ public final class Processor extends AbstractProcessor {
 
             if (method.getReturnType().getKind().equals(TypeKind.VOID)) {
                 methodBuilder.addStatement(
-                        "BaseTestAppActivity.findActivity(activityClassName).$L($L)",
+                        "BaseTestAppActivity.findActivity(mContext, activityClassName).$L($L)",
                         method.getSimpleName(), String.join(", ", paramNames));
             } else {
                 methodBuilder.addStatement(
-                        "return BaseTestAppActivity.findActivity(activityClassName).$L($L)",
+                        "return BaseTestAppActivity.findActivity(mContext, activityClassName).$L($L)",
                         method.getSimpleName(), String.join(", ", paramNames));
             }
 
@@ -580,10 +600,22 @@ public final class Processor extends AbstractProcessor {
                 FieldSpec.builder(TEST_APP_CONNECTOR_CLASSNAME, "mConnector")
                         .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                         .build());
+        classBuilder.addField(
+                FieldSpec.builder(USER_REFERENCE_CLASSNAME, "mUser")
+                        .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                        .build());
+        classBuilder.addField(
+                FieldSpec.builder(PACKAGE_CLASSNAME, "mPackage")
+                        .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                        .build());
 
         classBuilder.addMethod(MethodSpec.constructorBuilder()
                 .addParameter(TEST_APP_CONNECTOR_CLASSNAME, "connector")
+                .addParameter(USER_REFERENCE_CLASSNAME, "user")
+                .addParameter(PACKAGE_CLASSNAME, "pkg")
                 .addStatement("mConnector = connector")
+                .addStatement("mUser = user")
+                .addStatement("mPackage = pkg")
                 .addStatement(
                         "mProfileTargetedRemoteActivity = $T.create(connector)",
                         PROFILE_TARGETED_REMOTE_ACTIVITY_CLASSNAME)
@@ -652,6 +684,10 @@ public final class Processor extends AbstractProcessor {
 
             methodBuilder.nextControlFlow(
                     "catch ($T e)", PROFILE_RUNTIME_EXCEPTION_CLASSNAME)
+                    .beginControlFlow("if (e.getCause().getMessage().contains(\"No existing activity named\"))")
+                    .addStatement("throw $T.dealWithNoExistingActivityException(activityClassName, e)",
+                            TESTAPP_UTILS_CLASSNAME)
+                    .endControlFlow()
                     .addStatement("throw ($T) e.getCause()", RuntimeException.class);
 
             for (TypeMirror m : method.getThrownTypes()) {
@@ -661,7 +697,7 @@ public final class Processor extends AbstractProcessor {
 
             methodBuilder
                     .nextControlFlow("catch ($T e)", Throwable.class)
-                    .addStatement("throw $T.dealWithConnectedAppsSdkException(null, null, e)",
+                    .addStatement("throw $T.dealWithConnectedAppsSdkException(mUser, mPackage, e)",
                             TESTAPP_UTILS_CLASSNAME)
                     .endControlFlow();
 
@@ -691,7 +727,7 @@ public final class Processor extends AbstractProcessor {
                                 COMPONENT_REFERENCE_CLASSNAME, "component")
                         .addStatement("super(instance, component)")
                         .addStatement("mActivityClassName = component.className()")
-                        .addStatement("mTargetedRemoteActivity = new $T(mInstance.connector())",
+                        .addStatement("mTargetedRemoteActivity = new $T(mInstance.connector(), mInstance.user(), mInstance.testApp().pkg())",
                                 TARGETED_REMOTE_ACTIVITY_WRAPPER_CLASSNAME)
                         .build());
 
@@ -774,10 +810,11 @@ public final class Processor extends AbstractProcessor {
                         .addModifiers(Modifier.PUBLIC, Modifier.FINAL);
 
         classBuilder.addMethod(MethodSpec.methodBuilder("provideTargetedRemoteActivity")
+                        .addParameter(CONTEXT_CLASSNAME, "context")
                 .returns(TARGETED_REMOTE_ACTIVITY_CLASSNAME)
                 .addModifiers(Modifier.PUBLIC)
                 .addAnnotation(CrossProfileProvider.class)
-                .addCode("return new $T();", TARGETED_REMOTE_ACTIVITY_IMPL_CLASSNAME)
+                .addCode("return new $T(context);", TARGETED_REMOTE_ACTIVITY_IMPL_CLASSNAME)
                 .build());
 
         classBuilder.addMethod(MethodSpec.methodBuilder("provideTestAppController")

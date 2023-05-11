@@ -24,6 +24,7 @@ import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
 import com.android.bedstead.harrier.annotations.Postsubmit;
 import com.android.bedstead.harrier.annotations.enterprise.CannotSetPolicyTest;
+import com.android.bedstead.harrier.annotations.enterprise.CoexistenceFlagsOn;
 import com.android.bedstead.harrier.policies.DisallowDebuggingFeatures;
 import com.android.compatibility.common.util.ApiTest;
 
@@ -33,12 +34,13 @@ import org.junit.Rule;
 import org.junit.runner.RunWith;
 
 @RunWith(BedsteadJUnit4.class)
-@Ignore // This currently can't be tested because it'll disable the test
+@CoexistenceFlagsOn
 public final class DebuggingTest {
 
     @ClassRule @Rule
     public static final DeviceState sDeviceState = new DeviceState();
 
+    @Ignore
     @CannotSetPolicyTest(policy = DisallowDebuggingFeatures.class, includeNonDeviceAdminStates = false)
     @Postsubmit(reason = "new test")
     @ApiTest(apis = "android.os.UserManager#DISALLOW_DEBUGGING_FEATURES")

@@ -126,6 +126,7 @@ import androidx.test.uiautomator.UiObject2;
 
 import com.android.compatibility.common.util.RetryableException;
 
+import org.junit.After;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -139,6 +140,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LoginActivityTest extends LoginActivityCommonTestCase {
 
     private static final String TAG = "LoginActivityTest";
+
+    @After
+    public void disablePcc() {
+        Log.d(TAG, "@After: disablePcc()");
+        disablePccDetectionFeature(sContext);
+    }
 
     @Test
     @AppModeFull(reason = "testAutoFillOneDataset() is enough")
@@ -962,6 +969,7 @@ public class LoginActivityTest extends LoginActivityCommonTestCase {
         mActivity.assertAutoFilled();
     }
 
+    @FlakyTest(bugId = 275112488)
     @Test
     @AppModeFull(reason = "testAutofillCallbacks() is enough")
     public void testAutofillCallbackDisabled() throws Exception {
@@ -1601,20 +1609,24 @@ public class LoginActivityTest extends LoginActivityCommonTestCase {
         mUiBot.assertSaveShowing(SAVE_DATA_TYPE_PASSWORD);
 
         // Then make sure it goes away when user doesn't want it..
+        String when;
         switch (dismissType) {
             case BACK_BUTTON:
+                when = "back button tapped";
                 mUiBot.pressBack();
                 break;
             case HOME_BUTTON:
+                when = "home button tapped";
                 mUiBot.pressHome();
                 break;
             case TOUCH_OUTSIDE:
+                when = "touched outside";
                 mUiBot.touchOutsideSaveDialog();
                 break;
             default:
                 throw new IllegalArgumentException("invalid dismiss type: " + dismissType);
         }
-        mUiBot.assertSaveNotShowing(SAVE_DATA_TYPE_PASSWORD);
+        mUiBot.assertSaveNotShowing(SAVE_DATA_TYPE_PASSWORD, when);
     }
 
     @Test

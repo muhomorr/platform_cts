@@ -31,6 +31,7 @@ import static org.junit.Assert.assertThrows;
 import android.net.wifi.sharedconnectivity.app.HotspotNetwork;
 import android.net.wifi.sharedconnectivity.app.NetworkProviderInfo;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Parcel;
 import android.util.ArraySet;
 
@@ -49,7 +50,7 @@ import java.util.Arrays;
  */
 
 @RunWith(AndroidJUnit4.class)
-@SdkSuppress(minSdkVersion = Build.VERSION_CODES.UPSIDE_DOWN_CAKE, codeName = "UpsideDownCake")
+@SdkSuppress(minSdkVersion = Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 @NonMainlineTest
 public class HotspotNetworkTest {
     private static final long DEVICE_ID = 11L;
@@ -62,6 +63,8 @@ public class HotspotNetworkTest {
     private static final String HOTSPOT_SSID = "TEST_SSID";
     private static final String HOTSPOT_BSSID = "TEST _BSSID";
     private static final int[] HOTSPOT_SECURITY_TYPES = {SECURITY_TYPE_WEP, SECURITY_TYPE_EAP};
+    private static final String BUNDLE_KEY = "INT-KEY";
+    private static final int BUNDLE_VALUE = 1;
 
     private static final long DEVICE_ID_1 = 111L;
     private static final NetworkProviderInfo NETWORK_PROVIDER_INFO1 =
@@ -136,6 +139,7 @@ public class HotspotNetworkTest {
         assertThat(network.getHotspotSsid()).isEqualTo(HOTSPOT_SSID);
         assertThat(network.getHotspotBssid()).isEqualTo(HOTSPOT_BSSID);
         assertThat(network.getHotspotSecurityTypes()).containsExactlyElementsIn(securityTypes);
+        assertThat(network.getExtras().getInt(BUNDLE_KEY)).isEqualTo(BUNDLE_VALUE);
     }
 
     @Test
@@ -144,6 +148,35 @@ public class HotspotNetworkTest {
         HotspotNetwork network2 = buildHotspotNetworkBuilder(true).build();
 
         assertThat(network1.hashCode()).isEqualTo(network2.hashCode());
+    }
+
+    @Test
+    public void deviceIdNotSet_shouldThrowException() {
+        HotspotNetwork.Builder builder = new HotspotNetwork.Builder();
+        builder.setNetworkProviderInfo(NETWORK_PROVIDER_INFO);
+
+        Exception e = assertThrows(IllegalArgumentException.class, builder::build);
+        assertThat(e.getMessage()).contains("DeviceId must be set");
+    }
+
+    @Test
+    public void illegalNetworkTypeValueIsSet_shouldThrowException() {
+        HotspotNetwork.Builder builder = new HotspotNetwork.Builder();
+        builder.setNetworkProviderInfo(NETWORK_PROVIDER_INFO)
+                .setDeviceId(DEVICE_ID).setHostNetworkType(1000);
+
+        Exception e = assertThrows(IllegalArgumentException.class, builder::build);
+        assertThat(e.getMessage()).contains("Illegal network type");
+    }
+
+    @Test
+    public void networkNameNotSet_shouldThrowException() {
+        HotspotNetwork.Builder builder = new HotspotNetwork.Builder();
+        builder.setNetworkProviderInfo(NETWORK_PROVIDER_INFO)
+                .setDeviceId(DEVICE_ID).setHostNetworkType(NETWORK_TYPE);
+
+        Exception e = assertThrows(IllegalArgumentException.class, builder::build);
+        assertThat(e.getMessage()).contains("NetworkName must be set");
     }
 
     @Test
@@ -159,11 +192,18 @@ public class HotspotNetworkTest {
                 .setHostNetworkType(NETWORK_TYPE)
                 .setNetworkName(NETWORK_NAME)
                 .setHotspotSsid(HOTSPOT_SSID)
-                .setHotspotBssid(HOTSPOT_BSSID);
+                .setHotspotBssid(HOTSPOT_BSSID)
+                .setExtras(buildBundle());
         Arrays.stream(HOTSPOT_SECURITY_TYPES).forEach(builder::addHotspotSecurityType);
         if (withNetworkProviderInfo) {
             builder.setNetworkProviderInfo(NETWORK_PROVIDER_INFO);
         }
         return builder;
+    }
+
+    private Bundle buildBundle() {
+        Bundle bundle = new Bundle();
+        bundle.putInt(BUNDLE_KEY, BUNDLE_VALUE);
+        return bundle;
     }
 }

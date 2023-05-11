@@ -42,7 +42,6 @@ import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.NonMainlineTest;
 
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -56,7 +55,7 @@ import java.util.concurrent.TimeUnit;
  * Testing is done on these classes in their bound state.
  */
 @RunWith(AndroidJUnit4.class)
-@SdkSuppress(minSdkVersion = Build.VERSION_CODES.UPSIDE_DOWN_CAKE, codeName = "UpsideDownCake")
+@SdkSuppress(minSdkVersion = Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 @NonMainlineTest
 public class SharedConnectivityTest {
     private static final String TAG = "SharedConnectivityTest";
@@ -135,16 +134,24 @@ public class SharedConnectivityTest {
                     .build();
 
     @Test
-    @Ignore("tracked in b/275415588")
     public void registerCallback_withoutPermission_throwsSecurityException() throws Exception {
         Context context = InstrumentationRegistry.getInstrumentation().getContext();
-        dropPermission();
+        grantPermission();
         SharedConnectivityManager manager = getManager(context);
         TestSharedConnectivityClientCallback callback =
                 new TestSharedConnectivityClientCallback();
+        // Registrations done before the service is connected are cached and executed in the
+        // background. Need to wait for the service to be connected to test.
+        manager.registerCallback(Runnable::run, callback);
+        TestSharedConnectivityService service = getService();
+        assertServiceConnected(callback);
 
+        dropPermission();
+
+        TestSharedConnectivityClientCallback callback2 =
+                new TestSharedConnectivityClientCallback();
         assertThrows(SecurityException.class,
-                () -> manager.registerCallback(Runnable::run, callback));
+                () -> manager.registerCallback(Runnable::run, callback2));
     }
 
     @Test

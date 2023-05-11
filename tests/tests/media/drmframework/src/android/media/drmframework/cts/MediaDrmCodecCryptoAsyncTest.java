@@ -16,36 +16,23 @@
 
 package android.media.drmframework.cts;
 
-import android.content.res.AssetFileDescriptor;
-import android.media.MediaCodec;
 import android.media.MediaCrypto;
 import android.media.MediaDrm;
 import android.media.MediaExtractor;
 import android.media.cts.MediaCodecAsyncHelper;
 import android.media.cts.MediaCodecCryptoAsyncHelper;
-import com.android.compatibility.common.util.Preconditions;
-import android.media.cts.Utils;
-import android.net.Uri;
 import android.os.Build;
-import android.os.ParcelFileDescriptor;
 import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.annotations.RequiresDevice;
-import android.test.AndroidTestCase;
 
-import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SdkSuppress;
 import androidx.test.filters.SmallTest;
 
-import com.android.compatibility.common.util.ApiLevelUtil;
-import com.android.compatibility.common.util.MediaUtils;
-
-import org.junit.Test;
-import org.junit.Assume;
 import org.junit.AssumptionViolatedException;
+import org.junit.Test;
 
-import java.io.File;
-import java.io.FileNotFoundException;
+
 import java.util.UUID;
 
 /**
@@ -55,17 +42,7 @@ import java.util.UUID;
 @AppModeFull(reason = "Instant apps cannot access the SD card")
 public class MediaDrmCodecCryptoAsyncTest {
     private static final String TAG = "MediaDrmCodecCryptoAsyncTest";
-    private static final boolean IS_AT_LEAST_U = ApiLevelUtil.isAfter(Build.VERSION_CODES.TIRAMISU);
     static final String mInpPrefix = WorkDir.getMediaDirString();
-
-    protected static AssetFileDescriptor getAssetFileDescriptorFor(final String res)
-            throws FileNotFoundException {
-        File inpFile = new File(mInpPrefix + res);
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        ParcelFileDescriptor parcelFD =
-                ParcelFileDescriptor.open(inpFile, ParcelFileDescriptor.MODE_READ_ONLY);
-        return new AssetFileDescriptor(parcelFD, 0, parcelFD.getStatSize());
-    }
 
     /**
      * Tests whether decoding a short encrypted group-of-pictures succeeds when codec is configured
@@ -73,22 +50,29 @@ public class MediaDrmCodecCryptoAsyncTest {
      * The test queues a few encrypted video frames
      * then signals end-of-stream. The test fails if the decoder doesn't output the queued frames.
      */
+
     @Presubmit
     @SmallTest
     @RequiresDevice
     @Test
-    public void testShortEncryptedVideoUsingNonSecureDecoder() throws InterruptedException {
-        Assume.assumeTrue("Test needs Android 14", IS_AT_LEAST_U);
+    public void testSecureDecWithNoonCryptoErrorOverride() throws InterruptedException {
         MediaCodecAsyncHelper.runThread(
-                (Boolean secure) -> runClearKeyVideoUsingCodec(secure /*secure*/), false);
+                (Boolean secure) -> runClearKeyVideoWithNoonCryptoError(secure /*secure*/), true);
     }
 
     @Presubmit
     @SmallTest
     @RequiresDevice
     @Test
+    public void testShortEncryptedVideoUsingNonSecureDecoder() throws InterruptedException {
+        MediaCodecAsyncHelper.runThread(
+                (Boolean secure) -> runClearKeyVideoUsingCodec(secure /*secure*/), false);
+    }
+    @Presubmit
+    @SmallTest
+    @RequiresDevice
+    @Test
     public void testShortEncryptedVideoUsingSecureDecoder() throws InterruptedException {
-        Assume.assumeTrue("Test needs Android 14", IS_AT_LEAST_U);
         MediaCodecAsyncHelper.runThread(
                 (Boolean secure) -> runClearKeyVideoUsingCodec(secure /*secure*/), true);
     }
@@ -98,7 +82,6 @@ public class MediaDrmCodecCryptoAsyncTest {
     @RequiresDevice
     @Test
     public void testShortEncryptedVideoUsingSecureCodecInBlockModel() throws InterruptedException {
-        Assume.assumeTrue("Test needs Android 14", IS_AT_LEAST_U);
         MediaCodecAsyncHelper.runThread(
                 (Boolean secure) -> runClearKeyVideoUsingBlockModel(secure /*secure*/), true);
     }
@@ -108,7 +91,6 @@ public class MediaDrmCodecCryptoAsyncTest {
     @RequiresDevice
     @Test
     public void testShortEncryptedVideoUsingNonSecureCodecInBlockModel() throws InterruptedException {
-        Assume.assumeTrue("Test needs Android 14", IS_AT_LEAST_U);
         MediaCodecAsyncHelper.runThread(
                 (Boolean secure) -> runClearKeyVideoUsingBlockModel(secure /*secure*/), false);
     }
@@ -189,13 +171,29 @@ public class MediaDrmCodecCryptoAsyncTest {
 
     private MediaExtractor setupExtractor(String filePath) throws Exception {
         MediaExtractor extractor = new MediaExtractor();
-        Uri uri = Uri.parse(Utils.getMediaPath() + filePath);
-        extractor.setDataSource(uri.toString(), null);
+        extractor.setDataSource(mInpPrefix + "llama_h264_main_720p_8000.mp4", null);
         extractor.selectTrack(0);
         extractor.seekTo(
                 ENCRYPTED_CONTENT_FIRST_BUFFER_TIMESTAMP_US,
                 MediaExtractor.SEEK_TO_CLOSEST_SYNC);
         return extractor;
+    }
+
+    /* tests */
+    private void runClearKeyVideoWithNoonCryptoError(boolean secure) {
+        try (ClearKeyDrmSession drmSession = new ClearKeyDrmSession(
+                CLEARKEY_SCHEME_UUID, DRM_INIT_DATA, CLEAR_KEY_CENC)) {
+            MediaExtractor extractor = setupExtractor("/clearkey/llama_h264_main_720p_8000.mp4");
+            MediaCrypto crypto = drmSession.getCrypto();
+
+            MediaCodecCryptoAsyncHelper.runShortClearKeyVideoWithNoCryptoErrorOverride(extractor,
+                    ENCRYPTED_CONTENT_LAST_BUFFER_TIMESTAMP_US,
+                    crypto);
+        } catch (AssumptionViolatedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /* tests */

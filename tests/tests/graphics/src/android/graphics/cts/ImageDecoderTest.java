@@ -123,7 +123,7 @@ public class ImageDecoderTest {
                 new Record(R.drawable.color_wheel, 128, 128, "image/x-ico", false, true, sSRGB),
                 new Record(R.raw.sample_1mp, 600, 338, "image/x-adobe-dng", false, false, sSRGB)
         }));
-        if (MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
+        if (ImageDecoder.isMimeTypeSupported("image/heif")) {
             // HEIF support is optional when HEVC decoder is not supported.
             records.add(new Record(R.raw.heifwriter_input, 1920, 1080, "image/heif", false, false,
                                    sSRGB));
@@ -250,21 +250,22 @@ public class ImageDecoderTest {
     @RequiresDevice
     public void testDecode10BitHeif() {
         assumeTrue(
-            "Test needs Android T.", ApiLevelUtil.isFirstApiAtLeast(Build.VERSION_CODES.TIRAMISU));
+            "This test only applies to Android 13 (T) or newer. Skip the test.",
+            ApiLevelUtil.isFirstApiAtLeast(Build.VERSION_CODES.TIRAMISU));
         assumeTrue(
-            "Test needs VNDK at least T.",
+            "Test only applies to VNDK version 33 (T) or newer. Skip the test.",
             SystemProperties.getInt("ro.vndk.version", Build.VERSION_CODES.CUR_DEVELOPMENT)
                 >= Build.VERSION_CODES.TIRAMISU);
         assumeTrue("No 10-bit HEVC decoder, skip the test.", has10BitHEVCDecoder());
 
+        Bitmap.Config expectedConfig = Bitmap.Config.RGBA_1010102;
+
         // For TVs, even if the device advertises that 10 bits profile is supported, the output
-        // format might not be CPU readable, but can still be displayed, and only when the TV
-        // is capable to decode to YUVP010 format, the image can be converted into RGBA_1010102,
-        // and this test can continue.
-        if (MediaUtils.isTv()) {
-            assumeTrue(
-                "The TV is unable to decode to YUVP010 format, skip the test",
-                hasHEVCDecoderSupportsYUVP010());
+        // format might not be CPU readable, but the video can still be displayed. When the TV's
+        // hevc decoder doesn't support YUVP010 format, then the color type of output falls back
+        // to RGBA_8888 automatically.
+        if (MediaUtils.isTv() && !hasHEVCDecoderSupportsYUVP010()) {
+            expectedConfig = Bitmap.Config.ARGB_8888;
         }
 
         try {
@@ -277,7 +278,7 @@ public class ImageDecoderTest {
             assertNotNull(bm);
             assertEquals(4096, bm.getWidth());
             assertEquals(3072, bm.getHeight());
-            assertEquals(Bitmap.Config.RGBA_1010102, bm.getConfig());
+            assertEquals(expectedConfig, bm.getConfig());
         } catch (IOException e) {
             fail("Failed with exception " + e);
         }
@@ -308,6 +309,13 @@ public class ImageDecoderTest {
     @Test
     @RequiresDevice
     public void testDecode10BitHeifWithLowRam() {
+        assumeTrue(
+            "This test only applies to Android 13 (T) or newer. Skip the test.",
+            ApiLevelUtil.isFirstApiAtLeast(Build.VERSION_CODES.TIRAMISU));
+        assumeTrue(
+            "Test only applies to VNDK version 33 (T) or newer. Skip the test.",
+            SystemProperties.getInt("ro.vndk.version", Build.VERSION_CODES.CUR_DEVELOPMENT)
+                >= Build.VERSION_CODES.TIRAMISU);
         assumeTrue("No 10-bit HEVC decoder, skip the test.", has10BitHEVCDecoder());
 
         ImageDecoder.Source src = ImageDecoder.createSource(getResources(), R.raw.heifimage_10bit);
@@ -2777,7 +2785,6 @@ public class ImageDecoderTest {
         }
 
         for (String mimeType : new String[] {
-                "image/heic",
                 "image/vnd.wap.wbmp",
                 "image/x-sony-arw",
                 "image/x-canon-cr2",
@@ -2792,6 +2799,9 @@ public class ImageDecoderTest {
         }) {
             assertTrue(mimeType, ImageDecoder.isMimeTypeSupported(mimeType));
         }
+
+        assertEquals("image/heic", ImageDecoder.isMimeTypeSupported("image/heic"),
+                MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC));
 
         assertFalse(ImageDecoder.isMimeTypeSupported("image/x-does-not-exist"));
     }

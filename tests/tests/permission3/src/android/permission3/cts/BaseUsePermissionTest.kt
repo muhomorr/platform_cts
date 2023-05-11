@@ -22,7 +22,12 @@ import android.app.Instrumentation
 import android.content.ComponentName
 import android.content.Intent
 import android.content.Intent.ACTION_REVIEW_APP_DATA_SHARING_UPDATES
+import android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
 import android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+import android.content.pm.PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE
+import android.content.pm.PackageInstaller.PACKAGE_SOURCE_LOCAL_FILE
+import android.content.pm.PackageInstaller.PACKAGE_SOURCE_OTHER
+import android.content.pm.PackageInstaller.PACKAGE_SOURCE_STORE
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -273,10 +278,6 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
             android.Manifest.permission.BODY_SENSORS to "@android:string/permgrouplab_sensors",
             android.Manifest.permission.BODY_SENSORS_BACKGROUND
                     to "@android:string/permgrouplab_sensors",
-            android.Manifest.permission.BODY_SENSORS_WRIST_TEMPERATURE
-                    to "@android:string/permgrouplab_sensors",
-            android.Manifest.permission.BODY_SENSORS_WRIST_TEMPERATURE_BACKGROUND
-                    to "@android:string/permgrouplab_sensors",
             // Bluetooth
             android.Manifest.permission.BLUETOOTH_CONNECT to
                     "@android:string/permgrouplab_nearby_devices",
@@ -321,6 +322,34 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         apkName: String
     ) {
         installPackageViaSession(apkName, AppMetadata.createDefaultAppMetadata())
+    }
+
+    protected fun installPackageWithInstallSourceAndMetadataFromStore(
+        apkName: String
+    ) {
+        installPackageViaSession(apkName, AppMetadata.createDefaultAppMetadata(),
+            PACKAGE_SOURCE_STORE)
+    }
+
+    protected fun installPackageWithInstallSourceAndMetadataFromLocalFile(
+        apkName: String
+    ) {
+        installPackageViaSession(apkName, AppMetadata.createDefaultAppMetadata(),
+            PACKAGE_SOURCE_LOCAL_FILE)
+    }
+
+    protected fun installPackageWithInstallSourceAndMetadataFromDownloadedFile(
+        apkName: String
+    ) {
+        installPackageViaSession(apkName, AppMetadata.createDefaultAppMetadata(),
+            PACKAGE_SOURCE_DOWNLOADED_FILE)
+    }
+
+    protected fun installPackageWithInstallSourceAndMetadataFromOther(
+        apkName: String
+    ) {
+        installPackageViaSession(apkName, AppMetadata.createDefaultAppMetadata(),
+            PACKAGE_SOURCE_OTHER)
     }
 
     protected fun installPackageWithInstallSourceAndNoMetadata(
@@ -780,6 +809,7 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                     putExtra(Intent.EXTRA_PERMISSION_NAME, permission)
                     putExtra(Intent.EXTRA_USER, Process.myUserHandle())
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 })
         }
     }
@@ -831,6 +861,7 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                             putExtra(Intent.EXTRA_PERMISSION_NAME, permission)
                             putExtra(Intent.EXTRA_USER, Process.myUserHandle())
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
                         })
                 }
             }

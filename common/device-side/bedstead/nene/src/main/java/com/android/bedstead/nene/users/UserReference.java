@@ -157,6 +157,10 @@ public final class UserReference implements AutoCloseable {
             profileOwner.remove();
         }
 
+        if (TestApis.users().instrumented().equals(this)) {
+            throw new NeneException("Cannot remove instrumented user");
+        }
+
         try {
             // Expected success string is "Success: removed user"
             ShellCommand.builder("pm remove-user")
@@ -173,6 +177,32 @@ public final class UserReference implements AutoCloseable {
         } catch (AdbException e) {
             throw new NeneException("Could not remove user " + this + ". Logcat: "
                     + TestApis.logcat().dump((l) -> l.contains("UserManagerService")), e);
+        }
+    }
+
+    /**
+     * Remove the user from device when it is next possible.
+     *
+     * <p>If the user is the current foreground user, removal is deferred until the user is switched
+     * away. Otherwise, it'll be removed immediately.
+     *
+     * <p>If the user does not exist, or setting the user ephemeral fails for any other reason, a
+     * {@link NeneException} will be thrown.
+     */
+    @Experimental
+    public void removeWhenPossible() {
+        try {
+            // Expected success strings are:
+            // ("Success: user %d removed\n", userId)
+            // ("Success: user %d set as ephemeral\n", userId)
+            // ("Success: user %d is already being removed\n", userId)
+            ShellCommand.builder("pm remove-user")
+                    .addOperand("--set-ephemeral-if-in-use")
+                    .addOperand(mId)
+                    .validate(ShellCommandUtils::startsWithSuccess)
+                    .execute();
+        } catch (AdbException e) {
+            throw new NeneException("Could not remove or mark ephemeral user " + this, e);
         }
     }
 
@@ -214,6 +244,7 @@ public final class UserReference implements AutoCloseable {
     //TODO(scottjonathan): Deal with users who won't unlock
     private UserReference startUser(int displayId) {
         boolean visibleOnDisplay = displayId != Display.INVALID_DISPLAY;
+
         try {
             // Expected success string is "Success: user started"
             Builder builder = ShellCommand.builder("am start-user")
@@ -244,7 +275,12 @@ public final class UserReference implements AutoCloseable {
                         .await();
             }
         } catch (AdbException | PollValueFailedException e) {
-            throw new NeneException("Could not start user " + this, e);
+            if (!userInfo().isEnabled()) {
+                throw new NeneException("Could not start user " + this + ". User is not enabled.");
+            }
+
+            throw new NeneException("Could not start user " + this + ". Relevant logcat: "
+                    + TestApis.logcat().dump(l -> l.contains("ActivityManager")), e);
         }
 
         return this;
@@ -338,9 +374,20 @@ public final class UserReference implements AutoCloseable {
 
             if (Versions.meetsMinimumSdkVersionRequirement(R)) {
                 broadcastReceiver.awaitForBroadcast();
+
+                Poll.forValue("current user", () -> TestApis.users().current())
+                        .toBeEqualTo(this)
+                        .await();
+
+                if (!TestApis.users().current().equals(this)) {
+                    throw new NeneException("Error switching user to " + this
+                            + " (current user is " + TestApis.users().current() + "). Relevant logcat: " + TestApis.logcat().dump(
+                            (line) -> line.contains("ActivityManager")));
+                }
             } else {
                 Thread.sleep(20000);
             }
+
         } catch (InterruptedException e) {
             Log.e(LOG_TAG, "Interrupted while switching user", e);
         } finally {
@@ -685,6 +732,7 @@ public final class UserReference implements AutoCloseable {
      * Clear the lock credential for the user.
      */
     private void clearLockCredential(String lockCredential, String lockType) {
+        if (lockCredential == null || lockCredential.length() == 0) return;
         if (!lockType.equals(mLockType) && mLockType != null) {
             String lockTypeSentenceCase = Character.toUpperCase(lockType.charAt(0))
                     + lockType.substring(1);
@@ -852,7 +900,7 @@ public final class UserReference implements AutoCloseable {
 
     @Override
     public String toString() {
-        return "User{id=" + id() + "}";
+        return "User{id=" + id() + ", name=" + name() + "}";
     }
 
     /**
@@ -860,6 +908,18 @@ public final class UserReference implements AutoCloseable {
      */
     public boolean canBeSwitchedTo() {
         return getSwitchToUserError() == null;
+    }
+
+    /**
+     * {@code true} if this user can show activities.
+     */
+    @Experimental
+    public boolean canShowActivities() {
+        if (!isForeground() && (!isProfile() || !parent().isForeground())) {
+            return false;
+        }
+
+        return true;
     }
 
     private String getSwitchToUserError() {

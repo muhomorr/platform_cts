@@ -305,7 +305,9 @@ public final class Package {
     @Experimental
     public Package disable(UserReference user) {
         try {
-            ShellCommand.builderForUser(user, "pm disable")
+            // TODO(279387509): "pm disable" is currently broken for packages - restore to normal
+            //  disable when fixed
+            ShellCommand.builderForUser(user, "pm disable-user")
                     .addOperand(mPackageName)
                     .validate(o -> o.contains("new state"))
                     .execute();
@@ -570,6 +572,7 @@ public final class Package {
                         .getPackageManager()
                         .getPackageInfo(mPackageName, /* flags= */ flags);
             } catch (PackageManager.NameNotFoundException e) {
+                Log.e(LOG_TAG, "Could not find package " + this + " on user " + user, e);
                 return null;
             }
         }

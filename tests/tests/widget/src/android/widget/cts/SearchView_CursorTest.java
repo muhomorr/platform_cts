@@ -64,9 +64,9 @@ import org.junit.runner.RunWith;
 @MediumTest
 @RunWith(AndroidJUnit4.class)
 public class SearchView_CursorTest {
-    private final CtsTouchUtils mCtsTouchUtils = new CtsTouchUtils();
-
     private Instrumentation mInstrumentation;
+    private CtsTouchUtils mCtsTouchUtils;
+    private CtsKeyEventUtil mCtsKeyEventUtil;
     private Activity mActivity;
     private SearchView mSearchView;
 
@@ -153,6 +153,8 @@ public class SearchView_CursorTest {
     @Before
     public void setup() throws Throwable {
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
+        mCtsTouchUtils = new CtsTouchUtils(mInstrumentation.getTargetContext());
+        mCtsKeyEventUtil = new CtsKeyEventUtil(mInstrumentation.getTargetContext());
         mActivity = mActivityRule.getActivity();
         mSearchView = (SearchView) mActivity.findViewById(R.id.search_view);
 
@@ -265,7 +267,7 @@ public class SearchView_CursorTest {
         mInstrumentation.waitForIdleSync();
         verify(mockQueryTextListener, times(1)).onQueryTextChange("Di");
 
-        CtsKeyEventUtil.sendKeys(mInstrumentation, mSearchView, KeyEvent.KEYCODE_DPAD_DOWN,
+        mCtsKeyEventUtil.sendKeys(mInstrumentation, mSearchView, KeyEvent.KEYCODE_DPAD_DOWN,
                 KeyEvent.KEYCODE_ENTER);
 
         // Verify that our spy suggestion listener was called.
@@ -278,7 +280,7 @@ public class SearchView_CursorTest {
         mInstrumentation.waitForIdleSync();
         verify(mockQueryTextListener, times(1)).onQueryTextChange("Bo");
 
-        CtsKeyEventUtil.sendKeys(mInstrumentation, mSearchView, KeyEvent.KEYCODE_DPAD_DOWN,
+        mCtsKeyEventUtil.sendKeys(mInstrumentation, mSearchView, KeyEvent.KEYCODE_DPAD_DOWN,
                 KeyEvent.KEYCODE_NUMPAD_ENTER);
 
         // Verify that our spy suggestion listener was called.

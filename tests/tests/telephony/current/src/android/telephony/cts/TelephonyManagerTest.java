@@ -194,6 +194,7 @@ public class TelephonyManagerTest {
     private String mSelfPackageName;
     private String mSelfCertHash;
 
+    private static final int WAIT_FOR_CONDITION = 3000;
     private static final int TOLERANCE = 1000;
     private static final int TIMEOUT_FOR_NETWORK_OPS = TOLERANCE * 180;
     private PhoneStateListener mListener;
@@ -431,7 +432,8 @@ public class TelephonyManagerTest {
         }
 
         void waitForIntent() throws Exception {
-            mLatch.await(5000, TimeUnit.MILLISECONDS);
+            // Extend to wait up to 10 seconds to receive CountryChanged Intent.
+            mLatch.await(10000, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -3745,6 +3747,7 @@ public class TelephonyManagerTest {
             assertTrue("first activity info is" + activityInfo1, activityInfo1.isValid());
 
             // Wait a bit, then get another instance to make sure that some info has accumulated
+            waitForMs(5000);
             CompletableFuture<ModemActivityInfo> future2 = new CompletableFuture<>();
             mTelephonyManager.requestModemActivityInfo(getContext().getMainExecutor(),
                     future2::complete);
@@ -4145,6 +4148,39 @@ public class TelephonyManagerTest {
                         mTelephonyManager, getPolicyHelper));
     }
 
+    private interface Condition {
+        Object expected();
+        Object actual();
+    }
+
+    private void waitUntilConditionIsTrueOrTimeout(
+            Condition condition, long timeout, String description) {
+        final long start = System.currentTimeMillis();
+        while (!Objects.equals(condition.expected(), condition.actual())
+                && System.currentTimeMillis() - start < timeout) {
+            waitForMs(50);
+        }
+        assertEquals(description, condition.expected(), condition.actual());
+    }
+
+    private void waitForDataPolicySetting(ShellIdentityUtils.ShellPermissionMethodHelper<Boolean,
+            TelephonyManager> getPolicyHelper, boolean mmsAlwaysAllowed) {
+        waitUntilConditionIsTrueOrTimeout(
+                new Condition() {
+                    @Override
+                    public Object expected() {
+                        return mmsAlwaysAllowed;
+                    }
+
+                    @Override
+                    public Object actual() {
+                        Log.d(TAG, "invokeMethodWithShellPermissions : " + mmsAlwaysAllowed);
+                        return ShellIdentityUtils.invokeMethodWithShellPermissions(
+                          mTelephonyManager, getPolicyHelper);
+                    }
+                }, WAIT_FOR_CONDITION, "Policy returned");
+    }
+
     @Test
     public void testAlwaysAllowMmsDataPolicy() {
         assumeTrue(hasFeature(PackageManager.FEATURE_TELEPHONY_DATA));
@@ -4161,7 +4197,7 @@ public class TelephonyManagerTest {
                         TelephonyManager.MOBILE_DATA_POLICY_MMS_ALWAYS_ALLOWED,
                         !mmsAlwaysAllowed));
 
-        waitForMs(500);
+        waitForDataPolicySetting(getPolicyHelper, !mmsAlwaysAllowed);
         assertNotEquals(mmsAlwaysAllowed,
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, getPolicyHelper));
@@ -4171,7 +4207,7 @@ public class TelephonyManagerTest {
                         TelephonyManager.MOBILE_DATA_POLICY_MMS_ALWAYS_ALLOWED,
                         mmsAlwaysAllowed));
 
-        waitForMs(500);
+        waitForDataPolicySetting(getPolicyHelper, mmsAlwaysAllowed);
         assertEquals(mmsAlwaysAllowed,
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, getPolicyHelper));
@@ -5752,7 +5788,10 @@ public class TelephonyManagerTest {
             synchronized (mLock) {
                 if (mRadioPowerState != desiredState) {
                     try {
-                        mLock.wait(5000);
+                        // Since SST sets waiting time up to 10 seconds for the power off radio,
+                        // the RadioStateIntent timer extends the wait time up to 10 seconds
+                        // here as well.
+                        mLock.wait(10000);
                     } catch (Exception e) {
                         fail(e.getMessage());
                     }

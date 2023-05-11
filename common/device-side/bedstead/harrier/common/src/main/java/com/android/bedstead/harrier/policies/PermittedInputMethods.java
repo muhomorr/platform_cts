@@ -17,7 +17,6 @@
 package com.android.bedstead.harrier.policies;
 
 import static com.android.bedstead.harrier.annotations.enterprise.EnterprisePolicy.APPLIED_BY_DEVICE_OWNER;
-import static com.android.bedstead.harrier.annotations.enterprise.EnterprisePolicy.APPLIED_BY_DPM_ROLE_HOLDER;
 import static com.android.bedstead.harrier.annotations.enterprise.EnterprisePolicy.APPLIED_BY_PROFILE_OWNER;
 import static com.android.bedstead.harrier.annotations.enterprise.EnterprisePolicy.APPLIES_TO_OWN_USER;
 import static com.android.bedstead.harrier.annotations.enterprise.EnterprisePolicy.CANNOT_BE_APPLIED_BY_ROLE_HOLDER;
@@ -33,7 +32,8 @@ import com.android.bedstead.harrier.annotations.enterprise.EnterprisePolicy;
  * for more detail.
  */ // APPLIED_BY_DPM_ROLE_HOLDER
 @EnterprisePolicy(dpc = APPLIED_BY_DEVICE_OWNER | APPLIED_BY_PROFILE_OWNER | APPLIES_TO_OWN_USER
-        | CANNOT_BE_APPLIED_BY_ROLE_HOLDER | INHERITABLE)//,
-//        permissions = @EnterprisePolicy.Permission(appliedWith = MANAGE_DEVICE_POLICY_INPUT_METHODS, appliesTo = APPLIES_TO_OWN_USER))
+        | CANNOT_BE_APPLIED_BY_ROLE_HOLDER | INHERITABLE,
+        permissions = @EnterprisePolicy.Permission(appliedWith = MANAGE_DEVICE_POLICY_INPUT_METHODS,
+            appliesTo = APPLIES_TO_OWN_USER))
 public class PermittedInputMethods {
 }
