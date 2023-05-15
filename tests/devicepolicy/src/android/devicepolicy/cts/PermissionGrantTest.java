@@ -34,9 +34,6 @@ import static android.app.admin.DevicePolicyManager.PERMISSION_POLICY_AUTO_DENY;
 import static android.app.admin.DevicePolicyManager.PERMISSION_POLICY_AUTO_GRANT;
 import static android.app.admin.DevicePolicyManager.PERMISSION_POLICY_PROMPT;
 
-import static com.android.bedstead.nene.flags.CommonFlags.DevicePolicyManager.ENABLE_DEVICE_POLICY_ENGINE_FLAG;
-import static com.android.bedstead.nene.flags.CommonFlags.DevicePolicyManager.PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG;
-import static com.android.bedstead.nene.flags.CommonFlags.NAMESPACE_DEVICE_POLICY_MANAGER;
 import static com.android.bedstead.nene.utils.Versions.U;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -46,12 +43,9 @@ import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 import static org.testng.Assert.assertThrows;
 
-import android.util.Log;
-
 import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
 import com.android.bedstead.harrier.annotations.AfterClass;
-import com.android.bedstead.harrier.annotations.EnsureFeatureFlagEnabled;
 import com.android.bedstead.harrier.annotations.EnsureScreenIsOn;
 import com.android.bedstead.harrier.annotations.EnsureUnlocked;
 import com.android.bedstead.harrier.annotations.IntTestParameter;
@@ -80,8 +74,10 @@ import com.android.bedstead.testapp.TestAppInstance;
 import com.android.queryable.annotations.IntegerQuery;
 import com.android.queryable.annotations.Query;
 
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -90,12 +86,6 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 @RunWith(BedsteadJUnit4.class)
-@EnsureFeatureFlagEnabled(
-        namespace = NAMESPACE_DEVICE_POLICY_MANAGER,
-        key = PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG)
-@EnsureFeatureFlagEnabled(
-        namespace = NAMESPACE_DEVICE_POLICY_MANAGER,
-        key = ENABLE_DEVICE_POLICY_ENGINE_FLAG)
 public final class PermissionGrantTest {
 
     @ClassRule
@@ -536,6 +526,7 @@ public final class PermissionGrantTest {
     @CannotSetPolicyTest(policy = SetSmsPermissionGranted.class, includeNonDeviceAdminStates = false)
     public void grantSmsPermission_cannotBeApplied_returnsTrueButDoesNotSetGrantState() {
         skipTestForFinancedDevice();
+        Assume.assumeFalse("Parent throws exception", sDeviceState.dpc().isParentInstance());
 
         int existingGrantState = sDeviceState.dpc().devicePolicyManager()
                 .getPermissionGrantState(sDeviceState.dpc().componentName(),
@@ -569,6 +560,7 @@ public final class PermissionGrantTest {
     public void grantSensorPermission_cannotBeApplied_returnsTrueButDoesNotSetGrantState(
             @SensorPermissionTestParameter String permission) {
         skipTestForFinancedDevice();
+        Assume.assumeFalse("Parent throws exception", sDeviceState.dpc().isParentInstance());
 
         int existingGrantState = sDeviceState.dpc().devicePolicyManager()
                 .getPermissionGrantState(sDeviceState.dpc().componentName(),
@@ -600,6 +592,7 @@ public final class PermissionGrantTest {
             query = @Query(targetSdkVersion =
             @IntegerQuery(isGreaterThanOrEqualTo = U))
     )
+    @Ignore("b/273496614 - Reenable once the unicorn APIs are unflagged.")
     @CannotSetPolicyTest(policy = SetSensorPermissionGranted.class)
     public void grantSensorPermission_cannotBeApplied_throwsSecurityException(
             @SensorPermissionTestParameter String permission) {
@@ -661,7 +654,7 @@ public final class PermissionGrantTest {
                     () -> sNotInstalledTestApp.pkg().hasPermission(GRANTABLE_PERMISSION))
                     .toBeEqualTo(true)
                     .errorOnFail()
-                     .await();
+                    .await();
         } finally {
             sDeviceState.dpc().devicePolicyManager().setPermissionPolicy(
                     sDeviceState.dpc().componentName(), PERMISSION_POLICY_PROMPT);

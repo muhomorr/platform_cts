@@ -2015,7 +2015,10 @@ public class ImageDecoderTest {
                 if (resId == R.drawable.png_test) {
                     // We do not support 565 in HARDWARE, so no RAM savings
                     // are possible.
-                    assertEquals(normalByteCount, byteCount);
+                    // Provide a little wiggle room to allow for gralloc allocation size
+                    // variances
+                    assertTrue(byteCount < (normalByteCount * 1.1));
+                    assertTrue(byteCount >= (normalByteCount * 0.9));
                 } else { // R.raw.f16
                     // This image defaults to F16. MEMORY_POLICY_LOW_RAM
                     // forces "test" to decode to 8888.
@@ -2465,6 +2468,10 @@ public class ImageDecoderTest {
                     ColorSpace.get(ColorSpace.Named.LINEAR_SRGB)),
             new AssetRecord("grayscale-16bit-linearSrgb.png", 32, 32, true, false, true,
                     ColorSpace.get(ColorSpace.Named.LINEAR_EXTENDED_SRGB)),
+            new AssetRecord("red-hlg-profile.png", 100, 100, false, false, true,
+                    ColorSpace.get(ColorSpace.Named.BT2020_HLG)),
+            new AssetRecord("red-pq-profile.png", 100, 100, false, false, true,
+                    ColorSpace.get(ColorSpace.Named.BT2020_PQ)),
         };
     }
 

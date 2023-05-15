@@ -1958,8 +1958,8 @@
     <string name="wifi_test_info">
         The Wi-Fi tests requires an open or PSK access point in the environment along with the DUT.
         \nPlease perform a network settings reset between each test to reset platform\'s internal state which
-        might interfere with the test flow.\nNavigate to \"Settings -> System -> Reset Options -> Reset Wi-Fi,
-        mobile &amp; Bluetooth\" to perform a network settings reset.
+        might interfere with the test flow.\nNavigate to \"Settings -> System -> Reset Options -> Reset Bluetooth
+        &amp; Wi-Fi\" to perform a network settings reset.
     </string>
     <string name="wifi_location_not_enabled">Wi-Fi / Location Mode is not enabled</string>
     <string name="wifi_location_not_enabled_message">These tests require Wi-Fi and Location Mode to be enabled.
@@ -5281,21 +5281,6 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="tv_start_test">Start Test</string>
     <string name="tv_done">Done</string>
 
-    <!-- Audio Capabilities test -->
-    <string name="tv_audio_capabilities_test">Audio Capabilities Test</string>
-    <string name="tv_audio_capabilities_test_info">This test checks if AudioDeviceInfo and
-    AudioTrack#isDirectPlaybackSupported APIs correctly report the Audio capabilities
-    of the connected audio devices.</string>
-    <string name="tv_audio_capabilities_no_receiver_connected">Disconnect all receivers or
-    soundbars which are connected. </string>
-    <string name="tv_audio_capabilities_receiver_connected">Connect a receiver or
-    soundbar which can play Dolby Atmos. </string>
-    <string name="tv_audio_capabilities_atmos_supported">Does your Android TV device support Dolby
-    Atmos (either passthrough or decode)?  </string>
-    <string name="tv_audio_capabilities_skip_test"> This test is only applicable to OTT and STB
-        devices. Is your device a soundbar or panel TV?
-    </string>
-
     <!-- Hotplug Test -->
     <string name="tv_hotplug_test">Hotplug Test</string>
     <string name="tv_hotplug_test_info">This test checks whether DisplayManager responds correctly
@@ -5450,7 +5435,7 @@ You should be prompted to select credentials; choose the ones you just installed
 
     <string name="audio_uap_buttons_test">USB Audio Peripheral Buttons Test</string>
     <string name="uapButtonTestInstructions">Connect the USB Audio headset with buttons
-        and press each transport/media button in turn.</string>
+        and press each button on the headset to verify recognition.</string>
 
      <string name="uapNotificationsTestInfo">
          This test verifies that the correct notifications and Intents are sent when a USB audio
@@ -5658,6 +5643,8 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="audio_general_not_tested">Not Tested</string>
     <string name="audio_general_not_required">Please Test If Supported</string>
     <string name="audio_general_required">Required</string>
+    <string name="audio_general_run">Run</string>
+    <string name="audio_general_cancel">Cancel</string>
 
     <string name="audio_general_Input">Input</string>
     <string name="audio_general_Output">Output</string>
@@ -5932,7 +5919,7 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="analog_headset_pass_noheadset">"PASS (No headset port available)"</string>
     <string name="analog_headset_pass">PASS</string>
     <string name="analog_headset_port_detected">"Analog port detected"</string>
-    <string name="analog_headset_press_buttons">Press headset buttons to verify recognition</string>
+    <string name="analog_headset_press_buttons">Press each button on the headset verify recognition</string>
     <string name="analog_headset_no_buttons">No buttons detected</string>
     <string name="analog_headset_headset_connected">Headset connected</string>
     <string name="analog_headset_no_headset">No Headset - Connect headset to 3.5mm analog jack</string>
@@ -6923,6 +6910,7 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="stop_advertising_presence">Stop Advertising</string>
     <string name="device_id_info_presence">You are advertising with deviceId: %1$d</string>
     <string name="device_found_presence">Reference device found. %1$d of %2$d samples collected</string>
+    <string name="result_pending_presence">Awaiting Rx RSSI median from reference device... </string>
     <string name="dut_test_result_info_presence">Tx RSSI median: %1$d. Rx RSSI median received from reference device: %2$d</string>
     <string name="ref_test_result_info_presence">Rx RSSI median computed: %1$d.</string>
     <string name="reference_device_id_input_presence">Enter the device ID displayed on the advertising device</string>

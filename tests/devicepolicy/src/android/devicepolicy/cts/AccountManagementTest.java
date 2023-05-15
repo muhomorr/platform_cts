@@ -16,10 +16,12 @@
 
 package android.devicepolicy.cts;
 
+import static android.app.admin.DevicePolicyIdentifiers.ACCOUNT_MANAGEMENT_DISABLED_POLICY;
 import static android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS;
 
-import static com.android.bedstead.nene.flags.CommonFlags.DevicePolicyManager.PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG;
+import static com.android.bedstead.nene.flags.CommonFlags.DevicePolicyManager.ENABLE_DEVICE_POLICY_ENGINE_FLAG;
 import static com.android.bedstead.nene.flags.CommonFlags.NAMESPACE_DEVICE_POLICY_MANAGER;
+import static com.android.bedstead.nene.permissions.CommonPermissions.MANAGE_PROFILE_AND_DEVICE_OWNERS;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -28,9 +30,13 @@ import static org.junit.Assert.assertTrue;
 
 import android.accounts.AccountManager;
 import android.accounts.OperationCanceledException;
+import android.app.admin.AccountTypePolicyKey;
+import android.app.admin.DevicePolicyManager;
+import android.app.admin.PolicyState;
 import android.app.admin.RemoteDevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
+import android.devicepolicy.cts.utils.PolicyEngineUtils;
 import android.os.Bundle;
 import android.os.UserManager;
 
@@ -38,17 +44,20 @@ import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
 import com.android.bedstead.harrier.annotations.EnsureHasAccount;
 import com.android.bedstead.harrier.annotations.EnsureHasAccountAuthenticator;
+import com.android.bedstead.harrier.annotations.EnsureHasPermission;
 import com.android.bedstead.harrier.annotations.Postsubmit;
-import com.android.bedstead.harrier.annotations.RequireFeatureFlagNotEnabled;
 import com.android.bedstead.harrier.annotations.enterprise.CanSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.CannotSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.PolicyAppliesTest;
 import com.android.bedstead.harrier.policies.AccountManagement;
+import com.android.bedstead.harrier.policies.DisallowModifyAccounts;
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.accounts.AccountReference;
 import com.android.bedstead.nene.exceptions.NeneException;
 import com.android.bedstead.remotedpc.RemotePolicyManager;
+import com.android.compatibility.common.util.ApiTest;
 
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -65,6 +74,10 @@ public final class AccountManagementTest {
 
     private static final Context sContext = TestApis.context().instrumentedContext();
 
+    private static final DevicePolicyManager sLocalDevicePolicyManager =
+            TestApis.context().instrumentedContext()
+                    .getSystemService(DevicePolicyManager.class);
+
     private ComponentName mAdmin;
     private RemoteDevicePolicyManager mDpm;
     private AccountManager mAccountManager;
@@ -77,7 +90,9 @@ public final class AccountManagementTest {
         mAccountManager = sContext.getSystemService(AccountManager.class);
     }
 
-    @PolicyAppliesTest(policy = AccountManagement.class)
+    // TODO: Fill out PolicyApplies and PolicyDoesNotApply tests
+
+    @CanSetPolicyTest(policy = AccountManagement.class)
     public void getAccountTypesWithManagementDisabled_emptyByDefault() {
         assertThat(mDpm.getAccountTypesWithManagementDisabled()).isEmpty();
     }
@@ -95,17 +110,7 @@ public final class AccountManagementTest {
                         || (exception instanceof SecurityException));
     }
 
-    @CanSetPolicyTest(policy = AccountManagement.class, singleTestOnly = true)
-    @RequireFeatureFlagNotEnabled(namespace = NAMESPACE_DEVICE_POLICY_MANAGER,
-            key = PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG)
-    public void setAccountTypesWithManagementDisabled_nullAdmin_throwsException() {
-        assertThrows(NullPointerException.class, () ->
-                mDpm.setAccountManagementDisabled(
-                        /* admin= */ null,
-                        sDeviceState.accounts().accountType(), /* disabled= */ false));
-    }
-
-    @PolicyAppliesTest(policy = AccountManagement.class)
+    @CanSetPolicyTest(policy = AccountManagement.class)
     public void setAccountManagementDisabled_disableAccountType_works() {
         try {
             mDpm.setAccountManagementDisabled(
@@ -119,7 +124,7 @@ public final class AccountManagementTest {
         }
     }
 
-    @PolicyAppliesTest(policy = AccountManagement.class)
+    @CanSetPolicyTest(policy = AccountManagement.class)
     public void setAccountManagementDisabled_addSameAccountTypeTwice_presentOnlyOnce() {
         try {
             mDpm.setAccountManagementDisabled(
@@ -152,6 +157,8 @@ public final class AccountManagementTest {
     // Not passing for permission based caller as AccountManagerService is special casing DO/PO
     public void addAccount_fromDpcWithAccountManagementDisabled_accountAdded()
             throws Exception {
+        Assume.assumeTrue("Only makes sense on DPC user",
+                TestApis.users().instrumented().equals(sDeviceState.dpc().user()));
         try {
             mDpm.setAccountManagementDisabled(
                     mAdmin, sDeviceState.accounts().accountType(), /* disabled= */ true);
@@ -172,8 +179,10 @@ public final class AccountManagementTest {
         }
     }
 
+    // TODO: Rewrite DISALLOW_MODIFY_ACCOUNTS tests using new user restriction test structure
+
     @Postsubmit(reason = "new test")
-    @CanSetPolicyTest(policy = AccountManagement.class)
+    @CanSetPolicyTest(policy = DisallowModifyAccounts.class)
     // Not passing for permission based caller as AccountManagerService is special casing DO/PO
     public void addAccount_fromDpcWithDisallowModifyAccountsRestriction_accountAdded()
             throws Exception {
@@ -195,7 +204,7 @@ public final class AccountManagementTest {
     }
 
     @Postsubmit(reason = "new test")
-    @CanSetPolicyTest(policy = AccountManagement.class)
+    @CanSetPolicyTest(policy = DisallowModifyAccounts.class)
     // Not passing for permission based caller as AccountManagerService is special casing DO/PO
     public void removeAccount_fromDpcWithDisallowModifyAccountsRestriction_accountRemoved()
             throws Exception {
@@ -223,7 +232,7 @@ public final class AccountManagementTest {
         }
     }
 
-    @CanSetPolicyTest(policy = AccountManagement.class)
+    @PolicyAppliesTest(policy = DisallowModifyAccounts.class)
     public void addAccount_withDisallowModifyAccountsRestriction_throwsException() {
         try {
             mDpm.addUserRestriction(mAdmin, UserManager.DISALLOW_MODIFY_ACCOUNTS);
@@ -243,7 +252,7 @@ public final class AccountManagementTest {
     }
 
     @Postsubmit(reason = "new test")
-    @CanSetPolicyTest(policy = AccountManagement.class)
+    @CanSetPolicyTest(policy = DisallowModifyAccounts.class)
     public void removeAccount_withDisallowModifyAccountsRestriction_throwsException()
             throws Exception {
         AccountReference account = null;
@@ -263,7 +272,7 @@ public final class AccountManagementTest {
         }
     }
 
-    @CanSetPolicyTest(policy = AccountManagement.class)
+    @PolicyAppliesTest(policy = AccountManagement.class)
     public void addAccount_withAccountManagementDisabled_throwsException() {
         try {
             mDpm.setAccountManagementDisabled(mAdmin,
@@ -301,5 +310,39 @@ public final class AccountManagementTest {
         String badAccountType = new String(new char[100000]).replace('\0', 'A');
         assertThrows(IllegalArgumentException.class, () ->
                 mDpm.setAccountManagementDisabled(mAdmin, badAccountType, /* disabled= */ false));
+    }
+
+    @Postsubmit(reason = "new test")
+    @PolicyAppliesTest(policy = AccountManagement.class)
+    @ApiTest(apis = {"android.app.admin.DevicePolicyManager#setAccountManagementDisabled",
+            "android.app.admin.DevicePolicyManager#getAccountTypesWithManagementDisabled"})
+    @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
+    public void setAccountManagementDisabled_policyMigration_works() {
+        try {
+            TestApis.flags().set(
+                    NAMESPACE_DEVICE_POLICY_MANAGER, ENABLE_DEVICE_POLICY_ENGINE_FLAG, "false");
+            mDpm.setAccountManagementDisabled(
+                    mAdmin, sDeviceState.accounts().accountType(), /* disabled= */ true);
+
+            sLocalDevicePolicyManager.triggerDevicePolicyEngineMigration(true);
+            TestApis.flags().set(
+                    NAMESPACE_DEVICE_POLICY_MANAGER, ENABLE_DEVICE_POLICY_ENGINE_FLAG, "true");
+
+            PolicyState<Boolean> policyState = PolicyEngineUtils.getBooleanPolicyState(
+                    new AccountTypePolicyKey(
+                            ACCOUNT_MANAGEMENT_DISABLED_POLICY,
+                            sDeviceState.accounts().accountType()),
+                    TestApis.users().instrumented().userHandle());
+            assertThat(policyState.getCurrentResolvedPolicy()).isTrue();
+            assertThat(mDpm.getAccountTypesWithManagementDisabled()).asList().contains(
+                    sDeviceState.accounts().accountType());
+            assertThrows(Exception.class, () ->
+                    sDeviceState.accounts().addAccount().add());
+        } finally {
+            mDpm.setAccountManagementDisabled(mAdmin,
+                    sDeviceState.accounts().accountType(), /* disabled= */ false);
+            TestApis.flags().set(
+                    NAMESPACE_DEVICE_POLICY_MANAGER, ENABLE_DEVICE_POLICY_ENGINE_FLAG, null);
+        }
     }
 }

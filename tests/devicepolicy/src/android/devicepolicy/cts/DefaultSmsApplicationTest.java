@@ -20,7 +20,6 @@ package android.devicepolicy.cts;
 import static android.provider.DeviceConfig.NAMESPACE_DEVICE_POLICY_MANAGER;
 import static android.provider.DeviceConfig.NAMESPACE_TELEPHONY;
 
-import static com.android.bedstead.nene.flags.CommonFlags.DevicePolicyManager.PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG;
 import static com.android.bedstead.nene.permissions.CommonPermissions.INTERACT_ACROSS_USERS;
 import static com.android.queryable.queries.ActivityQuery.activity;
 import static com.android.queryable.queries.IntentFilterQuery.intentFilter;
@@ -45,11 +44,12 @@ import com.android.bedstead.harrier.DeviceState;
 import com.android.bedstead.harrier.annotations.EnsureFeatureFlagEnabled;
 import com.android.bedstead.harrier.annotations.EnsureHasPermission;
 import com.android.bedstead.harrier.annotations.Postsubmit;
-import com.android.bedstead.harrier.annotations.RequireFeatureFlagNotEnabled;
+import com.android.bedstead.harrier.annotations.RequireNotHeadlessSystemUserMode;
 import com.android.bedstead.harrier.annotations.enterprise.CanSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.CannotSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.PolicyDoesNotApplyTest;
 import com.android.bedstead.harrier.policies.DefaultSmsApplication;
+import com.android.bedstead.harrier.policies.DefaultSmsApplicationSystemOnly;
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.remotedpc.RemotePolicyManager;
 import com.android.bedstead.testapp.TestApp;
@@ -90,6 +90,8 @@ public final class DefaultSmsApplicationTest {
         mRoleManager = sContext.getSystemService(RoleManager.class);
     }
 
+    // TODO: Add tests for SetDefaultSmsApplicationSystemOnly
+
     // TODO(b/198588696): Add support is @RequireSmsCapable and @RequireNotSmsCapable
     @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = DefaultSmsApplication.class)
@@ -97,6 +99,7 @@ public final class DefaultSmsApplicationTest {
             "enable_work_profile_telephony")
     @EnsureFeatureFlagEnabled(namespace = NAMESPACE_TELEPHONY, key =
             "enable_work_profile_telephony")
+    @RequireNotHeadlessSystemUserMode(reason = "b/279731298")
     public void setDefaultSmsApplication_works() {
         //TODO(b/273529454): replace with EnsureTelephonyEnabledInUser annotation
         if (mDpm.isOrganizationOwnedDeviceWithManagedProfile()) {
@@ -156,9 +159,7 @@ public final class DefaultSmsApplicationTest {
     }
 
     @Postsubmit(reason = "new test")
-    @RequireFeatureFlagNotEnabled(namespace = NAMESPACE_DEVICE_POLICY_MANAGER,
-            key = PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG)
-    @CanSetPolicyTest(policy = DefaultSmsApplication.class)
+    @CanSetPolicyTest(policy = {DefaultSmsApplication.class, DefaultSmsApplicationSystemOnly.class})
     public void setDefaultSmsApplication_nullAdmin_throwsException() {
         try (TestAppInstance smsApp = sSmsApp.install()) {
 
@@ -185,7 +186,9 @@ public final class DefaultSmsApplicationTest {
 
     @Postsubmit(reason = "new test")
     // We don't include non device admin states as passing a null admin is a NullPointerException
-    @CannotSetPolicyTest(policy = DefaultSmsApplication.class, includeNonDeviceAdminStates = false)
+    @CannotSetPolicyTest(policy = {
+            DefaultSmsApplication.class, DefaultSmsApplicationSystemOnly.class},
+            includeNonDeviceAdminStates = false)
     public void setDefaultSmsApplication_invalidAdmin_throwsException() {
         try (TestAppInstance smsApp = sSmsApp.install()) {
 

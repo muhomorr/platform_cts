@@ -56,9 +56,6 @@ import static com.android.bedstead.nene.devicepolicy.CommonDevicePolicy.DELEGATI
 import static com.android.bedstead.nene.devicepolicy.CommonDevicePolicy.DELEGATION_PACKAGE_ACCESS;
 import static com.android.bedstead.nene.devicepolicy.CommonDevicePolicy.DELEGATION_PERMISSION_GRANT;
 import static com.android.bedstead.nene.devicepolicy.CommonDevicePolicy.DELEGATION_SECURITY_LOGGING;
-import static com.android.bedstead.nene.flags.CommonFlags.DevicePolicyManager.ENABLE_DEVICE_POLICY_ENGINE_FLAG;
-import static com.android.bedstead.nene.flags.CommonFlags.DevicePolicyManager.PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG;
-import static com.android.bedstead.nene.flags.CommonFlags.NAMESPACE_DEVICE_POLICY_MANAGER;
 import static com.android.bedstead.testapp.TestAppQueryBuilder.queryBuilder;
 
 import com.android.bedstead.harrier.annotations.EnsureFeatureFlagEnabled;
@@ -79,7 +76,9 @@ import com.android.bedstead.harrier.annotations.parameterized.IncludeNone;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnAffiliatedDeviceOwnerSecondaryUser;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnAffiliatedProfileOwnerSecondaryUser;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnBackgroundDeviceOwnerUser;
+import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnCloneProfileAlongsideManagedProfile;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnCloneProfileAlongsideManagedProfileUsingParentInstance;
+import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnCloneProfileAlongsideOrganizationOwnedProfile;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnCloneProfileAlongsideOrganizationOwnedProfileUsingParentInstance;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnDeviceOwnerUser;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnDevicePolicyManagementRoleHolderProfile;
@@ -120,7 +119,6 @@ import java.util.stream.Collectors;
  * Utility class for enterprise policy tests.
  */
 public final class Policy {
-
 
     private static final String DELEGATE_PACKAGE_NAME = "com.android.Delegate";
 
@@ -188,10 +186,10 @@ public final class Policy {
 
                     .put(APPLIED_BY_FINANCED_DEVICE_OWNER | APPLIES_TO_OWN_USER, generateDevicePolicyManagerRoleHolderAnnotation(includeRunOnFinancedDeviceOwnerUser(), /* roleHolderUser= */ SYSTEM_USER))
 
-                    .put(APPLIED_BY_PARENT_INSTANCE_OF_NON_ORGANIZATIONAL_OWNED_PROFILE_OWNER_PROFILE | APPLIES_TO_OWN_USER
-                            | INHERITABLE, generateDevicePolicyManagerRoleHolderAnnotation(
-                            includeRunOnCloneProfileAlongsideManagedProfileUsingParentInstance(),
-                            /* roleHolderUser= */ INITIAL_USER))
+                    .put(APPLIED_BY_PARENT_INSTANCE_OF_NON_ORGANIZATIONAL_OWNED_PROFILE_OWNER_PROFILE | APPLIES_TO_OWN_USER | INHERITABLE, singleAnnotation(includeRunOnCloneProfileAlongsideManagedProfileUsingParentInstance()))
+                    .put(APPLIED_BY_PARENT_INSTANCE_OF_ORGANIZATIONAL_OWNED_PROFILE_OWNER_PROFILE | APPLIES_TO_OWN_USER | INHERITABLE, singleAnnotation(includeRunOnCloneProfileAlongsideOrganizationOwnedProfileUsingParentInstance()))
+                    .put(APPLIED_BY_ORGANIZATION_OWNED_PROFILE_OWNER_PROFILE | APPLIES_TO_PARENT | INHERITABLE, singleAnnotation(includeRunOnCloneProfileAlongsideOrganizationOwnedProfile()))
+                    .put(APPLIED_BY_UNAFFILIATED_PROFILE_OWNER_PROFILE | APPLIES_TO_PARENT | INHERITABLE, singleAnnotation(includeRunOnCloneProfileAlongsideManagedProfile()))
                     .build();
     // This must contain one key for every APPLIED_BY that is being used, and maps to the
     // "default" for testing that DPC type
@@ -209,8 +207,8 @@ public final class Policy {
                     .put(APPLIED_BY_ORGANIZATION_OWNED_PROFILE_OWNER_PROFILE, devicePolicyManagerRoleHolderIfCanSet(includeRunOnOrganizationOwnedProfileOwner(), /* roleHolderUser= */ WORK_PROFILE))
                     .put(APPLIED_BY_UNAFFILIATED_PROFILE_OWNER_PROFILE, devicePolicyManagerRoleHolderIfCanSet(includeRunOnProfileOwnerProfileWithNoDeviceOwner(), /* roleHolderUser= */ WORK_PROFILE))
                     .put(APPLIED_BY_FINANCED_DEVICE_OWNER, devicePolicyManagerRoleHolderIfCanSet(includeRunOnFinancedDeviceOwnerUser(), /* roleHolderUser= */ SYSTEM_USER))
-                    // TODO: Add APPLIED_BY_PARENT_INSTANCE_OF_NON_ORGANIZATIONAL_OWNED_PROFILE_OWNER_PROFILE
-                    //  and APPLIED_BY_PARENT_INSTANCE_OF_ORGANIZATIONAL_OWNED_PROFILE_OWNER_PROFILE
+                    .put(APPLIED_BY_PARENT_INSTANCE_OF_ORGANIZATIONAL_OWNED_PROFILE_OWNER_PROFILE, (flags, canSet) -> singleAnnotation(includeRunOnParentOfOrganizationOwnedProfileOwnerUsingParentInstance()).apply(flags))
+                    .put(APPLIED_BY_PARENT_INSTANCE_OF_NON_ORGANIZATIONAL_OWNED_PROFILE_OWNER_PROFILE, (flags, canSet) -> singleAnnotation(includeRunOnParentOfProfileOwnerUsingParentInstance()).apply(flags))
                     .put(APPLIED_BY_DPM_ROLE_HOLDER, (flags, canSet) -> singleAnnotation(includeRunOnDevicePolicyManagementRoleHolderUser()).apply(flags))
                     .build();
 
@@ -384,6 +382,16 @@ public final class Policy {
     }
 
     @AutoAnnotation
+    private static IncludeRunOnCloneProfileAlongsideManagedProfile includeRunOnCloneProfileAlongsideManagedProfile() {
+        return new AutoAnnotation_Policy_includeRunOnCloneProfileAlongsideManagedProfile();
+    }
+
+    @AutoAnnotation
+    private static IncludeRunOnCloneProfileAlongsideOrganizationOwnedProfile includeRunOnCloneProfileAlongsideOrganizationOwnedProfile() {
+        return new AutoAnnotation_Policy_includeRunOnCloneProfileAlongsideOrganizationOwnedProfile();
+    }
+
+    @AutoAnnotation
     private static IncludeRunOnDevicePolicyManagementRoleHolderProfile includeRunOnDevicePolicyManagementRoleHolderProfile() {
         return new AutoAnnotation_Policy_includeRunOnDevicePolicyManagementRoleHolderProfile();
     }
@@ -428,11 +436,7 @@ public final class Policy {
             }
             Annotation[] existingAnnotations = annotation.annotationType().getAnnotations();
             Annotation[] newAnnotations = Arrays.copyOf(existingAnnotations,
-                    existingAnnotations.length + 3);
-            newAnnotations[newAnnotations.length - 3] = requireFeatureFlagEnabled(
-                    NAMESPACE_DEVICE_POLICY_MANAGER, ENABLE_DEVICE_POLICY_ENGINE_FLAG);
-            newAnnotations[newAnnotations.length - 2] = requireFeatureFlagEnabled(
-                    NAMESPACE_DEVICE_POLICY_MANAGER, PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG);
+                    existingAnnotations.length + 1);
             newAnnotations[newAnnotations.length - 1] = ensureHasDevicePolicyManagerRoleHolder(
                     roleHolderUser, /* isPrimary= */ true);
             return Set.of(annotation,
@@ -532,15 +536,12 @@ public final class Policy {
                                     .toAnnotation(),
                             UserType.INSTRUMENTED_USER, /* isPrimary= */ true),
                     ensureTestAppHasPermission(DELEGATE_KEY,
-                            new String[]{permission.appliedWith()}, FailureMode.SKIP),
-                    ensureFeatureFlagEnabled(
-                            NAMESPACE_DEVICE_POLICY_MANAGER, ENABLE_DEVICE_POLICY_ENGINE_FLAG),
-                    ensureFeatureFlagEnabled(
-                            NAMESPACE_DEVICE_POLICY_MANAGER, PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG)
+                            new String[]{permission.appliedWith()}, FailureMode.SKIP)
             };
-            annotations.add(
-                    new DynamicParameterizedAnnotation(
-                            "Permission_" + formatPermissionForTestName(permission.appliedWith()), withPermissionAnnotations));
+            // TODO(281651179): Re-enable
+//            annotations.add(
+//                    new DynamicParameterizedAnnotation(
+//                            "Permission_" + formatPermissionForTestName(permission.appliedWith()), withPermissionAnnotations));
         }
 
         removeShadowingAnnotations(annotations);
@@ -675,13 +676,9 @@ public final class Policy {
                 }
             } else {
                 Annotation[] newAnnotations = Arrays.copyOf(existingAnnotations,
-                        existingAnnotations.length + 4);
-                newAnnotations[newAnnotations.length - 4] = ensureHasDelegate(
+                        existingAnnotations.length + 2);
+                newAnnotations[newAnnotations.length - 2] = ensureHasDelegate(
                         EnsureHasDelegate.AdminType.PRIMARY, scopes, /* isPrimary= */ true);
-                newAnnotations[newAnnotations.length - 3] = ensureFeatureFlagEnabled(
-                        NAMESPACE_DEVICE_POLICY_MANAGER, ENABLE_DEVICE_POLICY_ENGINE_FLAG);
-                newAnnotations[newAnnotations.length - 2] = ensureFeatureFlagEnabled(
-                        NAMESPACE_DEVICE_POLICY_MANAGER, PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG);
                 newAnnotations[newAnnotations.length - 1] = ensureTestAppDoesNotHavePermission(
                         DELEGATE_KEY, validPermissions, FailureMode.SKIP);
                 annotations.add(
@@ -753,14 +750,11 @@ public final class Policy {
                             /* isPrimary= */ true),
                     ensureTestAppHasPermission(
                             DELEGATE_KEY, new String[]{permission.appliedWith()}, FailureMode.SKIP),
-                    ensureFeatureFlagEnabled(
-                            NAMESPACE_DEVICE_POLICY_MANAGER, ENABLE_DEVICE_POLICY_ENGINE_FLAG),
-                    ensureFeatureFlagEnabled(
-                            NAMESPACE_DEVICE_POLICY_MANAGER, PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG)
             };
-            annotations.add(
-                    new DynamicParameterizedAnnotation(
-                            "Permission_" + formatPermissionForTestName(permission.appliedWith()), withPermissionAnnotations));
+            // TODO(281651179): Re-enable
+//            annotations.add(
+//                    new DynamicParameterizedAnnotation(
+//                            "Permission_" + formatPermissionForTestName(permission.appliedWith()), withPermissionAnnotations));
         }
 
         removeShadowingAnnotations(annotations);

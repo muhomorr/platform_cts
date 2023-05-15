@@ -31,6 +31,7 @@ import static org.junit.Assert.assertThrows;
 
 import android.app.AppOpsManager;
 import android.content.Context;
+import android.media.soundtrigger.SoundTriggerDetector;
 import android.media.soundtrigger.SoundTriggerDetector.Callback;
 import android.media.soundtrigger.SoundTriggerDetector.EventPayload;
 import android.media.soundtrigger.SoundTriggerInstrumentation;
@@ -39,11 +40,19 @@ import android.media.soundtrigger.SoundTriggerManager;
 import android.media.soundtrigger.SoundTriggerManager.Model;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.SystemClock;
 import android.soundtrigger.cts.instrumentation.SoundTriggerInstrumentationObserver;
+import android.soundtrigger.cts.instrumentation.SoundTriggerInstrumentationObserver.ModelSessionObserver;
+import android.util.Log;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.filters.FlakyTest;
 
 import com.android.compatibility.common.util.RequiredFeatureRule;
+
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 
 import org.junit.After;
 import org.junit.Before;
@@ -53,7 +62,6 @@ import org.junit.runner.RunWith;
 
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -66,18 +74,22 @@ public class SoundTriggerManagerTest {
     private static final Context sContext = getInstrumentation().getTargetContext();
     private static final int TIMEOUT = 5000;
     private static final UUID MODEL_UUID = new UUID(5, 7);
-    private static Model sModel = Model.create(MODEL_UUID, new UUID(7, 5), new byte[0], 1);
+    private static final Model sModel = Model.create(MODEL_UUID, new UUID(7, 5), new byte[0], 1);
 
     private SoundTriggerManager mRealManager = null;
     private SoundTriggerManager mManager = null;
     private SoundTriggerInstrumentation mInstrumentation = null;
+    private SoundTriggerDetector mDetector = null;
 
     private final SoundTriggerInstrumentationObserver mInstrumentationObserver =
             new SoundTriggerInstrumentationObserver();
 
-    private final CountDownLatch mDetectedLatch = new CountDownLatch(1);
+    private final Object mDetectedLock = new Object();
+    private SettableFuture<Void> mDetectedFuture;
+    private boolean mDroppedCallback = false;
 
     private Handler mHandler = null;
+    private boolean mIsModelLoaded = false;
 
     @Rule
     public RequiredFeatureRule REQUIRES_MIC_RULE = new RequiredFeatureRule(FEATURE_MICROPHONE);
@@ -95,7 +107,9 @@ public class SoundTriggerManagerTest {
     public void tearDown() {
         getInstrumentation().getUiAutomation().adoptShellPermissionIdentity();
         try {
-            mManager.deleteModel(MODEL_UUID);
+            if (mIsModelLoaded) {
+                mManager.deleteModel(MODEL_UUID);
+            }
         } catch (Exception e) {
         }
         if (mHandler != null) {
@@ -103,11 +117,15 @@ public class SoundTriggerManagerTest {
         }
 
         // Clean up any unexpected HAL state
+        // Wait for stray callbacks and to disambiguate the logs
+        SystemClock.sleep(50);
         try {
             mInstrumentationObserver.close();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+        // Wait for the mock HAL to reboot
+        SystemClock.sleep(100);
         getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
     }
 
@@ -119,16 +137,29 @@ public class SoundTriggerManagerTest {
         }
     }
 
-    private void prepareForRecognition() {
+    private void loadModelForRecognition() {
         mManager.updateModel(sModel);
         assertThat(mManager.loadSoundModel(sModel.getSoundModel())).isEqualTo(0);
+        mIsModelLoaded = true;
     }
 
-    private boolean startRecognitionForTest() {
+    private ListenableFuture<Void> listenForDetection() {
+        synchronized (mDetectedLock) {
+            if (mDetectedFuture != null) {
+                assertThat(mDetectedFuture.isDone()).isTrue();
+                assertThat(mDroppedCallback).isFalse();
+            }
+            mDetectedFuture = SettableFuture.create();
+            Log.d(TAG, "Begin listen for detection" + mDetectedFuture);
+            return mDetectedFuture;
+        }
+    }
+
+    private void setUpDetector() {
         var thread = new HandlerThread("SoundTriggerDetectorHandler");
         thread.start();
         mHandler = new Handler(thread.getLooper());
-        var detector =
+        mDetector =
                 mManager.createSoundTriggerDetector(
                         MODEL_UUID,
                         new Callback() {
@@ -137,7 +168,14 @@ public class SoundTriggerManagerTest {
 
                             @Override
                             public void onDetected(EventPayload eventPayload) {
-                                mDetectedLatch.countDown();
+                                synchronized (mDetectedLock) {
+                                    mDroppedCallback = !mDetectedFuture.set(null);
+                                    if (mDroppedCallback) {
+                                        Log.e(TAG, "Dropped detection" + mDetectedFuture);
+                                    } else {
+                                        Log.d(TAG, "Detection" + mDetectedFuture);
+                                    }
+                                }
                             }
 
                             @Override
@@ -150,7 +188,6 @@ public class SoundTriggerManagerTest {
                             public void onRecognitionResumed() {}
                         },
                         mHandler);
-        return detector.startRecognition(/* flags= */ 0);
     }
 
     private void getSoundTriggerPermissions() {
@@ -163,50 +200,56 @@ public class SoundTriggerManagerTest {
     @Test
     public void testStartRecognitionFails_whenMissingRecordPermission() {
         getSoundTriggerPermissions();
-        prepareForRecognition();
+        loadModelForRecognition();
         getInstrumentation()
                 .getUiAutomation()
                 .adoptShellPermissionIdentity(CAPTURE_AUDIO_HOTWORD, MANAGE_SOUND_TRIGGER);
-        assertThat(startRecognitionForTest()).isFalse();
+        setUpDetector();
+        assertThat(mDetector.startRecognition(0)).isFalse();
     }
 
     @Test
     public void testStartRecognitionFails_whenMissingHotwordPermission() {
         getSoundTriggerPermissions();
-        prepareForRecognition();
+        loadModelForRecognition();
         getInstrumentation()
                 .getUiAutomation()
                 .adoptShellPermissionIdentity(RECORD_AUDIO, MANAGE_SOUND_TRIGGER);
-        assertThat(startRecognitionForTest()).isFalse();
+        setUpDetector();
+        assertThat(mDetector.startRecognition(0)).isFalse();
     }
 
     @Test
     public void testStartRecognitionSucceeds_whenHoldingPermissions() throws Exception {
         getSoundTriggerPermissions();
-
-        prepareForRecognition();
-        assertThat(startRecognitionForTest()).isTrue();
+        var detectedFuture = listenForDetection();
+        loadModelForRecognition();
+        setUpDetector();
+        assertThat(mDetector.startRecognition(0)).isTrue();
 
         RecognitionSession recognitionSession = waitForFutureDoneAndAssertSuccessful(
                 mInstrumentationObserver.getOnRecognitionStartedFuture());
         assertThat(recognitionSession).isNotNull();
 
         recognitionSession.triggerRecognitionEvent(new byte[] {0x11}, null);
-        assertThat(mDetectedLatch.await(TIMEOUT, TimeUnit.MILLISECONDS)).isTrue();
+        waitForFutureDoneAndAssertSuccessful(detectedFuture);
     }
 
     @Test
     public void testRecognitionEvent_notesAppOps() throws Exception {
         getSoundTriggerPermissions();
 
-        prepareForRecognition();
-        assertThat(startRecognitionForTest()).isTrue();
+        loadModelForRecognition();
+        setUpDetector();
+        assertThat(mDetector.startRecognition(0)).isTrue();
         RecognitionSession recognitionSession = waitForFutureDoneAndAssertSuccessful(
                 mInstrumentationObserver.getOnRecognitionStartedFuture());
 
         assertThat(recognitionSession).isNotNull();
 
-        var ambientLatch = new CountDownLatch(1);
+        final SettableFuture<Void> ambientOpFuture = SettableFuture.create();
+        var detectedFuture = listenForDetection();
+
         AppOpsManager appOpsManager =
                 sContext.getSystemService(AppOpsManager.class);
         final String[] OPS_TO_WATCH =
@@ -220,7 +263,7 @@ public class SoundTriggerManagerTest {
                         (op, uid, pkgName, attributionTag, flags, result) -> {
                             if (Objects.equals(
                                     op, AppOpsManager.OPSTR_RECEIVE_AMBIENT_TRIGGER_AUDIO)) {
-                                ambientLatch.countDown();
+                                ambientOpFuture.set(null);
                             }
                         }));
 
@@ -228,8 +271,8 @@ public class SoundTriggerManagerTest {
         getSoundTriggerPermissions();
 
         recognitionSession.triggerRecognitionEvent(new byte[] {0x11}, null);
-        assertThat(mDetectedLatch.await(TIMEOUT, TimeUnit.MILLISECONDS)).isTrue();
-        assertThat(ambientLatch.await(TIMEOUT, TimeUnit.MILLISECONDS)).isTrue();
+        waitForFutureDoneAndAssertSuccessful(ambientOpFuture);
+        waitForFutureDoneAndAssertSuccessful(detectedFuture);
     }
 
     @Test
@@ -269,5 +312,49 @@ public class SoundTriggerManagerTest {
                 () -> mRealManager.createManagerForTestModule());
     }
 
-    // TODO test behavior when RECORD_AUDIO is lost for recognition
+    // This test is inherently flaky, since the raciness it tests isn't totally solved.
+    @FlakyTest
+    @Test
+    public void testStartTriggerStopRecognitionRace_doesNotFail() throws Exception {
+        final int ITERATIONS = 20;
+        getSoundTriggerPermissions();
+        final ListenableFuture<ModelSessionObserver> modelSessionFuture =
+                mInstrumentationObserver.getGlobalCallbackObserver().getOnModelLoadedFuture();
+
+        loadModelForRecognition();
+        setUpDetector();
+        assertThat(mDetector.startRecognition(0)).isTrue();
+        final ModelSessionObserver modelSessionObserver = waitForFutureDoneAndAssertSuccessful(
+                modelSessionFuture);
+
+        for (int i = 0; i < ITERATIONS; i++) {
+            var detectedFuture = listenForDetection();
+            RecognitionSession recognitionSession = waitForFutureDoneAndAssertSuccessful(
+                    modelSessionObserver.getOnRecognitionStartedFuture());
+            assertThat(recognitionSession).isNotNull();
+            modelSessionObserver.resetOnRecognitionStartedFuture();
+            // Attempt to interleave a stopRecognition + startRecognition and an upward
+            // recognition event
+            recognitionSession.triggerRecognitionEvent(new byte[] {0x11}, null);
+            mDetector.stopRecognition();
+            // Due to limitations in the STHAL API, we are still vulnerable to raciness, and
+            // we could receive the recognition event for this startRecognition
+            assertThat(mDetector.startRecognition(0)).isTrue();
+            // Get the new recognition session
+            recognitionSession = waitForFutureDoneAndAssertSuccessful(
+                    modelSessionObserver.getOnRecognitionStartedFuture());
+            assertThat(recognitionSession).isNotNull();
+            // Wait a bit to receive a recognition event which we *may* have gotten
+            SystemClock.sleep(50);
+            if (detectedFuture.isDone()) {
+                detectedFuture = listenForDetection();
+            }
+            // Check that the validation layer doesn't think that the new recognition session is
+            // stopped
+            recognitionSession.triggerRecognitionEvent(new byte[] {0x11}, null);
+            waitForFutureDoneAndAssertSuccessful(detectedFuture);
+            modelSessionObserver.resetOnRecognitionStartedFuture();
+            assertThat(mDetector.startRecognition(0)).isTrue();
+        }
+    }
 }

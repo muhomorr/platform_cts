@@ -19,6 +19,8 @@ package android.voiceinteraction.cts;
 import static android.Manifest.permission.CAPTURE_AUDIO_HOTWORD;
 import static android.Manifest.permission.DEVICE_POWER;
 import static android.Manifest.permission.MANAGE_HOTWORD_DETECTION;
+import static android.Manifest.permission.MANAGE_SENSOR_PRIVACY;
+import static android.Manifest.permission.OBSERVE_SENSOR_PRIVACY;
 import static android.Manifest.permission.POWER_SAVER;
 import static android.Manifest.permission.RECORD_AUDIO;
 import static android.Manifest.permission.SOUND_TRIGGER_RUN_IN_BATTERY_SAVER;
@@ -40,7 +42,9 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
 
+import android.app.AppOpsManager;
 import android.content.Context;
+import android.hardware.SensorPrivacyManager;
 import android.hardware.soundtrigger.SoundTrigger;
 import android.media.soundtrigger.SoundTriggerInstrumentation;
 import android.media.soundtrigger.SoundTriggerInstrumentation.RecognitionSession;
@@ -51,6 +55,7 @@ import android.os.SystemClock;
 import android.platform.test.annotations.AppModeFull;
 import android.service.voice.AlwaysOnHotwordDetector;
 import android.service.voice.HotwordDetectionService;
+import android.service.voice.HotwordRejectedResult;
 import android.soundtrigger.cts.instrumentation.SoundTriggerInstrumentationObserver;
 import android.soundtrigger.cts.instrumentation.SoundTriggerInstrumentationObserver.ModelSessionObserver;
 import android.util.Log;
@@ -67,6 +72,9 @@ import com.android.compatibility.common.util.ApiTest;
 import com.android.compatibility.common.util.BatteryUtils;
 import com.android.compatibility.common.util.RequiredFeatureRule;
 
+import com.google.common.util.concurrent.SettableFuture;
+import com.google.common.util.concurrent.Futures;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -75,7 +83,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Arrays;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /** Tests for {@link AlwaysOnHotwordDetector} APIs. */
 @RunWith(AndroidJUnit4.class)
@@ -86,6 +97,8 @@ public class AlwaysOnHotwordDetectorTest {
     // The VoiceInteractionService used by this test
     private static final String SERVICE_COMPONENT =
             "android.voiceinteraction.cts.services.CtsBasicVoiceInteractionService";
+
+    private static final int WAIT_EXPECTED_NO_CALL_TIMEOUT_IN_MS = 750;
 
     private static final Context sContext = getInstrumentation().getTargetContext();
     private static final SoundTrigger.Keyphrase[] KEYPHRASE_ARRAY = createKeyprhaseArray(sContext);
@@ -122,7 +135,8 @@ public class AlwaysOnHotwordDetectorTest {
                 .getUiAutomation()
                 .adoptShellPermissionIdentity(
                         RECORD_AUDIO, CAPTURE_AUDIO_HOTWORD, MANAGE_HOTWORD_DETECTION,
-                        SOUND_TRIGGER_RUN_IN_BATTERY_SAVER, DEVICE_POWER, POWER_SAVER);
+                        SOUND_TRIGGER_RUN_IN_BATTERY_SAVER, DEVICE_POWER, POWER_SAVER,
+                        MANAGE_SENSOR_PRIVACY, OBSERVE_SENSOR_PRIVACY);
     }
 
     private void createAndEnrollAlwaysOnHotwordDetector() throws InterruptedException {
@@ -325,22 +339,37 @@ public class AlwaysOnHotwordDetectorTest {
                 mInstrumentationObserver.getOnRecognitionStartedFuture());
         assertThat(recognitionSession).isNotNull();
 
+        ModelSessionObserver modelSession = mInstrumentationObserver
+                .getGlobalCallbackObserver().getOnModelLoadedFuture().get();
+
+        modelSession.resetOnRecognitionStartedFuture();
         getService().initOnRecognitionPausedLatch();
-        // Prevent unexpected start recognition
-        // TODO (b/275079746) - after fix, ensure that we don't have
-        // an unexpected start recognition, or an onError following
-        // an abort recognition.
+        // Induce a recognition pause
+        recognitionSession.triggerAbortRecognition();
+        getService().waitOnRecognitionPausedCalled();
+        // Check that STService didn't attempt to start immediately on receiving abort
+        assertThat(modelSession.getOnRecognitionStartedFuture().isDone()).isFalse();
+
+        getService().initOnRecognitionResumedLatch();
+        instrumentation.triggerOnResourcesAvailable();
+        getService().waitOnRecognitionResumedCalled();
+        recognitionSession = waitForFutureDoneAndAssertSuccessful(
+                modelSession.getOnRecognitionStartedFuture());
+
+        // Same flow, but ensure we don't get an onError by setting contention
+        getService().initOnRecognitionPausedLatch();
         instrumentation.setResourceContention(true);
         // Induce a recognition pause
         recognitionSession.triggerAbortRecognition();
-        // Unexpected onError will be received here as well
         getService().waitOnRecognitionPausedCalled();
-
+        modelSession.resetOnRecognitionStartedFuture();
         getService().initOnRecognitionResumedLatch();
         // This will trigger resources available
         instrumentation.setResourceContention(false);
-        // mInstrumentation.triggerOnResourcesAvailable();
         getService().waitOnRecognitionResumedCalled();
+        assertThat(getService().getSoundTriggerFailure()).isNull();
+        recognitionSession = waitForFutureDoneAndAssertSuccessful(
+                modelSession.getOnRecognitionStartedFuture());
     }
 
     @ApiTest(apis = {
@@ -636,6 +665,333 @@ public class AlwaysOnHotwordDetectorTest {
         assertThrows(IllegalStateException.class, () ->
                 mAlwaysOnHotwordDetector.queryParameter(
                         AlwaysOnHotwordDetector.MODEL_PARAM_THRESHOLD_FACTOR));
+    }
+
+    @Test
+    public void testOnPhoneCall_recognitionPausedAndResumed() throws Exception {
+        createAndEnrollAlwaysOnHotwordDetector();
+        // Grab permissions for more than a single call since we get callbacks
+        adoptSoundTriggerPermissions();
+
+        SoundTriggerInstrumentation instrumentation =
+                mInstrumentationObserver.getGlobalCallbackObserver().getInstrumentation();
+        final var modelSessionFuture = mInstrumentationObserver.getGlobalCallbackObserver()
+                .getOnModelLoadedFuture();
+        final var firstRecogSessionFuture = Futures.transformAsync(modelSessionFuture,
+                ModelSessionObserver::getOnRecognitionStartedFuture, Runnable::run);
+
+        mAlwaysOnHotwordDetector.startRecognition();
+        final ModelSessionObserver modelSession
+            = waitForFutureDoneAndAssertSuccessful(modelSessionFuture);
+        final RecognitionSession firstRecogSession = waitForFutureDoneAndAssertSuccessful(
+                firstRecogSessionFuture);
+
+        assertThat(modelSession).isNotNull();
+        assertThat(firstRecogSession).isNotNull();
+
+        getService().initOnRecognitionPausedLatch();
+        instrumentation.setInPhoneCallState(true);
+        getService().waitOnRecognitionPausedCalled();
+
+        modelSession.resetOnRecognitionStartedFuture();
+        final var secondRecogSessionFuture = modelSession.getOnRecognitionStartedFuture();
+
+        getService().initOnRecognitionResumedLatch();
+        instrumentation.setInPhoneCallState(false);
+        getService().waitOnRecognitionResumedCalled();
+
+        // Check that no failure received. Technically racey.
+        assertThat(getService().getHotwordDetectionServiceFailure()).isNull();
+        // Assert that recognition is properly restarted
+        final RecognitionSession secondRecogSession = waitForFutureDoneAndAssertSuccessful(
+                secondRecogSessionFuture);
+        assertThat(secondRecogSession).isNotNull();
+        assertThat(secondRecogSession).isNotEqualTo(firstRecogSession);
+
+        getService().initDetectRejectLatch();
+        secondRecogSession.triggerRecognitionEvent(
+                new byte[]{0x11, 0x22},
+                createKeyphraseRecognitionExtraList());
+        getService().waitOnDetectOrRejectCalled();
+        AlwaysOnHotwordDetector.EventPayload detectResult =
+                getService().getHotwordServiceOnDetectedResult();
+        Helper.verifyDetectedResult(detectResult, Helper.DETECTED_RESULT);
+    }
+
+    @Test
+    public void testStartRecognitionDuringContention_succeedsPausesThenResumes()
+        throws Exception {
+        createAndEnrollAlwaysOnHotwordDetector();
+        // Grab permissions for more than a single call since we get callbacks
+        adoptSoundTriggerPermissions();
+
+        SoundTriggerInstrumentation instrumentation =
+                mInstrumentationObserver.getGlobalCallbackObserver().getInstrumentation();
+        instrumentation.setResourceContention(true);
+        getService().initOnRecognitionPausedLatch();
+        assertThat(mAlwaysOnHotwordDetector.startRecognition(0, new byte[]{1, 2, 3, 4, 5}))
+                .isTrue();
+        final var recogFuture = mInstrumentationObserver.getOnRecognitionStartedFuture();
+        assertThrows(TimeoutException.class, () -> recogFuture.get(
+                    WAIT_EXPECTED_NO_CALL_TIMEOUT_IN_MS,
+                    TimeUnit.MILLISECONDS));
+
+        getService().waitOnRecognitionPausedCalled();
+
+        getService().initOnRecognitionResumedLatch();
+        instrumentation.setResourceContention(false);
+        getService().waitOnRecognitionResumedCalled();
+        // Verify that recognition is really resumed
+        RecognitionSession recognitionSession = waitForFutureDoneAndAssertSuccessful(
+                recogFuture);
+        assertThat(recognitionSession).isNotNull();
+
+        getService().initDetectRejectLatch();
+        recognitionSession.triggerRecognitionEvent(new byte[]{0x11, 0x22},
+                createKeyphraseRecognitionExtraList());
+        getService().waitOnDetectOrRejectCalled();
+        AlwaysOnHotwordDetector.EventPayload detectResult =
+                getService().getHotwordServiceOnDetectedResult();
+        Helper.verifyDetectedResult(detectResult, Helper.DETECTED_RESULT);
+    }
+
+    @Test
+    public void testStartRecognitionDuringBatterySaver_succeedsPausesThenResumes()
+        throws Exception {
+        BatteryUtils.assumeBatterySaverFeature();
+
+        final PowerManager powerManager = sContext.getSystemService(PowerManager.class);
+        createAndEnrollAlwaysOnHotwordDetector();
+        // Grab permissions for more than a single call since we get callbacks
+        adoptSoundTriggerPermissions();
+
+        try {
+            BatteryUtils.runDumpsysBatteryUnplug();
+            // enable battery saver with SOUND_TRIGGER_MODE_CRITICAL_ONLY, onRecognitionPaused
+            // called
+            setSoundTriggerPowerSaveMode(powerManager,
+                    PowerManager.SOUND_TRIGGER_MODE_CRITICAL_ONLY);
+            BatteryUtils.enableBatterySaver(/* isEnabled= */ true);
+
+            getService().initOnRecognitionPausedLatch();
+            assertThat(mAlwaysOnHotwordDetector.startRecognition(0, new byte[]{1, 2, 3, 4, 5}))
+                    .isTrue();
+            getService().waitOnRecognitionPausedCalled();
+            // No recognition session, since device state prohibits it
+            final var recogFuture = mInstrumentationObserver.getOnRecognitionStartedFuture();
+            assertThrows(TimeoutException.class, () -> recogFuture.get(
+                        WAIT_EXPECTED_NO_CALL_TIMEOUT_IN_MS,
+                        TimeUnit.MILLISECONDS));
+
+            // disable battery saver, onRecognitionResumed called
+            getService().initOnRecognitionResumedLatch();
+            BatteryUtils.enableBatterySaver(/* isEnabled= */ false);
+            getService().waitOnRecognitionResumedCalled();
+            // Verify that recognition is really resumed
+            RecognitionSession recognitionSession = waitForFutureDoneAndAssertSuccessful(
+                    recogFuture);
+            assertThat(recognitionSession).isNotNull();
+
+            getService().initDetectRejectLatch();
+            recognitionSession.triggerRecognitionEvent(new byte[]{0x11, 0x22},
+                    createKeyphraseRecognitionExtraList());
+            getService().waitOnDetectOrRejectCalled();
+            AlwaysOnHotwordDetector.EventPayload detectResult =
+                    getService().getHotwordServiceOnDetectedResult();
+            Helper.verifyDetectedResult(detectResult, Helper.DETECTED_RESULT);
+
+        } finally {
+            BatteryUtils.runDumpsysBatteryReset();
+            BatteryUtils.resetBatterySaver();
+        }
+    }
+
+    @Test
+    public void testStartRecognitionFail_leavesModelUnrequested()
+        throws Exception {
+        createAndEnrollAlwaysOnHotwordDetector();
+        // Grab permissions for more than a single call since we get callbacks
+        adoptSoundTriggerPermissions();
+
+        SoundTriggerInstrumentation instrumentation =
+                mInstrumentationObserver.getGlobalCallbackObserver().getInstrumentation();
+        instrumentation.setResourceContention(true);
+        getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
+
+        // Should fail without permissions
+        assertThat(mAlwaysOnHotwordDetector.startRecognition(0, new byte[]{1, 2, 3, 4, 5}))
+                .isFalse();
+
+        final var recogFuture = mInstrumentationObserver.getOnRecognitionStartedFuture();
+        assertThrows(TimeoutException.class, () -> recogFuture.get(
+                    WAIT_EXPECTED_NO_CALL_TIMEOUT_IN_MS,
+                    TimeUnit.MILLISECONDS));
+
+        instrumentation.setResourceContention(false);
+
+        // Verify that recognition is not resumed
+        assertThrows(TimeoutException.class, () -> recogFuture.get(
+                    WAIT_EXPECTED_NO_CALL_TIMEOUT_IN_MS,
+                    TimeUnit.MILLISECONDS));
+
+        // Attempt to successfully start recognition
+        adoptSoundTriggerPermissions();
+        assertThat(mAlwaysOnHotwordDetector.startRecognition(0, new byte[]{1, 2, 3, 4, 5}))
+                .isTrue();
+
+        RecognitionSession recognitionSession = waitForFutureDoneAndAssertSuccessful(
+                recogFuture);
+        assertThat(recognitionSession).isNotNull();
+        getService().initDetectRejectLatch();
+        recognitionSession.triggerRecognitionEvent(new byte[]{0x11, 0x22},
+                createKeyphraseRecognitionExtraList());
+        getService().waitOnDetectOrRejectCalled();
+        AlwaysOnHotwordDetector.EventPayload detectResult =
+                getService().getHotwordServiceOnDetectedResult();
+        Helper.verifyDetectedResult(detectResult, Helper.DETECTED_RESULT);
+    }
+
+    @Test
+    public void testOnDetected_appropriateAppOpsNoted() throws Exception {
+        // Set up recognition
+        createAndEnrollAlwaysOnHotwordDetector();
+        // Grab permissions for more than a single call since we get callbacks
+        adoptSoundTriggerPermissions();
+        // Start recognition
+        mAlwaysOnHotwordDetector.startRecognition(0, new byte[]{1, 2, 3, 4, 5});
+        RecognitionSession recognitionSession = waitForFutureDoneAndAssertSuccessful(
+                mInstrumentationObserver.getOnRecognitionStartedFuture());
+        assertThat(recognitionSession).isNotNull();
+
+        // Hook up AppOps Listener
+        final SettableFuture<String> appOpFuture = SettableFuture.create();
+        AppOpsManager appOpsManager = sContext.getSystemService(AppOpsManager.class);
+        final String[] OPS_TO_WATCH =
+                new String[] {
+                    AppOpsManager.OPSTR_RECEIVE_AMBIENT_TRIGGER_AUDIO,
+                    AppOpsManager.OPSTR_RECORD_AUDIO_HOTWORD,
+                    AppOpsManager.OPSTR_RECORD_AUDIO,
+                };
+
+        getInstrumentation()
+                .getUiAutomation()
+                .adoptShellPermissionIdentity();
+
+        appOpsManager.startWatchingNoted(
+                OPS_TO_WATCH,
+                (op, uid, pkgName, attributionTag, flags, result) -> {
+                    appOpFuture.set(op);
+                });
+
+        // Trigger recognition
+        getService().initDetectRejectLatch();
+        recognitionSession.triggerRecognitionEvent(new byte[]{0x11, 0x22},
+                createKeyphraseRecognitionExtraList());
+        getService().waitOnDetectOrRejectCalled();
+        AlwaysOnHotwordDetector.EventPayload detectResult =
+                getService().getHotwordServiceOnDetectedResult();
+
+        Helper.verifyDetectedResult(detectResult, Helper.DETECTED_RESULT);
+        var receivedOp = waitForFutureDoneAndAssertSuccessful(appOpFuture);
+        // We have noted one of the record ops
+        assertThat(Arrays.asList(OPS_TO_WATCH)).contains(receivedOp);
+    }
+
+    @Test
+    public void testOnRejected_noAppOpsNoted() throws Exception {
+        // Set up recognition
+        createAndEnrollAlwaysOnHotwordDetector();
+        // Grab permissions for more than a single call since we get callbacks
+        adoptSoundTriggerPermissions();
+        // Start recognition
+        mAlwaysOnHotwordDetector.startRecognition(0, new byte[]{1, 2, 3, 4, 5});
+        RecognitionSession recognitionSession = waitForFutureDoneAndAssertSuccessful(
+                mInstrumentationObserver.getOnRecognitionStartedFuture());
+        assertThat(recognitionSession).isNotNull();
+
+        // Hook up AppOps Listener
+        final SettableFuture<String> appOpFuture = SettableFuture.create();
+
+        AppOpsManager appOpsManager = sContext.getSystemService(AppOpsManager.class);
+        final String[] OPS_TO_WATCH =
+                new String[] {
+                    AppOpsManager.OPSTR_RECEIVE_AMBIENT_TRIGGER_AUDIO,
+                    AppOpsManager.OPSTR_RECORD_AUDIO_HOTWORD,
+                    AppOpsManager.OPSTR_RECORD_AUDIO,
+                };
+
+        getInstrumentation()
+                .getUiAutomation()
+                .adoptShellPermissionIdentity();
+
+        appOpsManager.startWatchingNoted(
+                OPS_TO_WATCH,
+                (op, uid, pkgName, attributionTag, flags, result) -> {
+                    appOpFuture.set(op);
+                });
+
+        // Trigger recognition which will be rejected (empty data)
+        getService().initDetectRejectLatch();
+        recognitionSession.triggerRecognitionEvent(new byte[0],
+                createKeyphraseRecognitionExtraList());
+        getService().waitOnDetectOrRejectCalled();
+        HotwordRejectedResult rejectResult = getService().getHotwordServiceOnRejectedResult();
+        assertThat(rejectResult).isEqualTo(Helper.REJECTED_RESULT);
+        // Verify that no ops were noted
+        assertThat(appOpFuture.isDone()).isFalse();
+    }
+
+    @Test
+    public void testAppOpsLostReacquired_recognitionPausedResumed() throws Exception {
+        createAndEnrollAlwaysOnHotwordDetector();
+        // Grab permissions for more than a single call since we get callbacks
+        adoptSoundTriggerPermissions();
+        // Wire futures
+        SoundTriggerInstrumentation instrumentation =
+                mInstrumentationObserver.getGlobalCallbackObserver().getInstrumentation();
+        final var modelSessionFuture = mInstrumentationObserver.getGlobalCallbackObserver()
+                .getOnModelLoadedFuture();
+
+        final var firstRecogSessionFuture = Futures.transformAsync(modelSessionFuture,
+                ModelSessionObserver::getOnRecognitionStartedFuture, Runnable::run);
+
+        // Start recognition
+        mAlwaysOnHotwordDetector.startRecognition(0, new byte[]{1, 2, 3, 4, 5});
+        final ModelSessionObserver modelSession
+            = waitForFutureDoneAndAssertSuccessful(modelSessionFuture);
+        assertThat(waitForFutureDoneAndAssertSuccessful(firstRecogSessionFuture)).isNotNull();
+        assertThat(modelSession).isNotNull();
+
+        getService().initOnRecognitionPausedLatch();
+
+        // Wire futures for resumed recognition
+        getService().initOnRecognitionResumedLatch();
+        modelSession.resetOnRecognitionStartedFuture();
+        final var secondRecogSessionFuture = modelSession.getOnRecognitionStartedFuture();
+
+        // Toggle the privacy sensor, which will cause us to lose appops
+        sContext.getSystemService(SensorPrivacyManager.class).setSensorPrivacy(
+                SensorPrivacyManager.Sensors.MICROPHONE, true);
+        try {
+            getService().waitOnRecognitionPausedCalled();
+        } finally {
+            // Toggle the privacy sensor off, which will cause us regain appops
+            sContext.getSystemService(SensorPrivacyManager.class).setSensorPrivacy(
+                    SensorPrivacyManager.Sensors.MICROPHONE, false);
+        }
+
+        getService().waitOnRecognitionResumedCalled();
+
+        // Verify recognition is properly restarted by triggering an event
+        final RecognitionSession secondRecogSession = waitForFutureDoneAndAssertSuccessful(
+                secondRecogSessionFuture);
+        getService().initDetectRejectLatch();
+        secondRecogSession.triggerRecognitionEvent(new byte[]{0x11, 0x22},
+                createKeyphraseRecognitionExtraList());
+        getService().waitOnDetectOrRejectCalled();
+        AlwaysOnHotwordDetector.EventPayload detectResult =
+                getService().getHotwordServiceOnDetectedResult();
+        Helper.verifyDetectedResult(detectResult, Helper.DETECTED_RESULT);
     }
 
     private static void setSoundTriggerPowerSaveMode(PowerManager powerManager, int mode) {

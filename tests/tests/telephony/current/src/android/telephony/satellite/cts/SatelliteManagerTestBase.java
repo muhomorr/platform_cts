@@ -28,7 +28,10 @@ import android.annotation.Nullable;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.OutcomeReceiver;
+import android.provider.Settings;
 import android.telephony.Rlog;
+import android.telephony.ServiceState;
+import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
 import android.telephony.satellite.PointingInfo;
 import android.telephony.satellite.SatelliteDatagram;
@@ -40,6 +43,8 @@ import android.telephony.satellite.SatelliteTransmissionUpdateCallback;
 import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
+
+import com.android.compatibility.common.util.ShellIdentityUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -56,13 +61,17 @@ public class SatelliteManagerTestBase {
     protected static final String TOKEN = "TEST_TOKEN";
     protected static final long TIMEOUT = 2000;
     protected static SatelliteManager sSatelliteManager;
+    protected static TelephonyManager sTelephonyManager = null;
 
     protected static void beforeAllTestsBase() {
         sSatelliteManager = getContext().getSystemService(SatelliteManager.class);
+        sTelephonyManager = getContext().getSystemService(TelephonyManager.class);
+        turnRadioOn();
     }
 
     protected static void afterAllTestsBase() {
         sSatelliteManager = null;
+        sTelephonyManager = null;
     }
 
     protected static boolean shouldTestSatellite() {
@@ -243,6 +252,11 @@ public class SatelliteManagerTestBase {
                 }
             }
             return true;
+        }
+
+        public void clearPointingInfo() {
+            mPointingInfo = null;
+            mPositionChangeSemaphore.drainPermits();
         }
 
         public void clearSendDatagramStateChanges() {
@@ -462,6 +476,48 @@ public class SatelliteManagerTestBase {
                 }
             }
             return true;
+        }
+    }
+
+    protected static class ServiceStateRadioStateListener extends TelephonyCallback
+            implements TelephonyCallback.ServiceStateListener,
+            TelephonyCallback.RadioPowerStateListener {
+        private final Object mLock = new Object();
+        ServiceState mServiceState;
+        int mRadioPowerState;
+
+        ServiceStateRadioStateListener(ServiceState serviceState, int radioPowerState) {
+            mServiceState = serviceState;
+            mRadioPowerState = radioPowerState;
+        }
+
+        @Override
+        public void onServiceStateChanged(ServiceState ss) {
+            mServiceState = ss;
+        }
+
+        @Override
+        public void onRadioPowerStateChanged(int radioState) {
+            synchronized (mLock) {
+                logd("onRadioPowerStateChanged radioState: " + radioState);
+                mRadioPowerState = radioState;
+                mLock.notify();
+            }
+        }
+
+        public void waitForRadioStateIntent(int desiredState) {
+            logd("waitForRadioStateIntent");
+            synchronized (mLock) {
+                if (mRadioPowerState != desiredState) {
+                    try {
+                        logd("mRadioPowerState: " + mRadioPowerState
+                                + " desiredState:" + desiredState);
+                        mLock.wait(10000);
+                    } catch (Exception e) {
+                        fail(e.getMessage());
+                    }
+                }
+            }
         }
     }
 
@@ -714,11 +770,45 @@ public class SatelliteManagerTestBase {
         }
     }
 
+    protected static void turnRadioOff() {
+        ServiceStateRadioStateListener callback = new ServiceStateRadioStateListener(
+                sTelephonyManager.getServiceState(), sTelephonyManager.getRadioPowerState());
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(sTelephonyManager,
+                tm -> tm.registerTelephonyCallback(Runnable::run, callback));
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(sTelephonyManager,
+                tm -> tm.requestRadioPowerOffForReason(TelephonyManager.RADIO_POWER_REASON_USER),
+                android.Manifest.permission.MODIFY_PHONE_STATE);
+        callback.waitForRadioStateIntent(TelephonyManager.RADIO_POWER_OFF);
+    }
+
+    protected static void turnRadioOn() {
+        ServiceStateRadioStateListener callback = new ServiceStateRadioStateListener(
+                sTelephonyManager.getServiceState(), sTelephonyManager.getRadioPowerState());
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(sTelephonyManager,
+                tm -> tm.registerTelephonyCallback(Runnable::run, callback));
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(sTelephonyManager,
+                tm -> tm.clearRadioPowerOffForReason(TelephonyManager.RADIO_POWER_REASON_USER),
+                android.Manifest.permission.MODIFY_PHONE_STATE);
+        callback.waitForRadioStateIntent(TelephonyManager.RADIO_POWER_ON);
+    }
+
     protected static void logd(@NonNull String log) {
         Rlog.d(TAG, log);
     }
 
     protected static void loge(@NonNull String log) {
         Rlog.e(TAG, log);
+    }
+
+    protected static void assertSatelliteEnabledInSettings(boolean enabled) {
+        int satelliteModeEnabled = Settings.Global.getInt(getContext().getContentResolver(),
+                Settings.Global.SATELLITE_MODE_ENABLED, 0);
+        if (enabled) {
+            assertEquals(satelliteModeEnabled, 1);
+        } else {
+            assertEquals(satelliteModeEnabled, 0);
+        }
+        logd("requestSatelliteEnabled: " + enabled
+                + " : satelliteModeEnabled from settings: " + satelliteModeEnabled);
     }
 }
