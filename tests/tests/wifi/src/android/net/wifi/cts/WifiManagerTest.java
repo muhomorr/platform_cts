@@ -2235,7 +2235,8 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         for (PackageInfo pi : holding) {
             if (!allowedPackages.contains(pi.packageName)) {
                 fail("The NETWORK_SETUP_WIZARD permission must not be held by " + pi.packageName
-                    + " and must be revoked for security reasons [" + validPkg + "]");
+                    + " and must be revoked for security reasons"
+                    + " | validPkg=" + validPkg);
             }
         }
     }
@@ -2700,9 +2701,12 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     public void testSoftApConfigurationGetPersistentRandomizedMacAddress() throws Exception {
         SoftApConfiguration currentConfig = ShellIdentityUtils.invokeWithShellPermissions(
                 mWifiManager::getSoftApConfiguration);
+        final String ssid = currentConfig.getSsid().length() <= 28
+                ? currentConfig.getSsid() + "test"
+                : "AndroidTest";
         ShellIdentityUtils.invokeWithShellPermissions(
                 () -> mWifiManager.setSoftApConfiguration(new SoftApConfiguration.Builder()
-                .setSsid(currentConfig.getSsid() + "test").build()));
+                .setSsid(ssid).build()));
         SoftApConfiguration changedSsidConfig = ShellIdentityUtils.invokeWithShellPermissions(
                 mWifiManager::getSoftApConfiguration);
         assertNotEquals(currentConfig.getPersistentRandomizedMacAddress(),

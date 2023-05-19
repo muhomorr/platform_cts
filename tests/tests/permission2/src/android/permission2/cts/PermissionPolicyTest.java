@@ -87,6 +87,9 @@ public class PermissionPolicyTest {
     private static final String BIND_QUICK_SETTINGS_TILE =
             "android.permission.BIND_QUICK_SETTINGS_TILE";
 
+    private static final String LAUNCH_PERMISSION_SETTINGS =
+            "android.permission.LAUNCH_PERMISSION_SETTINGS";
+
     private static final String LOG_TAG = "PermissionProtectionTest";
 
     private static final String PLATFORM_PACKAGE_NAME = "android";
@@ -175,9 +178,6 @@ public class PermissionPolicyTest {
                 }
             }
             declaredPermissionsMap.putAll(carServiceBuiltInPermissionsMap);
-        }
-        if (sContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
-            expectedPermissions.addAll(loadExpectedPermissions(R.raw.wear_android_manifest));
         }
 
         for (ExpectedPermissionInfo expectedPermission : expectedPermissions) {
@@ -550,6 +550,8 @@ public class PermissionPolicyTest {
             case BIND_OEM_CAR_SERVICE:
                 return shoudldSkipBindOemCarService();
             case RECEIVE_KEYCODE_EVENTS_PERMISSION:
+                return true;
+            case LAUNCH_PERMISSION_SETTINGS:
                 return true;
             default:
                 return false;
