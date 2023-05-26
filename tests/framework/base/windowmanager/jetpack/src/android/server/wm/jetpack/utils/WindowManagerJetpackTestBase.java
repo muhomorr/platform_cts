@@ -40,6 +40,7 @@ import static org.junit.Assume.assumeTrue;
 
 import android.app.Activity;
 import android.app.ActivityOptions;
+import android.app.ActivityTaskManager;
 import android.app.Application;
 import android.app.Instrumentation;
 import android.app.PictureInPictureParams;
@@ -49,6 +50,7 @@ import android.content.Intent;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.server.wm.NestedShellPermission;
 import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
@@ -59,6 +61,7 @@ import androidx.window.sidecar.SidecarDeviceState;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
@@ -86,6 +89,11 @@ public class WindowManagerJetpackTestBase {
         assertNotNull(mApplication);
         // Register activity lifecycle callbacks to know which activities are resumed
         registerActivityLifecycleCallbacks();
+        // Clear the previous launch bounds / windowing mode, otherwise persisted launch bounds may
+        // prepend startFullScreenActivityNewTask from launching Activities in full-screen.
+        NestedShellPermission.run(() ->
+                mContext.getSystemService(ActivityTaskManager.class).clearLaunchParamsForPackages(
+                        Collections.singletonList("android.server.wm.jetpack")));
     }
 
     @After
@@ -154,14 +162,25 @@ public class WindowManagerJetpackTestBase {
         context.startActivity(intent);
     }
 
+
+    public static void startActivityOnDisplaySingleTop(@NonNull Context context,
+            int displayId, @NonNull ComponentName activityComponent, @NonNull Bundle extras) {
+        startActivityOnDisplaySingleTop(
+                context, displayId, activityComponent, extras, false /* fullscreen */);
+    }
+
     /**
      * Start an activity using a component name on the specified display with
      * {@link FLAG_ACTIVITY_SINGLE_TOP}. Can be used for activities from a different UIDs.
      */
     public static void startActivityOnDisplaySingleTop(@NonNull Context context,
-            int displayId, @NonNull ComponentName activityComponent, @NonNull Bundle extras) {
+            int displayId, @NonNull ComponentName activityComponent, @NonNull Bundle extras,
+            boolean fullscreen) {
         final ActivityOptions options = ActivityOptions.makeBasic();
         options.setLaunchDisplayId(displayId);
+        if (fullscreen) {
+            options.setLaunchWindowingMode(WINDOWING_MODE_FULLSCREEN);
+        }
 
         Intent intent = new Intent()
                 .addFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_SINGLE_TOP)
