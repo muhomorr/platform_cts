@@ -284,11 +284,6 @@
     <!-- b/216546060 -->
     <option name="compatibility:exclude-filter" value="CtsVoiceRecognitionTestCases android.voicerecognition.cts.RecognitionServiceMicIndicatorTest#testTrustedRecognitionServiceCanBlameCallingApp" />
 
-    <!-- b/216546060 -->
-    <option name="compatibility:exclude-filter" value="CtsMonkeyTestCases com.android.cts.monkey.CategoryTest#testDefaultCategories" />
-    <option name="compatibility:exclude-filter" value="CtsMonkeyTestCases com.android.cts.monkey.CategoryTest#testSingleCategory" />
-    <option name="compatibility:exclude-filter" value="CtsMonkeyTestCases com.android.cts.monkey.CategoryTest#testMultipleCategories" />
-
     <!-- b/208909067 -->
     <option name="compatibility:exclude-filter" value="CtsDisplayTestCases android.display.cts.DisplayTest#testActivityContextGetMetrics" />
 
@@ -329,4 +324,10 @@
     <option name="compatibility:exclude-filter" value="CtsGameManagerTestCases[instant] android.gamemanager.cts.GameManagerTest#testSetGameStatePerformanceMode" />
     <option name="compatibility:exclude-filter" value="CtsGameManagerTestCases[instant] android.gamemanager.cts.GameManagerTest#testSetGameStatePerformanceMode_withParams" />
     <option name="compatibility:exclude-filter" value="CtsGameManagerTestCases[instant] android.gamemanager.cts.GameManagerTest#testSetGameStateStandardMode" />
+
+    <!-- b/279072130 -->
+    <option name="compatibility:exclude-filter" value="CtsPhotoPickerTest[run-on-clone-profile]" />
+    <option name="compatibility:exclude-filter" value="CtsDevicePolicyTestCases[run-on-clone-profile]" />
+    <option name="compatibility:exclude-filter" value="CtsOsTestCases[run-on-clone-profile]" />
+    <option name="compatibility:exclude-filter" value="CtsMultiUserTestCases[run-on-clone-profile]" />
 </configuration>
