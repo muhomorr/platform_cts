@@ -16,7 +16,11 @@
 
 package android.hardware.camera2.cts;
 
-import android.content.Context;
+import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertNotNull;
+import static junit.framework.Assert.assertTrue;
+import static junit.framework.Assert.fail;
+
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.BitmapRegionDecoder;
@@ -34,7 +38,6 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.cts.helpers.StaticMetadata;
 import android.hardware.camera2.cts.rs.BitmapUtils;
 import android.hardware.camera2.cts.rs.RawConverter;
-import android.hardware.camera2.cts.rs.RenderScriptSingleton;
 import android.hardware.camera2.cts.testcases.Camera2AndroidTestCase;
 import android.hardware.camera2.params.InputConfiguration;
 import android.location.Location;
@@ -51,11 +54,16 @@ import android.view.Surface;
 
 import com.android.ex.camera2.blocking.BlockingSessionCallback;
 
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -63,14 +71,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.TimeZone;
-import java.text.SimpleDateFormat;
-
-import org.junit.runners.Parameterized;
-import org.junit.runner.RunWith;
-import org.junit.Test;
-
-import static android.hardware.camera2.cts.helpers.AssertHelpers.*;
-import static junit.framework.Assert.*;
 
 /**
  * Tests for the DngCreator API.
@@ -132,18 +132,6 @@ public class DngCreatorTest extends Camera2AndroidTestCase {
         Image jpeg;
         Image raw;
         Bitmap rawBitmap;
-    }
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        RenderScriptSingleton.setContext(mContext);
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        RenderScriptSingleton.clearContext();
-        super.tearDown();
     }
 
     /**
@@ -532,7 +520,7 @@ public class DngCreatorTest extends Camera2AndroidTestCase {
                 raw.getPlanes()[0].getBuffer().get(rawPlane);
                 raw.getPlanes()[0].getBuffer().rewind();
 
-                RawConverter.convertToSRGB(RenderScriptSingleton.getRS(), raw.getWidth(),
+                RawConverter.convertToSRGB(raw.getWidth(),
                         raw.getHeight(), raw.getPlanes()[0].getRowStride(), rawPlane,
                         data.characteristics, /*captureREsult*/data.raw.second, /*offsetX*/ 0,
                         /*offsetY*/ 0, /*out*/ rawBitmap);
@@ -616,7 +604,7 @@ public class DngCreatorTest extends Camera2AndroidTestCase {
                 raw.getPlanes()[0].getBuffer().get(rawPlane);
                 raw.getPlanes()[0].getBuffer().rewind();
 
-                RawConverter.convertToSRGB(RenderScriptSingleton.getRS(), raw.getWidth(),
+                RawConverter.convertToSRGB(raw.getWidth(),
                         raw.getHeight(), raw.getPlanes()[0].getRowStride(), rawPlane,
                         data.characteristics, data.imagePair.second, /*offsetX*/ 0, /*offsetY*/ 0,
                         /*out*/ rawBitmap);
