@@ -36,6 +36,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -79,10 +80,15 @@ public class TestUtils {
             case BluetoothProfile.HEADSET_CLIENT:
                 return BluetoothProperties.isProfileHfpHfEnabled().orElse(false);
             case BluetoothProfile.HEARING_AID:
-                if (!isBleSupported(InstrumentationRegistry.getInstrumentation().getContext())) {
+                Context context = InstrumentationRegistry.getInstrumentation().getContext();
+                if (!isBleSupported(context)) {
                     return false;
                 }
-                return BluetoothProperties.isProfileAshaCentralEnabled().orElse(true);
+                boolean default_value = true;
+                if (isAutomotive(context) || isWatch(context) || isTv(context)) {
+                    default_value = false;
+                }
+                return BluetoothProperties.isProfileAshaCentralEnabled().orElse(default_value);
             case BluetoothProfile.HID_DEVICE:
                 return BluetoothProperties.isProfileHidDeviceEnabled().orElse(false);
             case BluetoothProfile.HID_HOST:
@@ -136,6 +142,14 @@ public class TestUtils {
     public static void dropPermissionAsShellUid() {
         InstrumentationRegistry.getInstrumentation().getUiAutomation()
                 .dropShellPermissionIdentity();
+    }
+
+    /**
+     * @return permissions adopted from Shell
+     */
+    public static Set<String> getAdoptedShellPermissions() {
+        return InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .getAdoptedShellPermissions();
     }
 
     /**
@@ -223,6 +237,35 @@ public class TestUtils {
     }
 
     /**
+     * Check if this is an automotive device
+     * @param context current device context
+     * @return true if this Android device is an automotive device, false otherwise
+     */
+    public static boolean isAutomotive(Context context) {
+        return context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE);
+    }
+
+    /**
+     * Check if this is a watch device
+     * @param context current device context
+     * @return true if this Android device is a watch device, false otherwise
+     */
+    public static boolean isWatch(Context context) {
+        return context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH);
+    }
+
+    /**
+     * Check if this is a TV device
+     * @param context current device context
+     * @return true if this Android device is a TV device, false otherwise
+     */
+    public static boolean isTv(Context context) {
+        PackageManager pm = context.getPackageManager();
+        return pm.hasSystemFeature(PackageManager.FEATURE_TELEVISION)
+                || pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK);
+    }
+
+    /**
      * Put the current thread to sleep.
      * @param sleepMillis number of milliseconds to sleep for
      */
@@ -248,7 +291,7 @@ public class TestUtils {
         private final int mProfileId;
         private final BluetoothAdapter mAdapter;
         private final Context mContext;
-        BluetoothCtsServiceConnector(String logTag, int profileId, BluetoothAdapter adapter,
+        public BluetoothCtsServiceConnector(String logTag, int profileId, BluetoothAdapter adapter,
                 Context context) {
             mLogTag = logTag;
             mProfileId = profileId;

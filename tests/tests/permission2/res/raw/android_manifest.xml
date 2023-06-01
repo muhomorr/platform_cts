@@ -4201,11 +4201,11 @@
                 android:protectionLevel="internal|preinstalled" />
 
     <!-- Allows an application to subscribe to keyguard locked (i.e., showing) state.
-         <p>Protection level: internal|role
-         <p>Intended for use by ROLE_ASSISTANT only.
+         <p>Protection level: signature|role
+         <p>Intended for use by ROLE_ASSISTANT and signature apps only.
     -->
     <permission android:name="android.permission.SUBSCRIBE_TO_KEYGUARD_LOCKED_STATE"
-                android:protectionLevel="internal|role"/>
+                android:protectionLevel="signature|role"/>
 
     <!-- Must be required by a {@link android.service.autofill.AutofillService},
          to ensure that only the system can bind to it.
@@ -4680,6 +4680,12 @@
          @hide -->
     <permission android:name="android.permission.GRANT_RUNTIME_PERMISSIONS"
         android:protectionLevel="signature|installer|verifier" />
+
+    <!-- Allows an application to launch the settings page which manages various
+         permissions.
+         @hide -->
+    <permission android:name="android.permission.LAUNCH_PERMISSION_SETTINGS"
+                android:protectionLevel="signature|privileged" />
 
     <!-- @SystemApi Allows an app that has this permission and the permissions to install packages
          to request certain runtime permissions to be granted at installation.
