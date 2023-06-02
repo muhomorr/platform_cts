@@ -50,6 +50,7 @@ import static org.junit.Assume.assumeTrue;
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -120,6 +121,7 @@ public class InputMethodServiceTest extends EndToEndImeTestBase {
     private static final long EXPECTED_TIMEOUT = TimeUnit.SECONDS.toMillis(2);
     private static final long ACTIVITY_LAUNCH_INTERVAL = 500;  // msec
 
+    private static final String OTHER_IME_ID = "com.android.cts.spellcheckingime/.SpellCheckingIme";
 
     private static final String ERASE_FONT_SCALE_CMD = "settings delete system font_scale";
     // 1.2 is an arbitrary value.
@@ -189,6 +191,53 @@ public class InputMethodServiceTest extends EndToEndImeTestBase {
             assertTrue("InputMethodService.getLayoutInflater().getContext() must be equal to"
                     + " InputMethodService.this",
                     expectCommand(stream, command, TIMEOUT).getReturnBooleanValue());
+        }
+    }
+
+    @Test
+    public void testSwitchInputMethod_verifiesEnabledState() throws Exception {
+        SystemUtil.runShellCommand("ime disable " + OTHER_IME_ID);
+        try (MockImeSession imeSession = MockImeSession.create(
+                InstrumentationRegistry.getInstrumentation().getContext(),
+                InstrumentationRegistry.getInstrumentation().getUiAutomation(),
+                new ImeSettings.Builder())) {
+            final ImeEventStream stream = imeSession.openEventStream();
+            expectEvent(stream, event -> "onStartInput".equals(event.getEventName()), TIMEOUT);
+
+            final ImeCommand cmd = imeSession.callSwitchInputMethod(OTHER_IME_ID);
+            final ImeEvent event = expectCommand(stream, cmd, TIMEOUT);
+            assertTrue("should be exception result, but wasn't" + event,
+                    event.isExceptionReturnValue());
+            // Should be IllegalStateException, but CompletableFuture converts to RuntimeException
+            assertTrue("should be RuntimeException, but wasn't: "
+                            + event.getReturnExceptionValue(),
+                    event.getReturnExceptionValue() instanceof RuntimeException);
+            assertTrue(
+                    "should contain 'not enabled' but didn't: " + event.getReturnExceptionValue(),
+                    event.getReturnExceptionValue().getMessage().contains("not enabled"));
+        }
+    }
+    @Test
+    public void testSwitchInputMethodWithSubtype_verifiesEnabledState() throws Exception {
+        SystemUtil.runShellCommand("ime disable " + OTHER_IME_ID);
+        try (MockImeSession imeSession = MockImeSession.create(
+                InstrumentationRegistry.getInstrumentation().getContext(),
+                InstrumentationRegistry.getInstrumentation().getUiAutomation(),
+                new ImeSettings.Builder())) {
+            final ImeEventStream stream = imeSession.openEventStream();
+            expectEvent(stream, event -> "onStartInput".equals(event.getEventName()), TIMEOUT);
+
+            final ImeCommand cmd = imeSession.callSwitchInputMethod(OTHER_IME_ID, null);
+            final ImeEvent event = expectCommand(stream, cmd, TIMEOUT);
+            assertTrue("should be exception result, but wasn't" + event,
+                    event.isExceptionReturnValue());
+            // Should be IllegalStateException, but CompletableFuture converts to RuntimeException
+            assertTrue("should be RuntimeException, but wasn't: "
+                            + event.getReturnExceptionValue(),
+                    event.getReturnExceptionValue() instanceof RuntimeException);
+            assertTrue(
+                    "should contain 'not enabled' but didn't: " + event.getReturnExceptionValue(),
+                    event.getReturnExceptionValue().getMessage().contains("not enabled"));
         }
     }
 
@@ -724,6 +773,8 @@ public class InputMethodServiceTest extends EndToEndImeTestBase {
 
     @Test
     public void testBatchEdit_commitAndSetComposingRegion_webView() throws Exception {
+        assumeTrue(hasFeatureWebView());
+
         getCommitAndSetComposingRegionTest(TIMEOUT,
                 "testBatchEdit_commitAndSetComposingRegion_webView/")
                 .setTestTextView(false)
@@ -740,6 +791,8 @@ public class InputMethodServiceTest extends EndToEndImeTestBase {
 
     @Test
     public void testBatchEdit_commitSpaceThenSetComposingRegion_webView() throws Exception {
+        assumeTrue(hasFeatureWebView());
+
         getCommitSpaceAndSetComposingRegionTest(TIMEOUT,
                 "testBatchEdit_commitSpaceThenSetComposingRegion_webView/")
                 .setTestTextView(false)
@@ -758,10 +811,18 @@ public class InputMethodServiceTest extends EndToEndImeTestBase {
     @Test
     public void testBatchEdit_getCommitSpaceAndSetComposingRegionTestInSelectionTest_webView()
             throws Exception {
+        assumeTrue(hasFeatureWebView());
+
         getCommitSpaceAndSetComposingRegionInSelectionTest(TIMEOUT,
                 "testBatchEdit_getCommitSpaceAndSetComposingRegionTestInSelectionTest_webView/")
                 .setTestTextView(false)
                 .runTest();
+    }
+
+    private boolean hasFeatureWebView() {
+        final PackageManager pm =
+                InstrumentationRegistry.getInstrumentation().getContext().getPackageManager();
+        return pm.hasSystemFeature(PackageManager.FEATURE_WEBVIEW);
     }
 
     @Test

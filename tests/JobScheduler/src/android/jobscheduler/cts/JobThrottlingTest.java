@@ -947,6 +947,7 @@ public class JobThrottlingTest {
         assumeFalse("not testable in automotive device", mAutomotiveDevice);
         assumeFalse("not testable in leanback device", mLeanbackOnly);
 
+        assumeTrue(BatteryUtils.hasBattery());
         assumeTrue(mNetworkingHelper.hasWifiFeature());
         mNetworkingHelper.ensureSavedWifiNetwork();
 
@@ -1276,7 +1277,7 @@ public class JobThrottlingTest {
             mUiDevice.executeShellCommand("input keyevent KEYCODE_SLEEP");
         }
         // Wait a little bit to make sure the screen state has changed.
-        Thread.sleep(2_000);
+        Thread.sleep(4_000);
     }
 
     private void setChargingState(boolean isCharging) throws Exception {
