@@ -86,7 +86,7 @@ abstract class BaseBroadcastTest {
 
     @Before
     public void setUp() {
-        mContext = InstrumentationRegistry.getInstrumentation().getContext();
+        mContext = getContext();
         mAm = mContext.getSystemService(ActivityManager.class);
         AmUtils.waitForBroadcastBarrier();
     }
@@ -104,16 +104,16 @@ abstract class BaseBroadcastTest {
 
     @After
     public void tearDown() throws Exception {
-        for (String pkg : new String[] {HELPER_PKG1, HELPER_PKG2}) {
-            forceDelayBroadcasts(pkg, 0);
-            final TestServiceConnection connection = bindToHelperService(pkg);
-            try {
-                final ICommandReceiver cmdReceiver = connection.getCommandReceiver();
-                cmdReceiver.tearDown();
-            } finally {
-                connection.unbind();
+        SystemUtil.runWithShellPermissionIdentity(() -> {
+            for (String pkg : new String[] {HELPER_PKG1, HELPER_PKG2}) {
+                mAm.forceDelayBroadcastDelivery(pkg, 0);
+                mAm.forceStopPackage(pkg);
             }
-        }
+        });
+    }
+
+    protected static Context getContext() {
+        return InstrumentationRegistry.getInstrumentation().getContext();
     }
 
     protected void forceDelayBroadcasts(String targetPackage) {

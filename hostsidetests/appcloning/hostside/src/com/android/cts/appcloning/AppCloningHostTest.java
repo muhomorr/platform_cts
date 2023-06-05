@@ -22,6 +22,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
 import android.platform.test.annotations.AppModeFull;
+import android.platform.test.annotations.LargeTest;
 
 import com.android.tradefed.invoker.TestInformation;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
@@ -52,6 +53,7 @@ public class AppCloningHostTest extends AppCloningBaseHostTest {
     private static final String IMAGE_NAME_TO_BE_CREATED_KEY = "imageNameToBeCreated";
     private static final String IMAGE_NAME_TO_BE_DISPLAYED_KEY = "imageNameToBeDisplayed";
     private static final String PUBLIC_SD_CARD_VOLUME_KEY = "publicSdCardVol";
+    private static final String CONTENT_OWNER_KEY = "contentOwner";
     private static final String EXTERNAL_STORAGE_PATH = "/storage/emulated/%d/";
     private static final String IMAGE_NAME_TO_BE_VERIFIED_IN_OWNER_PROFILE_KEY =
             "imageNameToBeVerifiedInOwnerProfile";
@@ -89,6 +91,7 @@ public class AppCloningHostTest extends AppCloningBaseHostTest {
     }
 
     @Test
+    @LargeTest
     public void testCreateCloneUserFile() throws Exception {
         // When we use ITestDevice APIs, they take care of setting up the TradefedContentProvider.
         // TradefedContentProvider has INTERACT_ACROSS_USERS permission which allows it to access
@@ -127,6 +130,7 @@ public class AppCloningHostTest extends AppCloningBaseHostTest {
      * @throws Exception
      */
     @Test
+    @LargeTest
     public void testRemoveClonedProfileMediaProviderCleanup() throws Exception {
         assumeTrue(isAtLeastT());
 
@@ -246,6 +250,7 @@ public class AppCloningHostTest extends AppCloningBaseHostTest {
     }
 
     @Test
+    @LargeTest
     public void testDeletionOfPrimaryApp_deleteAppWithParentPropertyTrue_deletesCloneApp()
             throws Exception {
         assumeTrue(isAtLeastU(sDevice));
@@ -272,6 +277,47 @@ public class AppCloningHostTest extends AppCloningBaseHostTest {
 
         assertTrue(!getPackageInUser(APP_A_PACKAGE, Integer.parseInt(sCloneUserId))
                 .contains(APP_A_PACKAGE));
+    }
+
+    /**
+     * In this test we verify that apps can create URIs with content owner appended successfully,
+     * with clonedUser present.
+     * For ex: inserting a screenshot of a cloned app by sysUi process (user 0), the content is
+     * specified as `content://10@media/external/images/media/`, hinting that it should go in the
+     * storage of user 10. However, since clonedProfile shares Media with its parent, the media
+     * gets
+     * saved successfully in user 0.
+     * The reverse is however, not true
+     * (<a href="https://b.corp.google.com/issues/270688031#comment4">...</a>),
+     * content provider does not have a way to allow a cloned app to create content with URI
+     * as content://0@media/external/images/media/` unless, it has INTERACT_ACROSS_USERS access.
+     */
+    // TODO(b/283399640): Add a fix and test for the reverse scenario.
+    @Test
+    public void testMediaCreationWithContentOwnerSpecified() throws Exception {
+        assumeTrue(isAtLeastU(sDevice));
+
+        int currentUserId = getCurrentUserId();
+
+        // Install the app in owner user space
+        installPackage(APP_A, "--user " + currentUserId);
+
+        // Try to save image from user 0 by specifying clonedUser as content owner
+        Map<String, String> ownerArgs = new HashMap<>();
+        ownerArgs.put(IMAGE_NAME_TO_BE_DISPLAYED_KEY, "CloneProfileImageToBeSavedInOwner");
+        ownerArgs.put(IMAGE_NAME_TO_BE_CREATED_KEY, "owner_profile_image");
+        ownerArgs.put(CONTENT_OWNER_KEY, sCloneUserId);
+
+        runDeviceTestAsUserInPkgA("testMediaStoreManager_writeImageToContentOwnerSharedStorage",
+                currentUserId, ownerArgs);
+
+        // Verify that the image created by user 0 is saved in user 0's space.
+        Map<String, String> args = new HashMap<>();
+        args.put(IMAGE_NAME_TO_BE_VERIFIED_IN_OWNER_PROFILE_KEY,
+                "CloneProfileImageToBeSavedInOwner");
+
+        runDeviceTestAsUserInPkgA("testMediaStoreManager_verifyClonedUserImageSavedInOwnerUserOnly",
+                currentUserId, args);
     }
 
     private String getPackageInUser(String pkgName, int userId) throws Exception {

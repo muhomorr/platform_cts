@@ -1619,9 +1619,9 @@
     <string name="camera_orientation">Camera Orientation</string>
     <string name="co_info">This test verifies the orientation capabilities of
     camera preview and capture.\n - The left view shows a preview window rotated
-    clockwise by a given magnitude of degrees.\n - The right view, after taking
+    by a given magnitude of degrees.\n - The right view, after taking
     a photo, shows the captured image.\n - For each camera and orientation, both
-    the left and right views should appear rotated clockwise by the amount of
+    the left and right views should appear rotated by the amount of
     degrees specified. Choose \"Pass\" if this is the case. Otherwise, choose
     \"Fail\".\n - For front-facing cameras, the test will horizontally mirror
     the captured image prior to rotation, in attempt to make the left and right
@@ -1633,7 +1633,6 @@
     <string name="co_format_label">Oriented photo</string>
     <string name="co_camera_label">Camera:</string>
     <string name="co_orientation_label">Orientation</string>
-    <string name="co_orientation_direction_label">clockwise</string>
     <string name="co_instruction_heading_label">Instruction:</string>
     <string name="co_instruction_text_photo_label">Take a photo</string>
     <string name="co_instruction_text_passfail_label">Choose \"Pass\" if the left view is oriented the same as the right view. Otherwise, choose \"Fail\".</string>
@@ -2518,7 +2517,10 @@
         Fsi Notif Content Fsi Notif Content Fsi Notif Content</string>
     <string name="fsi_grant_permission">Please toggle on the full screen intents permission for CTSVerifier.</string>
     <string name="fsi_deny_permission">Please toggle off the full screen intents permission for CTSVerifier</string>
-    <string name="fsi_sticky_hun">There should be a Heads Up Notification on the screen.\n
+    <string name="fsi_sticky_hun">There should be a sticky Heads Up Notification on the screen.\n
+        It would not be automatically cleared out.\n
+        Fail the test if it doesn\'t show or disappears within 60s.</string>
+    <string name="fsi_sticky_hun_60s">There should be a Heads Up Notification on the screen.\n
         It would show for 60s.\n
         Fail the test if it doesn\'t show or disappears within 60s.</string>
     <string name="np_start_channel_settings">Launch Channel Settings</string>
@@ -4422,7 +4424,7 @@ You should be prompted to select credentials; choose the ones you just installed
     <!-- Strings used for policy transparency test -->
     <string name="device_profile_owner_policy_transparency_test">Policy transparency test</string>
     <string name="device_profile_owner_policy_transparency_test_info">
-        This test checks that if an admin has enforced a policy, we let the user know about this.\nSet the short and long support messages before proceeding with the tests.
+        This test checks that if an admin has enforced a policy, we let the user know about this.\nSet the short support message before proceeding with the tests.
     </string>
     <string name="policy_transparency_open_settings_label">Open settings</string>
     <string name="policy_transparency_short_support_msg_label">Set short support message</string>
@@ -6999,6 +7001,7 @@ Follow the instructions on the screen to measure the frequency response for the 
 
     <!-- Strings for ControlsPanelVerifierActivity -->
     <string name="controls_panel_test">Controls Panel tests</string>
+    <string name="controls_panel_not_supported">This feature is not supported in this device due to multi-window not being supported. Pass this test.</string>
     <string name="controls_panel_install_test">0. Install helper app</string>
     <string name="controls_panel_install_test_info">This test helps install the helper app that will be used for all subsequent tests in this group.</string>
     <string name="controls_panel_install_test_instructions">You should have received a helper app apk with this CTS

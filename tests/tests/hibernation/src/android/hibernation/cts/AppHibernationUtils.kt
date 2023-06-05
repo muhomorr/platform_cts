@@ -39,6 +39,7 @@ import android.support.test.uiautomator.Until
 import android.util.Log
 import androidx.test.InstrumentationRegistry
 import com.android.compatibility.common.util.ExceptionUtils.wrappingExceptions
+import com.android.compatibility.common.util.FeatureUtil
 import com.android.compatibility.common.util.SystemUtil.eventually
 import com.android.compatibility.common.util.SystemUtil.runShellCommandOrThrow
 import com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity
@@ -66,8 +67,10 @@ const val ACTION_SET_UP_HIBERNATION =
     "com.android.permissioncontroller.action.SET_UP_HIBERNATION"
 
 const val SYSUI_PKG_NAME = "com.android.systemui"
-const val NOTIF_LIST_ID = "com.android.systemui:id/notification_stack_scroller"
+const val NOTIF_LIST_ID = "notification_stack_scroller"
+const val NOTIF_LIST_ID_AUTOMOTIVE = "notifications"
 const val CLEAR_ALL_BUTTON_ID = "dismiss_text"
+const val MANAGE_BUTTON_AUTOMOTIVE = "manage_button"
 // Time to find a notification. Unlikely, but in cases with a lot of notifications, it may take
 // time to find the notification we're looking for
 const val NOTIF_FIND_TIMEOUT = 20000L
@@ -320,10 +323,21 @@ private fun waitFindNotification(selector: BySelector, timeoutMs: Long):
 
     var isAtEnd = false
     var wasScrolledUpAlready = false
+    val notificationListId = if (FeatureUtil.isAutomotive()) {
+        NOTIF_LIST_ID_AUTOMOTIVE
+    } else {
+        NOTIF_LIST_ID
+    }
+    val notificationEndViewId = if (FeatureUtil.isAutomotive()) {
+        MANAGE_BUTTON_AUTOMOTIVE
+    } else {
+        CLEAR_ALL_BUTTON_ID
+    }
     while (view == null && start + timeoutMs > System.currentTimeMillis()) {
         view = uiDevice.wait(Until.findObject(selector), VIEW_WAIT_TIMEOUT)
         if (view == null) {
-            val notificationList = UiScrollable(UiSelector().resourceId(NOTIF_LIST_ID))
+            val notificationList = UiScrollable(UiSelector().resourceId(
+                SYSUI_PKG_NAME + ":id/" + notificationListId))
             wrappingExceptions({ cause: Throwable? -> UiDumpUtils.wrapWithUiDump(cause) }) {
                 Assert.assertTrue("Notification list view not found",
                     notificationList.waitForExists(VIEW_WAIT_TIMEOUT))
@@ -337,7 +351,7 @@ private fun waitFindNotification(selector: BySelector, timeoutMs: Long):
                 wasScrolledUpAlready = true
             } else {
                 notificationList.scrollForward()
-                isAtEnd = uiDevice.hasObject(By.res(SYSUI_PKG_NAME, CLEAR_ALL_BUTTON_ID))
+                isAtEnd = uiDevice.hasObject(By.res(SYSUI_PKG_NAME, notificationEndViewId))
             }
         }
     }
