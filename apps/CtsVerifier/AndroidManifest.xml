@@ -88,6 +88,9 @@
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.SEND_SMS" />
 
+    <!-- Allow Network Background Connectivity Test to turn on the screen when the tests finish. -->
+    <uses-permission android:name="android.permission.TURN_SCREEN_ON"/>
+
     <!-- Needed for Telecom self-managed ConnectionService tests. -->
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
@@ -3507,6 +3510,7 @@
             </intent-filter>
         </service>
 
+        <!-- (b/285905698) Re-enable the test after investigation on black window issue is done
         <activity android:name=".notifications.ShortcutThrottlingResetActivity"
             android:label="@string/shortcut_reset_test"
                   android:exported="true"
@@ -3522,6 +3526,7 @@
                        android:value="multi_display_mode" />
             <meta-data android:name="CddTest" android:value="3.8.1/C-4-1" />
         </activity>
+        -->
 
         <activity android:name=".qstiles.TileServiceVerifierActivity"
                   android:exported="true"
