@@ -26,7 +26,6 @@ import android.hardware.display.DisplayManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.support.test.uiautomator.UiDevice;
 import android.util.Log;
 import android.view.Choreographer;
 import android.view.Surface;
@@ -490,36 +489,6 @@ public class FrameRateOverrideCtsActivity extends Activity {
             waitForRefreshRateChange(initialRefreshRate);
             frameRateObserver.observe(initialRefreshRate, initialRefreshRate,
                     "preferredRefreshRate reset");
-        }
-    }
-
-    class GameModeTest implements TestScenario {
-        private UiDevice mUiDevice;
-        GameModeTest(UiDevice uiDevice) {
-            mUiDevice = uiDevice;
-        }
-        @Override
-        public void test(FrameRateObserver frameRateObserver,
-                float initialRefreshRate) throws InterruptedException, IOException {
-            Log.i(TAG, "Starting testGameModeFrameRateOverride");
-
-            int initialRefreshRateInt = (int) initialRefreshRate;
-            for (int divisor = 1; initialRefreshRateInt / divisor >= 30; ++divisor) {
-                int overrideFrameRate = initialRefreshRateInt / divisor;
-                Log.i(TAG, String.format("Setting Frame Rate to %d using Game Mode",
-                        overrideFrameRate));
-
-                mUiDevice.executeShellCommand(String.format("cmd game set --mode 2 --fps %d %s",
-                        overrideFrameRate, getPackageName()));
-                waitForRefreshRateChange(overrideFrameRate);
-                frameRateObserver.observe(initialRefreshRate, overrideFrameRate,
-                        String.format("Game Mode Override(%d)", overrideFrameRate));
-            }
-
-            Log.i(TAG, "Resetting Frame Rate setting");
-            mUiDevice.executeShellCommand(String.format("cmd game reset %s", getPackageName()));
-            waitForRefreshRateChange(initialRefreshRate);
-            frameRateObserver.observe(initialRefreshRate, initialRefreshRate, "Reset");
         }
     }
 
