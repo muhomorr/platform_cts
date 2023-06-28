@@ -1256,6 +1256,10 @@ public class PerformanceClassEvaluator {
             this.setMeasuredValue(RequirementConstants.FRAME_RATE, frameRate);
         }
 
+        public void setTestResolution(int res) {
+            this.setMeasuredValue(RequirementConstants.TEST_RESOLUTION, res);
+        }
+
         /**
          * [2.2.7.1/5.3/H-1-1] MUST NOT drop more than 1 frames in 10 seconds (i.e less than 0.333
          * percent frame drop) for a 1080p 30 fps video session under load. Load is defined as a
@@ -1278,8 +1282,14 @@ public class PerformanceClassEvaluator {
                     .addRequiredValue(Build.VERSION_CODES.R, 30.0)
                     .build();
 
-            return new FrameDropRequirement(RequirementConstants.R5_3__H_1_1, frameDropped,
-                frameRate);
+            RequiredMeasurement<Integer> testResolution = RequiredMeasurement.<Integer>builder()
+                    .setId(RequirementConstants.TEST_RESOLUTION)
+                    .setPredicate(RequirementConstants.INTEGER_EQ)
+                    .addRequiredValue(Build.VERSION_CODES.R, 1080)
+                    .build();
+
+            return new FrameDropRequirement(
+                    RequirementConstants.R5_3__H_1_1, frameDropped, frameRate, testResolution);
         }
 
         /**
@@ -1304,8 +1314,14 @@ public class PerformanceClassEvaluator {
                     .addRequiredValue(Build.VERSION_CODES.R, 30.0)
                     .build();
 
-            return new FrameDropRequirement(RequirementConstants.R5_3__H_1_2, frameDropped,
-                frameRate);
+            RequiredMeasurement<Integer> testResolution = RequiredMeasurement.<Integer>builder()
+                    .setId(RequirementConstants.TEST_RESOLUTION)
+                    .setPredicate(RequirementConstants.INTEGER_EQ)
+                    .addRequiredValue(Build.VERSION_CODES.R, 1080)
+                    .build();
+
+            return new FrameDropRequirement(
+                    RequirementConstants.R5_3__H_1_2, frameDropped, frameRate, testResolution);
         }
 
         /**
@@ -1329,11 +1345,17 @@ public class PerformanceClassEvaluator {
                     .<Double>builder()
                     .setId(RequirementConstants.FRAME_RATE)
                     .setPredicate(RequirementConstants.DOUBLE_EQ)
-                    .addRequiredValue(Build.VERSION_CODES.S, 60.0)
+                    .addRequiredValue(Build.VERSION_CODES.TIRAMISU, 60.0)
                     .build();
 
-            return new FrameDropRequirement(RequirementConstants.R5_3__H_1_1, frameDropped,
-                frameRate);
+            RequiredMeasurement<Integer> testResolution = RequiredMeasurement.<Integer>builder()
+                    .setId(RequirementConstants.TEST_RESOLUTION)
+                    .setPredicate(RequirementConstants.INTEGER_EQ)
+                    .addRequiredValue(Build.VERSION_CODES.TIRAMISU, 1080)
+                    .build();
+
+            return new FrameDropRequirement(
+                    RequirementConstants.R5_3__H_1_1, frameDropped, frameRate, testResolution);
         }
 
         /**
@@ -1358,8 +1380,14 @@ public class PerformanceClassEvaluator {
                     .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 60.0)
                     .build();
 
-            return new FrameDropRequirement(RequirementConstants.R5_3__H_1_1, frameDropped,
-                    frameRate);
+            RequiredMeasurement<Integer> testResolution = RequiredMeasurement.<Integer>builder()
+                    .setId(RequirementConstants.TEST_RESOLUTION)
+                    .setPredicate(RequirementConstants.INTEGER_EQ)
+                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 2160)
+                    .build();
+
+            return new FrameDropRequirement(
+                    RequirementConstants.R5_3__H_1_1, frameDropped, frameRate, testResolution);
         }
 
         /**
@@ -1383,11 +1411,17 @@ public class PerformanceClassEvaluator {
                     .<Double>builder()
                     .setId(RequirementConstants.FRAME_RATE)
                     .setPredicate(RequirementConstants.DOUBLE_EQ)
-                    .addRequiredValue(Build.VERSION_CODES.S, 60.0)
+                    .addRequiredValue(Build.VERSION_CODES.TIRAMISU, 60.0)
                     .build();
 
-            return new FrameDropRequirement(RequirementConstants.R5_3__H_1_2, frameDropped,
-                frameRate);
+            RequiredMeasurement<Integer> testResolution = RequiredMeasurement.<Integer>builder()
+                    .setId(RequirementConstants.TEST_RESOLUTION)
+                    .setPredicate(RequirementConstants.INTEGER_EQ)
+                    .addRequiredValue(Build.VERSION_CODES.TIRAMISU, 1080)
+                    .build();
+
+            return new FrameDropRequirement(
+                    RequirementConstants.R5_3__H_1_2, frameDropped, frameRate, testResolution);
         }
 
         /**
@@ -1412,8 +1446,14 @@ public class PerformanceClassEvaluator {
                     .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 60.0)
                     .build();
 
-            return new FrameDropRequirement(RequirementConstants.R5_3__H_1_2, frameDropped,
-                    frameRate);
+            RequiredMeasurement<Integer> testResolution = RequiredMeasurement.<Integer>builder()
+                    .setId(RequirementConstants.TEST_RESOLUTION)
+                    .setPredicate(RequirementConstants.INTEGER_EQ)
+                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 2160)
+                    .build();
+
+            return new FrameDropRequirement(
+                    RequirementConstants.R5_3__H_1_2, frameDropped, frameRate, testResolution);
         }
     }
 
@@ -1868,6 +1908,18 @@ public class PerformanceClassEvaluator {
             this.setMeasuredValue(RequirementConstants.AVIF_DEC_REQ, avifDecoderReqSatisfied);
         }
 
+        public void setAv1EncResolution(int resolution) {
+            this.setMeasuredValue(RequirementConstants.AV1_ENC_RESOLUTION, resolution);
+        }
+
+        public void setAv1EncFps(double fps) {
+            this.setMeasuredValue(RequirementConstants.AV1_ENC_FPS, fps);
+        }
+
+        public void setAv1EncBitrate(int bitrate) {
+            this.setMeasuredValue(RequirementConstants.AV1_ENC_BITRATE, bitrate);
+        }
+
         public void setColorFormatSupportReq(boolean colorFormatSupported) {
             this.setMeasuredValue(RequirementConstants.RGBA_1010102_COLOR_FORMAT_REQ,
                     colorFormatSupported);
@@ -1930,6 +1982,36 @@ public class PerformanceClassEvaluator {
                     .build();
 
             return new VideoCodecRequirement(RequirementConstants.R5_1__H_1_17, requirement);
+        }
+
+        /**
+         * [2.2.7.1/5.1/H-1-18] MUST support AV1 encoder which can encode up to 480p resolution
+         * at 30fps and 1Mbps.
+         */
+        public static VideoCodecRequirement createRAV1EncoderReq() {
+            RequiredMeasurement<Integer> resolution = RequiredMeasurement
+                    .<Integer>builder()
+                    .setId(RequirementConstants.AV1_ENC_RESOLUTION)
+                    .setPredicate(RequirementConstants.INTEGER_GTE)
+                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 480)
+                    .build();
+
+            RequiredMeasurement<Double> fps = RequiredMeasurement
+                    .<Double>builder()
+                    .setId(RequirementConstants.AV1_ENC_FPS)
+                    .setPredicate(RequirementConstants.DOUBLE_GTE)
+                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 30.0)
+                    .build();
+
+            RequiredMeasurement<Integer> bitrate = RequiredMeasurement
+                    .<Integer>builder()
+                    .setId(RequirementConstants.AV1_ENC_BITRATE)
+                    .setPredicate(RequirementConstants.INTEGER_GTE)
+                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 1)
+                    .build();
+
+            return new VideoCodecRequirement(RequirementConstants.R5_1__H_1_18, resolution, fps,
+                    bitrate);
         }
 
         /**
@@ -2133,6 +2215,11 @@ public class PerformanceClassEvaluator {
     /* Adds requirement 5.1/H-1-17 */
     public VideoCodecRequirement addRAVIFDecoderReq() {
         return this.addRequirement(VideoCodecRequirement.createRAVIFDecoderReq());
+    }
+
+    /* Adds requirement 5.1/H-1-18 */
+    public VideoCodecRequirement addRAV1EncoderReq() {
+        return this.addRequirement(VideoCodecRequirement.createRAV1EncoderReq());
     }
 
     public ConcurrentCodecRequirement addR5_1__H_1_19() {

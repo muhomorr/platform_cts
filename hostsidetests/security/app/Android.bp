@@ -51,5 +51,5 @@ java_genrule {
     name: "zip_validation_test_jar_named_test",
     srcs: [":zip_validation_test_jar"],
     out: ["test.jar"],
-    cmd: "mv $(in) $(out)",
+    cmd: "cp $(in) $(out)",
 }
