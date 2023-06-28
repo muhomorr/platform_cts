@@ -48,6 +48,7 @@ import com.android.compatibility.common.util.SettingsStateChangerRule;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -76,7 +77,7 @@ public final class RecognitionServiceMicIndicatorTest {
     private static final String SC_PRIVACY_DIALOG_PACKAGE_NAME = "com.android.permissioncontroller";
     private static final String SC_PRIVACY_DIALOG_CONTENT_ID = "indicator_label";
     // The cts app label
-    private static final String APP_LABEL = "CtsVoiceRecognitionTestCases";
+    private static final String APP_LABEL = "CtsVoiceRecognition";
     // A simple test voice recognition service implementation
     private static final String CTS_VOICE_RECOGNITION_SERVICE =
             "android.recognitionservice.service/android.recognitionservice.service"
@@ -183,6 +184,10 @@ public final class RecognitionServiceMicIndicatorTest {
 
     @Test
     public void testNonTrustedRecognitionServiceCanBlameCallingApp() throws Throwable {
+        // skip test for automototive devices, as Mic indicator is not a MUST requirement as per CDD
+        assumeFalse(mContext.getPackageManager()
+            .hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE));
+
         // We treat trusted if the current voice recognizer is also a preinstalled app. This is a
         // untrusted case.
         setCurrentRecognizer(CTS_VOICE_RECOGNITION_SERVICE);
@@ -191,8 +196,13 @@ public final class RecognitionServiceMicIndicatorTest {
         testVoiceRecognitionServiceBlameCallingApp(/* trustVoiceService */ false);
     }
 
+    @Ignore("b/266789512")
     @Test
     public void testTrustedRecognitionServiceCanBlameCallingApp() throws Throwable {
+        // skip test for automototive devices, as Mic indicator is not a MUST requirement as per CDD
+        assumeFalse(mContext.getPackageManager()
+            .hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE));
+
         // We treat trusted if the current voice recognizer is also a preinstalled app. This is a
         // trusted case.
         boolean hasPreInstalledRecognizer = hasPreInstalledRecognizer(

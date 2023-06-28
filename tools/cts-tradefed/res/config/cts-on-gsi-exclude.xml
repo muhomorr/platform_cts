@@ -140,4 +140,9 @@
     <!-- b/238155422 -->
     <option name="compatibility:exclude-filter" value="CtsNetTestCases android.net.cts.ConnectivityManagerTest#testSetAirplaneMode" />
 
+    <!-- b/284917528 -->
+    <option name="compatibility:exclude-filter" value="MicrodroidHostTestCases" />
+    <option name="compatibility:exclude-filter" value="MicrodroidTestApp" />
+    <option name="compatibility:exclude-filter" value="odsign_e2e_tests" />
+
 </configuration>
