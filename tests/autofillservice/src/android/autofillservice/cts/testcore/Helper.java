@@ -1734,35 +1734,74 @@ public final class Helper {
         });
     }
 
+    private Helper() {
+        throw new UnsupportedOperationException("contain static methods only");
+    }
+
+    public enum DeviceStateEnum {
+        HALF_FOLDED,
+        REAR_DISPLAY
+    };
+
     /**
-     * Test if the device is in half-folded pose.
+     * Test if the device is in half-folded or rear display state.
      */
     private static final class DeviceStateAssessor implements DeviceStateCallback {
+        DeviceStateManager mDeviceStateManager;
+        int[] mHalfFoldedStates;
+        int[] mRearDisplayStates;
+        int mCurrentState = -1;
+
         DeviceStateAssessor(Context context) {
             Resources systemRes = Resources.getSystem();
-            int halfFoldedStatesArrayIdentifier = systemRes.getIdentifier(
-                    "config_halfFoldedDeviceStates", "array", "android");
-            if (halfFoldedStatesArrayIdentifier == 0) {
-                mHalfFoldedStates = new int[0];
-            } else {
-                mHalfFoldedStates = systemRes.getIntArray(halfFoldedStatesArrayIdentifier);
+            mHalfFoldedStates = getStatesFromConfig(systemRes, "config_halfFoldedDeviceStates");
+            mRearDisplayStates = getStatesFromConfig(systemRes, "config_rearDisplayDeviceStates");
+            try {
+                mDeviceStateManager = context.getSystemService(DeviceStateManager.class);
+                mDeviceStateManager.registerCallback(context.getMainExecutor(), this);
+                Log.v(TAG, "DeviceStateAssessor initialized halfFoldedStates.length="
+                        + mHalfFoldedStates.length + ", readDisplayStates.length="
+                        + mRearDisplayStates.length);
+            } catch (java.lang.IllegalStateException e) {
+                Log.v(TAG, "DeviceStateManager not available: cannot check for half-fold");
             }
-            mDeviceStateManager = context.getSystemService(DeviceStateManager.class);
-            mDeviceStateManager.registerCallback(context.getMainExecutor(), this);
-            Log.v(TAG, "DeviceStateAssessor initialized with id=" + halfFoldedStatesArrayIdentifier
-                    + ", halfFoldedStates.length=" + mHalfFoldedStates.length);
         }
+
+        private int[] getStatesFromConfig(Resources systemRes, String configKey) {
+            int statesArrayIdentifier = systemRes.getIdentifier(configKey, "array", "android");
+            if (statesArrayIdentifier == 0) {
+                return new int[0];
+            } else {
+                return systemRes.getIntArray(statesArrayIdentifier);
+            }
+        }
+
         public void onStateChanged(int state) {
             synchronized (this) {
                 mCurrentState = state;
                 this.notify();
             }
         }
+
         void close() {
-            mDeviceStateManager.unregisterCallback(this);
+            if (mDeviceStateManager != null) {
+                mDeviceStateManager.unregisterCallback(this);
+            }
         }
-        boolean isDeviceHalfFolded() throws InterruptedException {
-            if (mHalfFoldedStates.length == 0) {
+
+        boolean isDeviceInState(DeviceStateEnum deviceState) throws InterruptedException {
+            int[] states;
+            switch(deviceState) {
+                case HALF_FOLDED:
+                    states = mHalfFoldedStates;
+                    break;
+                case REAR_DISPLAY:
+                    states = mRearDisplayStates;
+                    break;
+                default:
+                    return false;
+            }
+            if (states.length == 0 || mDeviceStateManager == null) {
                 return false;
             }
             synchronized (this) {
@@ -1773,27 +1812,21 @@ public final class Helper {
             if (mCurrentState == -1) {
                 Log.w(TAG, "DeviceStateCallback not called within 1 second");
             }
-            Log.v(TAG, "Current state=" + mCurrentState + ", halfFoldedStates[0]="
-                    + mHalfFoldedStates[0]);
-            return Arrays.stream(mHalfFoldedStates).anyMatch(x -> x == mCurrentState);
+            Log.v(TAG, "Current state=" + mCurrentState + ", states[0]="
+                    + states[0]);
+            return Arrays.stream(states).anyMatch(x -> x == mCurrentState);
         }
-        DeviceStateManager mDeviceStateManager;
-        int[] mHalfFoldedStates;
-        int mCurrentState = -1;
     }
-    public static boolean isDeviceHalfFolded(Context context) {
+
+    public static boolean isDeviceInState(Context context, DeviceStateEnum deviceState) {
         DeviceStateAssessor deviceStateAssessor = new DeviceStateAssessor(context);
         try {
-            return deviceStateAssessor.isDeviceHalfFolded();
+            return deviceStateAssessor.isDeviceInState(deviceState);
         } catch (InterruptedException e) {
             return false;
         } finally {
             deviceStateAssessor.close();
         }
-    }
-
-    private Helper() {
-        throw new UnsupportedOperationException("contain static methods only");
     }
 
     public static class FieldClassificationResult {
