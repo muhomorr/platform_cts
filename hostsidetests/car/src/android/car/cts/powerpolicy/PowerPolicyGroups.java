@@ -21,6 +21,7 @@ import com.android.tradefed.log.LogUtil;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Objects;
+import java.util.Set;
 
 public final class PowerPolicyGroups {
     private final HashMap<String, PowerPolicyGroupDef> mPolicyGroups = new HashMap<>();
@@ -72,6 +73,7 @@ public final class PowerPolicyGroups {
         for (int i = 0; i < defStrs.size(); ++i) {
             String line = defStrs.get(i);
             if (line.contains(groupDefDelimiter)) {
+                // this is policy group definition
                 if (line.contains("WaitForVHAL")) {
                     waitForVHALPolicy = parsePolicyGroupDef("WaitForVHAL", line);
                 } else if (line.contains("On")) {
@@ -110,6 +112,23 @@ public final class PowerPolicyGroups {
         }
 
         return tokens[2].trim();
+    }
+
+    public Set<String> getGroupIds() {
+        return mPolicyGroups.keySet();
+    }
+
+    public PowerPolicyGroupDef getGroup(String groupId) {
+        return mPolicyGroups.get(groupId);
+    }
+
+    public boolean containsGroup(String groupId, PowerPolicyGroupDef expectedGroupDef) {
+        PowerPolicyGroupDef policyGroup = mPolicyGroups.get(groupId);
+        if (policyGroup == null) {
+            return false;
+        }
+
+        return policyGroup.equals(expectedGroupDef);
     }
 
     public static final class PowerPolicyGroupDef {
