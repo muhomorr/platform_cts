@@ -17,7 +17,7 @@
 package android.server.wm;
 
 import static android.graphics.PixelFormat.TRANSLUCENT;
-import static android.server.wm.ActivityManagerTestBase.isTablet;
+import static android.server.wm.ShellCommandHelper.executeShellCommand;
 import static android.view.KeyEvent.ACTION_DOWN;
 import static android.view.KeyEvent.KEYCODE_BACK;
 import static android.view.View.SYSTEM_UI_FLAG_FULLSCREEN;
@@ -101,6 +101,7 @@ import java.util.function.Supplier;
  *     atest CtsWindowManagerDeviceTestCases:WindowInsetsControllerTests
  */
 @Presubmit
+@android.server.wm.annotation.Group2
 public class WindowInsetsControllerTests extends WindowManagerTestBase {
 
     private final static long TIMEOUT = 1000; // milliseconds
@@ -416,12 +417,14 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
 
         final TestActivity activity = startActivity(TestActivity.class);
         final View controlTarget = activity.getWindow().getDecorView();
+
+        // Assume we have at least one visible system bar.
+        assumeTrue(controlTarget.getRootWindowInsets().isVisible(statusBars()) ||
+                controlTarget.getRootWindowInsets().isVisible(navigationBars()));
+
         final int[] targetSysUiVis = new int[1];
         final View nonControlTarget = new View(mTargetContext);
         final int[] nonTargetSysUiVis = new int[1];
-        if (isTablet()) {
-            return;
-        }
         final WindowManager.LayoutParams nonTargetAttrs =
                 new WindowManager.LayoutParams(TYPE_APPLICATION);
         nonTargetAttrs.flags = FLAG_NOT_FOCUSABLE;
@@ -743,6 +746,8 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
 
     @Test
     public void testDispatchApplyWindowInsetsCount_systemBars() throws InterruptedException {
+        assumeFalse(isCar() && remoteInsetsControllerControlsSystemBars());
+
         final TestActivity activity = startActivityInWindowingModeFullScreen(TestActivity.class);
         final View rootView = activity.getWindow().getDecorView();
         getInstrumentation().waitForIdleSync();

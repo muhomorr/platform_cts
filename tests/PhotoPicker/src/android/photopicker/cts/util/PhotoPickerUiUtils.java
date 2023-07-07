@@ -47,8 +47,7 @@ public class PhotoPickerUiUtils {
      */
     public static List<UiObject> findItemList(int itemCount) throws Exception {
         final List<UiObject> itemList = new ArrayList<>();
-        final UiSelector gridList = new UiSelector().className(
-                "androidx.recyclerview.widget.RecyclerView").resourceIdMatches(
+        final UiSelector gridList = new UiSelector().resourceIdMatches(
                 REGEX_PACKAGE_NAME + ":id/picker_tab_recyclerview");
 
         // Wait for the first item to appear
@@ -173,12 +172,16 @@ public class PhotoPickerUiUtils {
     }
 
     public static String getBannerPrimaryText() throws Exception {
-        final UiObject bannerPrimaryText = new UiObject(new UiSelector().resourceIdMatches(
-                REGEX_PACKAGE_NAME + ":id/banner_primary_text"));
+        final UiObject bannerPrimaryText = findBannerPrimaryText();
         assertWithMessage("Timed out waiting for the banner to appear")
                 .that(bannerPrimaryText.waitForExists(TIMEOUT))
                 .isTrue();
         return bannerPrimaryText.getText();
+    }
+
+    public static UiObject findBannerPrimaryText() {
+        return new UiObject(new UiSelector().resourceIdMatches(
+                REGEX_PACKAGE_NAME + ":id/banner_primary_text"));
     }
 
     public static UiObject findBannerDismissButton() {
