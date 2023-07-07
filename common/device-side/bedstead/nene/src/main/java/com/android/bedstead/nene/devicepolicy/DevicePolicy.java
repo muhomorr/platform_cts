@@ -28,6 +28,7 @@ import static com.android.bedstead.nene.permissions.CommonPermissions.FORCE_DEVI
 import static com.android.bedstead.nene.permissions.CommonPermissions.MANAGE_DEVICE_ADMINS;
 import static com.android.bedstead.nene.permissions.CommonPermissions.MANAGE_PROFILE_AND_DEVICE_OWNERS;
 import static com.android.bedstead.nene.permissions.CommonPermissions.MANAGE_ROLE_HOLDERS;
+import static com.android.bedstead.nene.permissions.CommonPermissions.QUERY_ADMIN_POLICY;
 
 import android.annotation.TargetApi;
 import android.app.admin.DevicePolicyManager;
@@ -62,6 +63,7 @@ import com.android.bedstead.nene.utils.Versions;
 
 import java.lang.reflect.InvocationTargetException;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -813,6 +815,14 @@ public final class DevicePolicy {
         return devicePolicyManager(user).isAffiliatedUser();
     }
 
+    @Experimental
+    public List<String> getPermittedInputMethods() {
+        // TODO: Enable cross-user
+        try (PermissionContext p = TestApis.permissions().withPermission(QUERY_ADMIN_POLICY)) {
+            return sDevicePolicyManager.getPermittedInputMethodsForCurrentUser();
+        }
+    }
+
     /**
      * Recalculate the "hasIncompatibleAccounts" cache inside DevicePolicyManager.
      */
@@ -826,6 +836,26 @@ public final class DevicePolicy {
                      TestApis.logcat().listen(
                              l -> l.contains("Finished calculating hasIncompatibleAccountsTask"))) {
             sDevicePolicyManager.calculateHasIncompatibleAccounts();
+        }
+    }
+
+    /** See {@link DevicePolicyManager#getPermittedAccessibilityServices} */
+    @Experimental
+    public Set<Package> getPermittedAccessibilityServices() {
+        return getPermittedAccessibilityServices(TestApis.users().instrumented());
+    }
+
+    /** See {@link DevicePolicyManager#getPermittedAccessibilityServices} */
+    @Experimental
+    public Set<Package> getPermittedAccessibilityServices(UserReference user) {
+        try (PermissionContext p = TestApis.permissions().withPermission(INTERACT_ACROSS_USERS, QUERY_ADMIN_POLICY)) {
+            List<String> services = sDevicePolicyManager.getPermittedAccessibilityServices(user.id());
+            if (services == null) {
+                return null;
+            }
+            return services.stream()
+                    .map(packageName -> TestApis.packages().find(packageName))
+                    .collect(Collectors.toSet());
         }
     }
 }

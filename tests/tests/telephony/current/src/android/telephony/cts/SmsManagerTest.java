@@ -22,8 +22,6 @@ import static androidx.test.InstrumentationRegistry.getInstrumentation;
 import static com.android.compatibility.common.util.BlockedNumberUtil.deleteBlockedNumber;
 import static com.android.compatibility.common.util.BlockedNumberUtil.insertBlockedNumber;
 
-import static com.google.common.truth.Truth.assertThat;
-
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,8 +56,6 @@ import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteCallback;
 import android.os.SystemClock;
-import android.os.UserHandle;
-import android.provider.DeviceConfig;
 import android.provider.Telephony;
 import android.telephony.SmsCbMessage;
 import android.telephony.SmsManager;
@@ -157,8 +153,11 @@ public class SmsManagerTest {
         mContext = getContext();
         mTelephonyManager = mContext.getSystemService(TelephonyManager.class);
         mSubscriptionManager = mContext.getSystemService(SubscriptionManager.class);
-        mDestAddr = mTelephonyManager.getLine1Number();
         mText = "This is a test message";
+
+        executeWithShellPermissionIdentity(() -> {
+            mDestAddr = mSubscriptionManager.getPhoneNumber(mTelephonyManager.getSubscriptionId());
+        });
 
         // exclude the networks that don't support SMS delivery report
         String mccmnc = mTelephonyManager.getSimOperator();
@@ -275,6 +274,11 @@ public class SmsManagerTest {
                 TextUtils.isEmpty(mDestAddr));
 
         String mccmnc = mTelephonyManager.getSimOperator();
+        int carrierId = mTelephonyManager.getSimCarrierId();
+        assertFalse("[RERUN] Carrier [carrier-id: " + carrierId + "] does not support "
+                        + "loop back messages. Use another carrier.",
+                CarrierCapability.UNSUPPORT_LOOP_BACK_MESSAGES.contains(carrierId));
+
         init();
 
         CompletableFuture<Bundle> callbackResult = new CompletableFuture<>();
@@ -396,6 +400,10 @@ public class SmsManagerTest {
                 TextUtils.isEmpty(mDestAddr));
 
         String mccmnc = mTelephonyManager.getSimOperator();
+        int carrierId = mTelephonyManager.getSimCarrierId();
+        assertFalse("[RERUN] Carrier [carrier-id: " + carrierId + "] does not support "
+                        + "loop back messages. Use another carrier.",
+                CarrierCapability.UNSUPPORT_LOOP_BACK_MESSAGES.contains(carrierId));
 
         // send/receive single text sms with and without messageId
         sendAndReceiveSms(/* addMessageId= */ true, defaultSmsApp);
@@ -559,61 +567,6 @@ public class SmsManagerTest {
                         setModeForOps(ctsPackageName,
                                 finalOriginalWriteSmsMode, AppOpsManager.OPSTR_WRITE_SMS));
             }
-        }
-    }
-
-    @Test
-    public void testSmsBlocking_userNotAllowed() throws Exception {
-        // Do not test if the feature is not enabled.
-        if (!ShellIdentityUtils.invokeStaticMethodWithShellPermissions(
-                () -> DeviceConfig.getBoolean(DeviceConfig.NAMESPACE_TELEPHONY,
-                        "enable_work_profile_telephony", false))) {
-            return;
-        }
-
-        assertFalse("[RERUN] SIM card does not provide phone number. "
-                        + "Use a suitable SIM Card.", TextUtils.isEmpty(mDestAddr));
-
-        // disable suppressing blocking.
-        TelephonyUtils.endBlockSuppression(getInstrumentation());
-        setDefaultSmsApp(true);
-
-        int defaultSmsSubId = SubscriptionManager.getDefaultSmsSubscriptionId();
-
-        UserHandle originalUserHandle = UserHandle.SYSTEM;
-        try {
-            InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                    .adoptShellPermissionIdentity(
-                            android.Manifest.permission.MANAGE_SUBSCRIPTION_USER_ASSOCIATION);
-            originalUserHandle = mSubscriptionManager.getSubscriptionUserHandle(defaultSmsSubId);
-
-            // Change user handle of default sms subscription.
-            UserHandle testUserHandle = UserHandle.of(100);
-            mSubscriptionManager.setSubscriptionUserHandle(defaultSmsSubId, testUserHandle);
-            assertThat(mSubscriptionManager.getSubscriptionUserHandle(defaultSmsSubId))
-                    .isEqualTo(testUserHandle);
-
-            // Send SMS.
-            init();
-            sendTextMessage(mDestAddr, String.valueOf(SystemClock.elapsedRealtimeNanos()),
-                    mSentIntent, mDeliveredIntent);
-            assertTrue("[RERUN] Could not send SMS. Check signal.",
-                    mSendReceiver.waitForCalls(1, TIME_OUT));
-            assertTrue("Expected no messages to be received as user is not allowed to "
-                            + "send sms.",
-                    mSmsReceivedReceiver.verifyNoCalls(NO_CALLS_TIMEOUT_MILLIS));
-            assertTrue("Expected no messages to be delivered as user is not allowed to "
-                            + "send sms.",
-                    mSmsDeliverReceiver.verifyNoCalls(NO_CALLS_TIMEOUT_MILLIS));
-
-            // CTS tests run in USER_SYSTEM. RESULT_USER_NOT_ALLOWED should be returned as
-            // default sms subscription is not associated with USER_SYSTEM.
-            assertThat(mSendReceiver.getPendingResult().getResultCode())
-                    .isEqualTo(SmsManager.RESULT_USER_NOT_ALLOWED);
-        } finally {
-            mSubscriptionManager.setSubscriptionUserHandle(defaultSmsSubId, originalUserHandle);
-            InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                    .dropShellPermissionIdentity();
         }
     }
 

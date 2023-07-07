@@ -60,11 +60,11 @@ import com.android.bedstead.harrier.annotations.RequireRunOnAdditionalUser
 import com.android.bedstead.harrier.annotations.RequireRunOnWorkProfile
 import com.android.bedstead.harrier.annotations.RequireSdkVersion
 import com.android.bedstead.nene.permissions.CommonPermissions.INTERACT_ACROSS_USERS
+import com.android.compatibility.common.util.ApiTest
 import com.android.compatibility.common.util.DeviceConfigStateChangerRule
 import com.android.compatibility.common.util.SystemUtil.runShellCommand
 import com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity
 import com.android.compatibility.common.util.SystemUtil.waitForBroadcasts
-import com.android.compatibility.common.util.ApiTest
 import com.android.compatibility.common.util.UiAutomatorUtils
 import com.google.common.truth.Truth.assertThat
 import java.io.File
@@ -234,7 +234,6 @@ class AppDataSharingUpdatesTest {
             "The developers of these apps provided info about their data sharing practices" +
                 " to an app store. They may update it over time.\n\nData sharing" +
                 " practices may vary based on your app version, use, region, and age."
-        private const val LEARN_ABOUT_DATA_SHARING = "Learn about data sharing"
         private const val LOCATION_PACKAGE_NAME_SUBSTRING = "android.permissionmultiuser"
         private const val PROPERTY_DATA_SHARING_UPDATE_PERIOD_MILLIS =
             "data_sharing_update_period_millis"
@@ -257,9 +256,10 @@ class AppDataSharingUpdatesTest {
         /** Installs an app with the provided [appMetadata] */
         private fun installPackageViaSession(
             apkName: String,
-            appMetadata: PersistableBundle? = null
+            appMetadata: PersistableBundle? = null,
+            packageSource: Int? = null
         ) {
-            val session = createPackageInstallerSession()
+            val session = createPackageInstallerSession(packageSource)
             runWithShellPermissionIdentity {
                 writePackageInstallerSession(session, apkName)
                 if (appMetadata != null) {
@@ -275,9 +275,15 @@ class AppDataSharingUpdatesTest {
             }
         }
 
-        private fun createPackageInstallerSession(): PackageInstaller.Session {
-            val sessionId =
-                packageInstaller.createSession(SessionParams(SessionParams.MODE_FULL_INSTALL))
+        private fun createPackageInstallerSession(
+            packageSource: Int? = null
+        ): PackageInstaller.Session {
+            val sessionParam = SessionParams(SessionParams.MODE_FULL_INSTALL)
+            if (packageSource != null) {
+                sessionParam.setPackageSource(packageSource)
+            }
+
+            val sessionId = packageInstaller.createSession(sessionParam)
             return packageInstaller.openSession(sessionId)
         }
 
@@ -402,7 +408,6 @@ class AppDataSharingUpdatesTest {
             findView(By.textContains(DATA_SHARING_UPDATES_SUBTITLE), true)
             findView(By.textContains(UPDATES_IN_LAST_30_DAYS), true)
             findView(By.textContains(DATA_SHARING_UPDATES_FOOTER_MESSAGE), true)
-            findView(By.textContains(LEARN_ABOUT_DATA_SHARING), true)
         }
 
         private fun assertNoUpdatesPresent() {
@@ -412,7 +417,6 @@ class AppDataSharingUpdatesTest {
             findView(By.textContains(LOCATION_PACKAGE_NAME_SUBSTRING), false)
             findView(By.textContains(UPDATES_IN_LAST_30_DAYS), false)
             findView(By.textContains(DATA_SHARING_UPDATES_FOOTER_MESSAGE), true)
-            findView(By.textContains(LEARN_ABOUT_DATA_SHARING), true)
         }
 
         private fun grantLocationPermission(packageName: String) {

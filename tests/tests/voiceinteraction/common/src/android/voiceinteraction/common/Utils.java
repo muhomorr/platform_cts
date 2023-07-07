@@ -15,6 +15,8 @@
  */
 package android.voiceinteraction.common;
 
+import static android.service.voice.HotwordAudioStream.KEY_AUDIO_STREAM_COPY_BUFFER_LENGTH_BYTES;
+
 import android.app.VoiceInteractor.PickOptionRequest.Option;
 import android.content.LocusId;
 import android.media.AudioFormat;
@@ -91,7 +93,12 @@ public class Utils {
     public static final int EXTRA_HOTWORD_DETECTION_SERVICE_SEND_CUSTOM_INIT_STATUS = 4;
     public static final int EXTRA_HOTWORD_DETECTION_SERVICE_ENABLE_AUDIO_EGRESS = 5;
     public static final int EXTRA_HOTWORD_DETECTION_SERVICE_CLEAR_SOFTWARE_DETECTION_JOB = 6;
-    public static final int EXTRA_HOTWORD_DETECTION_SERVICE_No_NEED_ACTION_DURING_DETECTION = 7;
+    public static final int EXTRA_HOTWORD_DETECTION_SERVICE_NO_NEED_ACTION_DURING_DETECTION = 7;
+    // test scenario to verify the HotwordDetectionService was created after a given time
+    // This can be used to verify the service was restarted or recreated.
+    public static final int EXTRA_HOTWORD_DETECTION_SERVICE_SEND_SUCCESS_IF_CREATED_AFTER = 8;
+    // Check the HotwordDetectionService can read audio and the data is not zero
+    public static final int EXTRA_HOTWORD_DETECTION_SERVICE_CAN_READ_AUDIO_DATA_IS_NOT_ZERO = 9;
 
     /** Indicate to start a new activity for testing. */
     public static final int ACTIVITY_NEW = 0;
@@ -178,6 +185,15 @@ public class Utils {
     public static final String KEY_DETECTION_DELAY_MS = "detectionDelayMs";
     public static final String KEY_DETECTION_REJECTED = "detection_rejected";
     public static final String KEY_INITIALIZATION_STATUS = "initialization_status";
+    /**
+     * It only works when the test scenario is
+     * {@link #EXTRA_HOTWORD_DETECTION_SERVICE_ENABLE_AUDIO_EGRESS}
+     *
+     * Type: Boolean
+     */
+    public static final String KEY_AUDIO_EGRESS_USE_ILLEGAL_COPY_BUFFER_SIZE =
+            "useIllegalCopyBufferSize";
+    public static final String KEY_TIMESTAMP_MILLIS = "timestamp_millis";
 
     public static final String VOICE_INTERACTION_KEY_CALLBACK = "callback";
     public static final String VOICE_INTERACTION_KEY_CONTROL = "control";
@@ -233,17 +249,38 @@ public class Utils {
                     .setTimestamp(createFakeAudioTimestamp())
                     .build();
 
+    private static final HotwordAudioStream HOTWORD_AUDIO_STREAM_WRONG_COPY_BUFFER_SIZE =
+            new HotwordAudioStream.Builder(createFakeAudioFormat(), createFakeAudioStream())
+                    .setInitialAudio(FAKE_HOTWORD_AUDIO_DATA)
+                    .setMetadata(createFakePersistableBundleData(0))
+                    .setTimestamp(createFakeAudioTimestamp())
+                    .build();
+
     public static final HotwordDetectedResult AUDIO_EGRESS_DETECTED_RESULT =
             new HotwordDetectedResult.Builder().setAudioStreams(
                     List.of(HOTWORD_AUDIO_STREAM)).build();
+
+    public static final HotwordDetectedResult AUDIO_EGRESS_DETECTED_RESULT_WRONG_COPY_BUFFER_SIZE =
+            new HotwordDetectedResult.Builder().setAudioStreams(
+                    List.of(HOTWORD_AUDIO_STREAM_WRONG_COPY_BUFFER_SIZE)).build();
 
     /**
      * Returns the PersistableBundle data that is used for testing.
      */
     private static PersistableBundle createFakePersistableBundleData() {
+        return createFakePersistableBundleData(/* copyBufferSize= */ -1);
+    }
+
+    /**
+     * Returns the PersistableBundle data that is used for testing.
+     */
+    private static PersistableBundle createFakePersistableBundleData(int copyBufferSize) {
         // TODO : Add more data for testing
         PersistableBundle persistableBundle = new PersistableBundle();
         persistableBundle.putString(KEY_FAKE_DATA, VALUE_FAKE_DATA);
+        if (copyBufferSize > -1) {
+            persistableBundle.putInt(KEY_AUDIO_STREAM_COPY_BUFFER_LENGTH_BYTES, copyBufferSize);
+        }
         return persistableBundle;
     }
 
@@ -334,7 +371,7 @@ public class Utils {
 
     public static final void addErrorResult(final Bundle testinfo, final String msg) {
         testinfo.getStringArrayList(testinfo.getString(Utils.TESTCASE_TYPE))
-            .add(TEST_ERROR + " " + msg);
+                .add(TEST_ERROR + " " + msg);
     }
 
     public static boolean await(CountDownLatch latch) {

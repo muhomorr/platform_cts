@@ -51,8 +51,6 @@ import android.platform.test.annotations.Presubmit;
 import android.server.wm.CommandSession.ActivityCallback;
 import android.server.wm.TestJournalProvider.TestJournalContainer;
 
-import androidx.test.filters.FlakyTest;
-
 import com.android.compatibility.common.util.SystemUtil;
 
 import org.junit.Test;
@@ -205,7 +203,6 @@ public class ConfigChangeTests extends ActivityManagerTestBase {
     }
 
     @Test
-    @FlakyTest(bugId = 270696442)
     public void testChangeFontScaleNoRelaunch() {
         // Should receive onConfigurationChanged() and no relaunch
         testChangeFontScale(FONT_SCALE_NO_RELAUNCH_ACTIVITY, false /* relaunch */);
@@ -237,7 +234,13 @@ public class ConfigChangeTests extends ActivityManagerTestBase {
             separateTestJournal();
             rotationSession.set(rotation);
             mWmState.computeState(activityName);
-            assertRelaunchOrConfigChanged(activityName, numRelaunch, numConfigChange);
+            // The configuration could be changed more than expected due to TaskBar recreation.
+            new ActivityLifecycleCounts(activityName).assertCountWithRetry(
+                    "relaunch or config changed",
+                    countSpec(ActivityCallback.ON_DESTROY, CountSpec.EQUALS, numRelaunch),
+                    countSpec(ActivityCallback.ON_CREATE, CountSpec.EQUALS, numRelaunch),
+                    countSpec(ActivityCallback.ON_CONFIGURATION_CHANGED,
+                            CountSpec.GREATER_THAN_OR_EQUALS, numConfigChange));
         }
     }
 
@@ -268,6 +271,7 @@ public class ConfigChangeTests extends ActivityManagerTestBase {
                     "relaunch or config changed",
                     countSpec(ActivityCallback.ON_DESTROY, CountSpec.EQUALS, relaunch ? 1 : 0),
                     countSpec(ActivityCallback.ON_CREATE, CountSpec.EQUALS, relaunch ? 1 : 0),
+                    countSpec(ActivityCallback.ON_RESUME, CountSpec.EQUALS, relaunch ? 1 : 0),
                     countSpec(ActivityCallback.ON_CONFIGURATION_CHANGED,
                             CountSpec.GREATER_THAN_OR_EQUALS, relaunch ? 0 : 1));
 

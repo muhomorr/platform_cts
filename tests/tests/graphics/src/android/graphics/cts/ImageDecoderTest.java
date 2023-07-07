@@ -61,6 +61,7 @@ import androidx.test.filters.RequiresDevice;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.BitmapUtils;
+import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.MediaUtils;
 
 import org.junit.Test;
@@ -123,7 +124,7 @@ public class ImageDecoderTest {
                 new Record(R.drawable.color_wheel, 128, 128, "image/x-ico", false, true, sSRGB),
                 new Record(R.raw.sample_1mp, 600, 338, "image/x-adobe-dng", false, false, sSRGB)
         }));
-        if (MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
+        if (ImageDecoder.isMimeTypeSupported("image/heif")) {
             // HEIF support is optional when HEVC decoder is not supported.
             records.add(new Record(R.raw.heifwriter_input, 1920, 1080, "image/heif", false, false,
                                    sSRGB));
@@ -285,6 +286,7 @@ public class ImageDecoderTest {
     }
 
     @Test
+    @CddTest(requirements = {"5.1.5/C-0-7"})
     @RequiresDevice
     public void testDecode10BitAvif() {
         assumeTrue("AVIF is not supported on this device, skip this test.",
@@ -335,6 +337,7 @@ public class ImageDecoderTest {
     }
 
     @Test
+    @CddTest(requirements = {"5.1.5/C-0-7"})
     @RequiresDevice
     public void testDecode10BitAvifWithLowRam() {
         assumeTrue("AVIF is not supported on this device, skip this test.",
@@ -2015,7 +2018,10 @@ public class ImageDecoderTest {
                 if (resId == R.drawable.png_test) {
                     // We do not support 565 in HARDWARE, so no RAM savings
                     // are possible.
-                    assertEquals(normalByteCount, byteCount);
+                    // Provide a little wiggle room to allow for gralloc allocation size
+                    // variances
+                    assertTrue(byteCount < (normalByteCount * 1.1));
+                    assertTrue(byteCount >= (normalByteCount * 0.9));
                 } else { // R.raw.f16
                     // This image defaults to F16. MEMORY_POLICY_LOW_RAM
                     // forces "test" to decode to 8888.
@@ -2785,7 +2791,6 @@ public class ImageDecoderTest {
         }
 
         for (String mimeType : new String[] {
-                "image/heic",
                 "image/vnd.wap.wbmp",
                 "image/x-sony-arw",
                 "image/x-canon-cr2",
@@ -2800,6 +2805,9 @@ public class ImageDecoderTest {
         }) {
             assertTrue(mimeType, ImageDecoder.isMimeTypeSupported(mimeType));
         }
+
+        assertEquals("image/heic", ImageDecoder.isMimeTypeSupported("image/heic"),
+                MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC));
 
         assertFalse(ImageDecoder.isMimeTypeSupported("image/x-does-not-exist"));
     }

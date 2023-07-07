@@ -17,6 +17,8 @@
 package android.server.wm;
 
 import static android.app.AppOpsManager.MODE_ERRORED;
+import static android.app.WindowConfiguration.ACTIVITY_TYPE_STANDARD;
+import static android.app.WindowConfiguration.WINDOWING_MODE_PINNED;
 import static android.server.wm.ComponentNameUtils.getActivityName;
 import static android.server.wm.backgroundactivity.common.CommonComponents.COMMON_FOREGROUND_ACTIVITY_EXTRAS;
 
@@ -38,7 +40,6 @@ import android.util.Log;
 import androidx.annotation.CallSuper;
 
 import com.android.compatibility.common.util.AppOpsUtils;
-import com.android.compatibility.common.util.DeviceConfigStateHelper;
 
 import org.junit.After;
 import org.junit.Before;
@@ -74,24 +75,8 @@ public abstract class BackgroundActivityTestBase extends ActivityManagerTestBase
 
     // TODO(b/258792202): Cleanup with feature flag
     static final String NAMESPACE_WINDOW_MANAGER = "window_manager";
-    static final String ENABLE_DEFAULT_RESCIND_BAL_PRIVILEGES_FROM_PENDING_INTENT_SENDER =
-            "DefaultRescindBalPrivilegesFromPendingIntentSender__"
-                    + "enable_default_rescind_bal_privileges_from_pending_intent_sender";
-    final DeviceConfigStateHelper mDeviceConfig =
-            new DeviceConfigStateHelper(NAMESPACE_WINDOW_MANAGER);
 
     ServiceConnection mBalServiceConnection;
-
-    @Before
-    public void enableFeatureFlags() {
-        mDeviceConfig.set(
-                ENABLE_DEFAULT_RESCIND_BAL_PRIVILEGES_FROM_PENDING_INTENT_SENDER, "true");
-    }
-
-    @After
-    public void disableFeatureFlags() throws Exception {
-        mDeviceConfig.close();
-    }
 
     @Override
     @Before
@@ -152,6 +137,10 @@ public abstract class BackgroundActivityTestBase extends ActivityManagerTestBase
         return waitForActivityFocused(ACTIVITY_FOCUS_TIMEOUT_MS, componentName);
     }
 
+    void assertPinnedStackDoesNotExist() {
+        mWmState.assertDoesNotContainStack("Must not contain pinned stack.",
+                WINDOWING_MODE_PINNED, ACTIVITY_TYPE_STANDARD);
+    }
     void assertTaskStackIsEmpty(ComponentName sourceComponent) {
         Task task = mWmState.getTaskByActivity(sourceComponent);
         assertWithMessage("task for %s", sourceComponent.flattenToShortString()).that(task)

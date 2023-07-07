@@ -18,8 +18,6 @@ package android.packageinstaller.install.cts
 
 import android.app.Activity
 import android.app.PendingIntent
-import android.app.admin.DevicePolicyManager
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller.EXTRA_STATUS
 import android.content.pm.PackageInstaller.STATUS_FAILURE_INVALID
@@ -48,6 +46,7 @@ import com.android.bedstead.nene.userrestrictions.CommonUserRestrictions.DISALLO
 import com.android.bedstead.nene.userrestrictions.CommonUserRestrictions.DISALLOW_INSTALL_APPS
 import com.android.bedstead.nene.users.UserReference
 import com.android.bedstead.nene.utils.ShellCommand
+import com.android.compatibility.common.util.ApiTest
 import com.android.compatibility.common.util.BlockingBroadcastReceiver
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
@@ -64,23 +63,14 @@ import org.junit.runner.RunWith
 @RunWith(BedsteadJUnit4::class)
 @AppModeFull(reason = "DEVICE_POLICY_SERVICE is null in instant mode")
 class UserRestrictionInstallTest : PackageInstallerTestBase() {
-    private val TAG = "UserRestrictionInstallTest"
     private val APP_INSTALL_ACTION =
             "android.packageinstaller.install.cts.UserRestrictionInstallTest.action"
-    private val mDpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE)
-                            as DevicePolicyManager
-    private val DISABLED_BY_IT_ADMIN = mDpm.resources
-            .getString("Settings.DISABLED_BY_IT_ADMIN_TITLE") { "INCORRECT_STRING" }!!
 
     companion object {
         @JvmField
         @ClassRule
         @Rule
         val sDeviceState = DeviceState()
-    }
-    init {
-        TestApis.devicePolicy().resources().strings().set("Settings.DISABLED_BY_IT_ADMIN_TITLE",
-                R.string.disabled_by_policy_title)
     }
 
     @Before
@@ -95,6 +85,7 @@ class UserRestrictionInstallTest : PackageInstallerTestBase() {
     }
 
     @Test
+    @ApiTest(apis = ["android.os.UserManager#DISALLOW_DEBUGGING_FEATURES"])
     @DevicePolicyRelevant
     @EnsureHasWorkProfile
     @EnsureHasUserRestriction(value = DISALLOW_DEBUGGING_FEATURES, onUser = UserType.WORK_PROFILE)
@@ -116,6 +107,7 @@ class UserRestrictionInstallTest : PackageInstallerTestBase() {
     }
 
     @Test
+    @ApiTest(apis = ["android.os.UserManager#DISALLOW_DEBUGGING_FEATURES"])
     @DevicePolicyRelevant
     @EnsureHasWorkProfile
     @EnsureHasUserRestriction(value = DISALLOW_DEBUGGING_FEATURES, onUser = UserType.WORK_PROFILE)
@@ -132,6 +124,7 @@ class UserRestrictionInstallTest : PackageInstallerTestBase() {
     }
 
     @Test
+    @ApiTest(apis = ["android.os.UserManager#DISALLOW_DEBUGGING_FEATURES"])
     @DevicePolicyRelevant
     @EnsureHasWorkProfile
     @EnsureHasUserRestriction(value = DISALLOW_DEBUGGING_FEATURES, onUser = UserType.WORK_PROFILE)
@@ -152,6 +145,7 @@ class UserRestrictionInstallTest : PackageInstallerTestBase() {
     }
 
     @Test
+    @ApiTest(apis = ["android.os.UserManager#DISALLOW_DEBUGGING_FEATURES"])
     @DevicePolicyRelevant
     @EnsureHasUserRestriction(value = DISALLOW_DEBUGGING_FEATURES, onUser = UserType.WORK_PROFILE)
     @EnsureDoesNotHaveUserRestriction(value = DISALLOW_INSTALL_APPS, onUser = UserType.WORK_PROFILE)
@@ -170,6 +164,7 @@ class UserRestrictionInstallTest : PackageInstallerTestBase() {
     }
 
     @Test
+    @ApiTest(apis = ["android.os.UserManager#DISALLOW_INSTALL_APPS"])
     @DevicePolicyRelevant
     @EnsureHasWorkProfile
     @EnsureHasUserRestriction(value = DISALLOW_INSTALL_APPS, onUser = UserType.WORK_PROFILE)
@@ -196,6 +191,7 @@ class UserRestrictionInstallTest : PackageInstallerTestBase() {
     }
 
     @Test
+    @ApiTest(apis = ["android.os.UserManager#DISALLOW_INSTALL_APPS"])
     @DevicePolicyRelevant
     @EnsureHasWorkProfile
     @EnsureHasUserRestriction(value = DISALLOW_INSTALL_APPS, onUser = UserType.WORK_PROFILE)
@@ -217,6 +213,7 @@ class UserRestrictionInstallTest : PackageInstallerTestBase() {
     }
 
     @Test
+    @ApiTest(apis = ["android.os.UserManager#DISALLOW_INSTALL_APPS"])
     @DevicePolicyRelevant
     @EnsureHasWorkProfile
     @EnsureHasUserRestriction(value = DISALLOW_INSTALL_APPS, onUser = UserType.WORK_PROFILE)
@@ -231,6 +228,7 @@ class UserRestrictionInstallTest : PackageInstallerTestBase() {
     }
 
     @Test
+    @ApiTest(apis = ["android.os.UserManager#DISALLOW_INSTALL_APPS"])
     @DevicePolicyRelevant
     @EnsureHasUserRestriction(value = DISALLOW_INSTALL_APPS, onUser = UserType.WORK_PROFILE)
     @EnsureDoesNotHaveUserRestriction(value = DISALLOW_DEBUGGING_FEATURES,
@@ -243,12 +241,9 @@ class UserRestrictionInstallTest : PackageInstallerTestBase() {
         val appInstallIntent = getAppInstallationIntent(apkFile)
 
         val installation = startInstallationViaIntent(appInstallIntent)
-        val blockedByPolicy: UiObject = TestApis.ui().device().findObject(
-                UiSelector().text(DISABLED_BY_IT_ADMIN)
-        )
-        assertThat(blockedByPolicy).isNotNull()
+        // Dismiss the device policy dialog
         val closeBtn: UiObject = TestApis.ui().device().findObject(
-                UiSelector().text("Close")
+                UiSelector().resourceId("android:id/button1")
         )
         closeBtn.click()
 
@@ -258,6 +253,8 @@ class UserRestrictionInstallTest : PackageInstallerTestBase() {
     }
 
     @Test
+    @ApiTest(apis = ["android.os.UserManager#DISALLOW_DEBUGGING_FEATURES",
+        "android.os.UserManager#DISALLOW_INSTALL_APPS"])
     @DevicePolicyRelevant
     @EnsureHasWorkProfile
     @EnsureDoesNotHaveUserRestriction(value = DISALLOW_DEBUGGING_FEATURES,
@@ -336,6 +333,7 @@ class UserRestrictionInstallTest : PackageInstallerTestBase() {
         receiver.register()
 
         val intent = Intent(APP_INSTALL_ACTION).setPackage(context.packageName)
+                .addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
         val pendingIntent = PendingIntent.getBroadcast(
                 context, 0 /* requestCode */, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)

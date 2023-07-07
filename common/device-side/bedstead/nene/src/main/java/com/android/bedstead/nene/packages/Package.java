@@ -67,6 +67,7 @@ import com.android.bedstead.nene.roles.RoleContext;
 import com.android.bedstead.nene.users.UserReference;
 import com.android.bedstead.nene.utils.Poll;
 import com.android.bedstead.nene.utils.ShellCommand;
+import com.android.bedstead.nene.utils.ShellCommandUtils;
 import com.android.bedstead.nene.utils.Versions;
 import com.android.compatibility.common.util.BlockingBroadcastReceiver;
 import com.android.compatibility.common.util.BlockingCallback.DefaultBlockingCallback;
@@ -126,6 +127,7 @@ public final class Package {
                     .validate(
                             (output) -> output.contains("installed for user"))
                     .execute();
+
             return this;
         } catch (AdbException e) {
             throw new NeneException("Could not install-existing package " + this, e);
@@ -305,7 +307,9 @@ public final class Package {
     @Experimental
     public Package disable(UserReference user) {
         try {
-            ShellCommand.builderForUser(user, "pm disable")
+            // TODO(279387509): "pm disable" is currently broken for packages - restore to normal
+            //  disable when fixed
+            ShellCommand.builderForUser(user, "pm disable-user")
                     .addOperand(mPackageName)
                     .validate(o -> o.contains("new state"))
                     .execute();
@@ -564,18 +568,21 @@ public final class Package {
 
     @Nullable
     private PackageInfo packageInfoForUser(UserReference user, int flags) {
+        if (TestApis.packages().instrumented().isInstantApp()
+                || !Versions.meetsMinimumSdkVersionRequirement(S)) {
+            // Can't call API's directly
+            return packageInfoForUserPreS(user, flags);
+        }
+
         if (user.equals(TestApis.users().instrumented())) {
             try {
                 return TestApis.context().instrumentedContext()
                         .getPackageManager()
                         .getPackageInfo(mPackageName, /* flags= */ flags);
             } catch (PackageManager.NameNotFoundException e) {
+                Log.e(LOG_TAG, "Could not find package " + this + " on user " + user, e);
                 return null;
             }
-        }
-
-        if (!Versions.meetsMinimumSdkVersionRequirement(S)) {
-            return packageInfoForUserPreS(user, flags);
         }
 
         if (Permissions.sIgnorePermissions.get()) {
@@ -1054,8 +1061,16 @@ public final class Package {
      */
     @Experimental
     public int getAppStandbyBucket() {
+        return getAppStandbyBucket(TestApis.users().instrumented());
+    }
+
+    /**
+     * Get the app standby bucket of the package.
+     */
+    @Experimental
+    public int getAppStandbyBucket(UserReference user) {
         try {
-            return ShellCommand.builder("am get-standby-bucket")
+            return ShellCommand.builderForUser(user, "am get-standby-bucket")
                 .addOperand(mPackageName)
                 .executeAndParseOutput(o -> Integer.parseInt(o.trim()));
         } catch (AdbException e) {
@@ -1081,5 +1096,13 @@ public final class Package {
     @Experimental
     public boolean isRoleHolder(String role) {
         return TestApis.roles().getRoleHolders(role).contains(this.mPackageName);
+    }
+
+    @Experimental
+    public void clearStorage() {
+        ShellCommand.builder("pm clear")
+                .addOperand(mPackageName)
+                .validate(ShellCommandUtils::startsWithSuccess)
+                .executeOrThrowNeneException("Error clearing storage for " + this);
     }
 }

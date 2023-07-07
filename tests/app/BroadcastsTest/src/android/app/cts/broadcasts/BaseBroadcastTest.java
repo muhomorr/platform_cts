@@ -16,17 +16,22 @@
 
 package android.app.cts.broadcasts;
 
+import static com.android.app.cts.broadcasts.Common.TAG;
+
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertNull;
 
 import android.app.ActivityManager;
+import android.app.AppGlobals;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.Process;
 import android.util.Log;
 
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -49,16 +54,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 abstract class BaseBroadcastTest {
-    public static final String TAG = "BroadcastTest";
-
     protected static final long TIMEOUT_BIND_SERVICE_SEC = 2;
 
     protected static final long SHORT_FREEZER_TIMEOUT_MS = 5000;
+    protected static final long BROADCAST_RECEIVE_TIMEOUT_MS = 5000;
 
     protected static final String HELPER_PKG1 = "com.android.app.cts.broadcasts.helper";
     protected static final String HELPER_PKG2 = "com.android.app.cts.broadcasts.helper2";
@@ -81,23 +86,34 @@ abstract class BaseBroadcastTest {
 
     @Before
     public void setUp() {
-        mContext = InstrumentationRegistry.getInstrumentation().getContext();
+        mContext = getContext();
         mAm = mContext.getSystemService(ActivityManager.class);
         AmUtils.waitForBroadcastBarrier();
     }
 
+    @Before
+    public void unsetPackageStoppedState() {
+        // Bring test apps out of the stopped state so that they can receive broadcasts
+        SystemUtil.runWithShellPermissionIdentity(() -> {
+            for (String pkg : new String[] {HELPER_PKG1, HELPER_PKG2}) {
+                AppGlobals.getPackageManager().setPackageStoppedState(pkg, false,
+                        Process.myUserHandle().getIdentifier());
+            }
+        });
+    }
+
     @After
     public void tearDown() throws Exception {
-        for (String pkg : new String[] {HELPER_PKG1, HELPER_PKG2}) {
-            forceDelayBroadcasts(pkg, 0);
-            final TestServiceConnection connection = bindToHelperService(pkg);
-            try {
-                final ICommandReceiver cmdReceiver = connection.getCommandReceiver();
-                cmdReceiver.tearDown();
-            } finally {
-                connection.unbind();
+        SystemUtil.runWithShellPermissionIdentity(() -> {
+            for (String pkg : new String[] {HELPER_PKG1, HELPER_PKG2}) {
+                mAm.forceDelayBroadcastDelivery(pkg, 0);
+                mAm.forceStopPackage(pkg);
             }
-        }
+        });
+    }
+
+    protected static Context getContext() {
+        return InstrumentationRegistry.getInstrumentation().getContext();
     }
 
     protected void forceDelayBroadcasts(String targetPackage) {
@@ -338,6 +354,19 @@ abstract class BaseBroadcastTest {
                 mContext.unbindService(this);
             }
             mCommandReceiver = null;
+        }
+    }
+
+    static class ResultReceiver extends BroadcastReceiver {
+        private final BlockingQueue<String> mResultData = new ArrayBlockingQueue<>(1);
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            mResultData.offer(getResultData());
+        }
+
+        public String getResult() throws Exception {
+            return mResultData.poll(BROADCAST_RECEIVE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         }
     }
 }

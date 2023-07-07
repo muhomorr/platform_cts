@@ -17,7 +17,6 @@
 package com.android.bedstead.harrier;
 
 import static android.Manifest.permission.INTERACT_ACROSS_USERS_FULL;
-import static android.Manifest.permission.MANAGE_DEVICE_POLICY_TIME;
 import static android.content.pm.PackageManager.FEATURE_MANAGED_USERS;
 import static android.os.Build.VERSION.SDK_INT;
 
@@ -48,6 +47,7 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.UserManager;
 import android.service.quicksettings.TileService;
@@ -61,6 +61,8 @@ import com.android.bedstead.harrier.annotations.EnsureBluetoothDisabled;
 import com.android.bedstead.harrier.annotations.EnsureBluetoothEnabled;
 import com.android.bedstead.harrier.annotations.EnsureCanAddUser;
 import com.android.bedstead.harrier.annotations.EnsureCanGetPermission;
+import com.android.bedstead.harrier.annotations.EnsureDefaultContentSuggestionsServiceDisabled;
+import com.android.bedstead.harrier.annotations.EnsureDefaultContentSuggestionsServiceEnabled;
 import com.android.bedstead.harrier.annotations.EnsureDoesNotHaveAppOp;
 import com.android.bedstead.harrier.annotations.EnsureDoesNotHavePermission;
 import com.android.bedstead.harrier.annotations.EnsureDoesNotHaveUserRestriction;
@@ -76,6 +78,7 @@ import com.android.bedstead.harrier.annotations.EnsureHasAppOp;
 import com.android.bedstead.harrier.annotations.EnsureHasNoAccounts;
 import com.android.bedstead.harrier.annotations.EnsureHasNoAdditionalUser;
 import com.android.bedstead.harrier.annotations.EnsureHasPermission;
+import com.android.bedstead.harrier.annotations.EnsureHasTestContentSuggestionsService;
 import com.android.bedstead.harrier.annotations.EnsureHasUserRestriction;
 import com.android.bedstead.harrier.annotations.EnsurePackageNotInstalled;
 import com.android.bedstead.harrier.annotations.EnsurePasswordNotSet;
@@ -114,6 +117,7 @@ import com.android.bedstead.harrier.annotations.RequireRunOnVisibleBackgroundNon
 import com.android.bedstead.harrier.annotations.RequireSdkVersion;
 import com.android.bedstead.harrier.annotations.RequireSystemServiceAvailable;
 import com.android.bedstead.harrier.annotations.RequireTargetSdkVersion;
+import com.android.bedstead.harrier.annotations.RequireTelephonySupport;
 import com.android.bedstead.harrier.annotations.RequireUserSupported;
 import com.android.bedstead.harrier.annotations.RequireVisibleBackgroundUsers;
 import com.android.bedstead.harrier.annotations.RequireVisibleBackgroundUsersOnDefaultDisplay;
@@ -149,6 +153,7 @@ import com.android.bedstead.nene.exceptions.AdbException;
 import com.android.bedstead.nene.exceptions.NeneException;
 import com.android.bedstead.nene.flags.Flags;
 import com.android.bedstead.nene.logcat.SystemServerException;
+import com.android.bedstead.nene.packages.ComponentReference;
 import com.android.bedstead.nene.packages.Package;
 import com.android.bedstead.nene.permissions.PermissionContext;
 import com.android.bedstead.nene.permissions.PermissionContextImpl;
@@ -265,10 +270,39 @@ public final class DeviceState extends HarrierRule {
             Duration.ofMillis(
                     Long.parseLong(TestApis.instrumentation().arguments().getString(
                             "timeout_msec", "600000")) - 2000);
+
+    // We allow overriding the limit on a class-by-class basis
+    private final Duration mMaxTestDuration;
+
     private final ExecutorService mTestExecutor = Executors.newSingleThreadExecutor();
     private Thread mTestThread;
 
-    public DeviceState() {
+    private PackageManager mPackageManager = sContext.getPackageManager();
+
+    public static final class Builder {
+
+        private Duration mMaxTestDuration = MAX_TEST_DURATION;
+
+        private Builder() {
+
+        }
+
+        public Builder maxTestDuration(Duration maxTestDuration) {
+            mMaxTestDuration = maxTestDuration;
+            return this;
+        }
+
+        public DeviceState build() {
+            return new DeviceState(mMaxTestDuration);
+        }
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public DeviceState(Duration maxTestDuration) {
+        mMaxTestDuration = maxTestDuration;
         Future<Thread> testThreadFuture = mTestExecutor.submit(Thread::currentThread);
 
         mSkipTestTeardown = TestApis.instrumentation().arguments().getBoolean(
@@ -295,6 +329,10 @@ public final class DeviceState extends HarrierRule {
             throw new AssertionError(
                     "Error setting up DeviceState. Interrupted getting test thread", e);
         }
+    }
+
+    public DeviceState() {
+        this(MAX_TEST_DURATION);
     }
 
     @Override
@@ -330,20 +368,9 @@ public final class DeviceState extends HarrierRule {
                     }
                 });
 
+                Throwable t;
                 try {
-                    Throwable t = future.get(MAX_TEST_DURATION.getSeconds(), TimeUnit.SECONDS);
-                    if (t != null) {
-                        if (t.getStackTrace().length > 0) {
-                            if (t.getStackTrace()[0].getMethodName().equals("createExceptionOrNull")) {
-                                SystemServerException s = TestApis.logcat().findSystemServerException(t);
-                                if (s != null) {
-                                    throw s;
-                                }
-                            }
-                        }
-
-                        throw t;
-                    }
+                    t = future.get(mMaxTestDuration.getSeconds(), TimeUnit.SECONDS);
                 } catch (TimeoutException e) {
                     StackTraceElement[] stack = mTestThread.getStackTrace();
                     future.cancel(true);
@@ -353,6 +380,18 @@ public final class DeviceState extends HarrierRule {
                                     + " after " + MAX_TEST_DURATION);
                     assertionError.setStackTrace(stack);
                     throw assertionError;
+                }
+                if (t != null) {
+                    if (t.getStackTrace().length > 0) {
+                        if (t.getStackTrace()[0].getMethodName().equals("createExceptionOrNull")) {
+                            SystemServerException s = TestApis.logcat().findSystemServerException(t);
+                            if (s != null) {
+                                throw s;
+                            }
+                        }
+                    }
+
+                    throw t;
                 }
             }
         };
@@ -364,6 +403,9 @@ public final class DeviceState extends HarrierRule {
         try {
             Log.d(LOG_TAG, "Preparing state for test " + testName);
 
+            if (mOriginalSwitchedUser == null) {
+                mOriginalSwitchedUser = TestApis.users().current();
+            }
             testApps().snapshot();
             Tags.clearTags();
             Tags.addTag(Tags.USES_DEVICESTATE);
@@ -502,6 +544,39 @@ public final class DeviceState extends HarrierRule {
                 ensureHasUser(
                         ensureHasUserAnnotation.value(), installInstrumentedApp,
                         switchedToUser);
+                continue;
+            }
+
+            if (annotation instanceof EnsureDefaultContentSuggestionsServiceEnabled) {
+                EnsureDefaultContentSuggestionsServiceEnabled
+                        ensureDefaultContentSuggestionsServiceEnabledAnnotation =
+                        (EnsureDefaultContentSuggestionsServiceEnabled) annotation;
+
+                ensureDefaultContentSuggestionsServiceEnabled(
+                        ensureDefaultContentSuggestionsServiceEnabledAnnotation.onUser(),
+                        /* enabled= */ true
+                );
+                continue;
+            }
+
+            if (annotation instanceof EnsureDefaultContentSuggestionsServiceDisabled) {
+                EnsureDefaultContentSuggestionsServiceDisabled
+                        ensureDefaultContentSuggestionsServiceDisabledAnnotation =
+                        (EnsureDefaultContentSuggestionsServiceDisabled) annotation;
+
+                ensureDefaultContentSuggestionsServiceEnabled(
+                        ensureDefaultContentSuggestionsServiceDisabledAnnotation.onUser(),
+                        /* enabled= */ false
+                );
+                continue;
+            }
+
+            if (annotation instanceof EnsureHasTestContentSuggestionsService) {
+                EnsureHasTestContentSuggestionsService
+                        ensureHasTestContentSuggestionsServiceAnnotation =
+                        (EnsureHasTestContentSuggestionsService) annotation;
+                ensureHasTestContentSuggestionsService(
+                        ensureHasTestContentSuggestionsServiceAnnotation.onUser());
                 continue;
             }
 
@@ -1036,6 +1111,7 @@ public final class DeviceState extends HarrierRule {
                 EnsureSecureSettingSet ensureSecureSettingSetAnnotation =
                         (EnsureSecureSettingSet) annotation;
                 ensureSecureSettingSet(
+                        ensureSecureSettingSetAnnotation.onUser(),
                         ensureSecureSettingSetAnnotation.key(),
                         ensureSecureSettingSetAnnotation.value());
                 continue;
@@ -1215,8 +1291,17 @@ public final class DeviceState extends HarrierRule {
                 continue;
             }
 
+            if (annotation instanceof RequireTelephonySupport) {
+                RequireTelephonySupport requireTelephonySupport =
+                        (RequireTelephonySupport) annotation;
+                checkFailOrSkip("Device does not have telephony support",
+                        mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY),
+                        requireTelephonySupport.failureMode());
+                continue;
+            }
+
             if (annotation instanceof MostImportantCoexistenceTest) {
-                mTestApps.put(MostImportantCoexistenceTest.MORE_IMPORTANT, dpmRoleHolder());
+                mTestApps.put(MostImportantCoexistenceTest.MORE_IMPORTANT, deviceOwner());
 
                 MostImportantCoexistenceTest mostImportantCoexistenceTestAnnotation =
                         (MostImportantCoexistenceTest) annotation;
@@ -1319,6 +1404,7 @@ public final class DeviceState extends HarrierRule {
         }
 
         annotations.addAll(description.getAnnotations());
+        annotations.sort(BedsteadJUnit4::annotationSorter);
 
         checkAnnotations(annotations);
 
@@ -1537,7 +1623,7 @@ public final class DeviceState extends HarrierRule {
                                 + "switchedToUser=ANY");
             } else {
                 throw new IllegalStateException(
-                        "Not permitted to switch to user " + instrumentedUser);
+                        "Not permitted to switch to user " + instrumentedUser + "(" + instrumentedUser.getSwitchToUserError() + ")");
             }
         }
 
@@ -1703,8 +1789,11 @@ public final class DeviceState extends HarrierRule {
     private Map<String, TestAppInstance> mTestApps = new HashMap<>();
     private final Map<String, String> mOriginalGlobalSettings = new HashMap<>();
     private Map<String, Query> mAdditionalQueryParameters = new HashMap<>();
-
-    private final Map<String, String> mOriginalSecureSettings = new HashMap<>();
+    private final Map<UserReference, Boolean> mOriginalDefaultContentSuggestionsServiceEnabled =
+            new HashMap<>();
+    private final Set<UserReference> mTemporaryContentSuggestionsServiceSet =
+            new HashSet<>();
+    private final Map<UserReference, Map<String, String>> mOriginalSecureSettings = new HashMap<>();
     private boolean mAnnotationHasSwitchedUser = false;
     private final Set<AccountReference> mCreatedAccounts = new HashSet<>();
     private Map<String, AccountReference> mAccounts = new HashMap<>();
@@ -2031,6 +2120,7 @@ public final class DeviceState extends HarrierRule {
 
                 // DO + work profile isn't a valid state
                 ensureHasNoDeviceOwner();
+                ensureDoesNotHaveUserRestriction(DISALLOW_ADD_MANAGED_PROFILE, forUserReference);
             }
 
             profile = createProfile(resolvedUserType, forUserReference);
@@ -2224,6 +2314,13 @@ public final class DeviceState extends HarrierRule {
                         + maxUsers
                         + " max users)",
                 currentUsers + number <= maxUsers,
+                failureMode);
+    }
+
+    private void ensureCanAddProfile(
+            com.android.bedstead.nene.users.UserType userType, FailureMode failureMode) {
+        checkFailOrSkip("the device cannot add more profiles of type " + userType,
+                TestApis.users().canCreateProfile(userType),
                 failureMode);
     }
 
@@ -2428,26 +2525,13 @@ public final class DeviceState extends HarrierRule {
 
     private UserReference additionalUserOrNull() {
         // TODO: Cache additional user at start of test
-        boolean skipFirstSecondaryUser = false;
-        if (TestApis.users().isHeadlessSystemUserMode()) {
-            skipFirstSecondaryUser = true;
-        }
-
-        for (UserReference secondaryUser :
-                TestApis.users()
-                        .findUsersOfType(TestApis.users().supportedType(SECONDARY_USER_TYPE_NAME))
-                        .stream()
-                        .sorted(Comparator.comparing(UserReference::id))
-                        .collect(Collectors.toList())) {
-            if (skipFirstSecondaryUser) {
-                skipFirstSecondaryUser = false;
-                continue;
-            }
-
-            return secondaryUser;
-        }
-
-        return null;
+        return TestApis.users()
+                .findUsersOfType(TestApis.users().supportedType(SECONDARY_USER_TYPE_NAME))
+                .stream()
+                .sorted(Comparator.comparing(UserReference::id))
+                .skip(TestApis.users().isHeadlessSystemUserMode() ? 1 : 0)
+                .findFirst()
+                .orElse(null);
     }
 
     private void teardownNonShareableState() {
@@ -2580,9 +2664,17 @@ public final class DeviceState extends HarrierRule {
 
         mUsersSetPasswords.clear();
 
+        UserReference ephemeralUser = null;
+        UserReference currentUser = TestApis.users().current();
         for (UserReference user : mCreatedUsers) {
             try {
-                user.remove();
+                if (user.equals(currentUser)) {
+                    // user will be removed after switching to mOriginalSwitchedUser below.
+                    user.removeWhenPossible();
+                    ephemeralUser = user;
+                } else {
+                    user.remove();
+                }
             } catch (NeneException e) {
                 if (user.exists()) {
                     // Otherwise it's probably just already removed
@@ -2616,6 +2708,15 @@ public final class DeviceState extends HarrierRule {
                 mOriginalSwitchedUser.switchTo();
             }
             mOriginalSwitchedUser = null;
+
+            // wait for ephemeral user to be removed after being switched away
+            if (ephemeralUser != null) {
+                Poll.forValue("Ephemeral user exists", ephemeralUser::exists)
+                        .toBeEqualTo(false)
+                        .timeout(Duration.ofMinutes(1))
+                        .errorOnFail()
+                        .await();
+            }
         }
 
         for (TestAppInstance installedTestApp : mInstalledTestApps) {
@@ -2638,13 +2739,26 @@ public final class DeviceState extends HarrierRule {
             mOriginalWifiEnabled = null;
         }
 
+        for (Map.Entry<UserReference, Boolean> s
+                : mOriginalDefaultContentSuggestionsServiceEnabled.entrySet()) {
+            TestApis.content().suggestions().setDefaultServiceEnabled(s.getKey(), s.getValue());
+        }
+        mOriginalDefaultContentSuggestionsServiceEnabled.clear();
+
+        for (UserReference u : mTemporaryContentSuggestionsServiceSet) {
+            TestApis.content().suggestions().clearTemporaryService(u);
+        }
+        mTemporaryContentSuggestionsServiceSet.clear();
+
         for (Map.Entry<String, String> s : mOriginalGlobalSettings.entrySet()) {
             TestApis.settings().global().putString(s.getKey(), s.getValue());
         }
         mOriginalGlobalSettings.clear();
 
-        for (Map.Entry<String, String> s : mOriginalSecureSettings.entrySet()) {
-            TestApis.settings().secure().putString(s.getKey(), s.getValue());
+        for (Map.Entry<UserReference, Map<String, String>> s : mOriginalSecureSettings.entrySet()) {
+            for (Map.Entry<String, String> s2 : s.getValue().entrySet()) {
+                TestApis.settings().secure().putString(s.getKey(), s2.getKey(), s2.getValue());
+            }
         }
         mOriginalSecureSettings.clear();
 
@@ -2655,6 +2769,7 @@ public final class DeviceState extends HarrierRule {
     private UserReference createProfile(
             com.android.bedstead.nene.users.UserType profileType, UserReference parent) {
         ensureCanAddUser();
+        ensureCanAddProfile(profileType, FailureMode.SKIP);
 
         if (profileType.name().equals("android.os.usertype.profile.CLONE")) {
             // Special case - we can't create a clone profile if this is set
@@ -2674,7 +2789,7 @@ public final class DeviceState extends HarrierRule {
     }
 
     private UserReference createUser(com.android.bedstead.nene.users.UserType userType) {
-        ensureDoesNotHaveUserRestriction(UserManager.DISALLOW_ADD_USER, TestApis.users().system());
+        ensureDoesNotHaveUserRestriction(UserManager.DISALLOW_ADD_USER, UserType.ANY);
         ensureCanAddUser();
         try {
             UserReference user = TestApis.users().createUser()
@@ -2973,22 +3088,27 @@ public final class DeviceState extends HarrierRule {
             // (except for the first 1 if headless and always the system user)
             int allowedNonTestUsers = TestApis.users().isHeadlessSystemUserMode() ? 1 : 0;
 
-            for (UserReference u : TestApis.users().all()) {
+            UserReference instrumented = TestApis.users().instrumented();
+
+            for (UserReference u : TestApis.users().all().stream()
+                    .sorted(Comparator.comparing(u -> u.equals(instrumented)).reversed())
+                    .collect(Collectors.toList())) {
                 if (u.isSystem()) {
                     continue;
                 }
                 if (u.isForTesting()) {
                     continue;
                 }
+
                 if (allowedNonTestUsers > 0) {
                     allowedNonTestUsers--;
                     continue;
                 }
 
-                if (u.equals(TestApis.users().instrumented())) {
+                if (u.equals(instrumented)) {
                     throw new IllegalStateException(
                             "Cannot set Device Owner when running on a "
-                                    + "non-for-testing secondary user");
+                                    + "non-for-testing secondary user (" + u + ")");
                 }
 
                 try {
@@ -3118,6 +3238,8 @@ public final class DeviceState extends HarrierRule {
             if (!mChangedProfileOwners.containsKey(user)) {
                 mChangedProfileOwners.put(user, currentProfileOwner);
             }
+
+            ensureHasNoAccounts(user);
 
             if (resolvedDpcTestApp != null) {
                 mProfileOwners.put(user,
@@ -3488,9 +3610,9 @@ public final class DeviceState extends HarrierRule {
             return;
         }
 
-        // There are no users to switch to so we'll create one
-        ensureHasUser(SECONDARY_USER_TYPE_NAME,
-                /* installInstrumentedApp= */ OptionalBoolean.ANY,
+        // There are no users to switch to so we'll create one.
+        // In HSUM, an additional user needs to be created to switch from the existing user.
+        ensureHasAdditionalUser(/* installInstrumentedApp= */ OptionalBoolean.ANY,
                 /* switchedToUser= */ OptionalBoolean.TRUE);
     }
 
@@ -3694,12 +3816,61 @@ public final class DeviceState extends HarrierRule {
         TestApis.settings().global().putString(key, value);
     }
 
-    private void ensureSecureSettingSet(String key, String value) {
-        if (!mOriginalSecureSettings.containsKey(key)) {
-            mOriginalSecureSettings.put(key, TestApis.settings().secure().getString(value));
+    private void ensureSecureSettingSet(UserType user, String key, String value) {
+        ensureSecureSettingSet(resolveUserTypeToUser(user), key, value);
+    }
+
+    private void ensureSecureSettingSet(UserReference user, String key, String value) {
+        if (!mOriginalSecureSettings.containsKey(user)) {
+            mOriginalSecureSettings.put(user, new HashMap<>());
+        }
+        if (!mOriginalSecureSettings.get(user).containsKey(key)) {
+            mOriginalSecureSettings.get(user)
+                    .put(key, TestApis.settings().secure().getString(user, value));
         }
 
-        TestApis.settings().secure().putString(key, value);
+        TestApis.settings().secure().putString(user, key, value);
+    }
+
+    private void ensureDefaultContentSuggestionsServiceEnabled(UserType user, boolean enabled) {
+        ensureDefaultContentSuggestionsServiceEnabled(resolveUserTypeToUser(user), enabled);
+    }
+
+    private void ensureDefaultContentSuggestionsServiceEnabled(UserReference user, boolean enabled) {
+        boolean currentValue = TestApis.content().suggestions().defaultServiceEnabled(user);
+
+        if (currentValue == enabled) {
+            return;
+        }
+
+        if (!mOriginalDefaultContentSuggestionsServiceEnabled.containsKey(user)) {
+            mOriginalDefaultContentSuggestionsServiceEnabled.put(user, currentValue);
+        }
+
+        TestApis.content().suggestions().setDefaultServiceEnabled(enabled);
+    }
+
+    private final TestApp mContentTestApp = testApps().query().wherePackageName()
+            .isEqualTo("com.android.ContentTestApp").get();
+    // TODO: Use queries
+    private final ComponentReference mContentSuggestionsService =
+            ComponentReference.unflattenFromString(
+                    "com.android.ContentTestApp/.ContentSuggestionsService");
+
+    private void ensureHasTestContentSuggestionsService(UserType user) {
+        ensureHasTestContentSuggestionsService(resolveUserTypeToUser(user));
+    }
+
+    private void ensureHasTestContentSuggestionsService(UserReference user) {
+        ensureDefaultContentSuggestionsServiceEnabled(user, /* enabled= */ false);
+        TestAppInstance contentTestApp =
+                ensureTestAppInstalled("content", mContentTestApp, user);
+
+        if (!mTemporaryContentSuggestionsServiceSet.contains(user)) {
+            mTemporaryContentSuggestionsServiceSet.add(user);
+        }
+
+        TestApis.content().suggestions().setTemporaryService(user, mContentSuggestionsService);
     }
 
     private void requireMultiUserSupport(FailureMode failureMode) {
@@ -4097,7 +4268,7 @@ public final class DeviceState extends HarrierRule {
         }
 
         if (TestApis.devicePolicy().userRestrictions(onUser).isSet(restriction)) {
-            throw new NeneException("Error removing user restriction " + restriction + ". "
+            throw new AssumptionViolatedException("Error removing user restriction " + restriction + ". "
                     + "It's possible this is set by the system and cannot be removed");
         }
 
@@ -4114,9 +4285,7 @@ public final class DeviceState extends HarrierRule {
     }
 
     private void requireSystemServiceAvailable(Class<?> serviceClass, FailureMode failureMode) {
-        Object service = mContext.getSystemService(serviceClass);
-
         checkFailOrSkip("Requires " + serviceClass + " to be available",
-                service != null, failureMode);
+                TestApis.services().serviceIsAvailable(serviceClass), failureMode);
     }
 }

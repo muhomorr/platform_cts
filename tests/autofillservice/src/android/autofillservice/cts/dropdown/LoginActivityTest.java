@@ -45,6 +45,7 @@ import static android.autofillservice.cts.testcore.Helper.findAutofillIdByResour
 import static android.autofillservice.cts.testcore.Helper.findNodeByResourceId;
 import static android.autofillservice.cts.testcore.Helper.getActivityTitle;
 import static android.autofillservice.cts.testcore.Helper.isAutofillWindowFullScreen;
+import static android.autofillservice.cts.testcore.Helper.isPccFieldClassificationSet;
 import static android.autofillservice.cts.testcore.Helper.setUserComplete;
 import static android.autofillservice.cts.testcore.InstrumentedAutoFillService.SERVICE_CLASS;
 import static android.autofillservice.cts.testcore.InstrumentedAutoFillService.SERVICE_PACKAGE;
@@ -126,6 +127,7 @@ import androidx.test.uiautomator.UiObject2;
 
 import com.android.compatibility.common.util.RetryableException;
 
+import org.junit.After;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -139,6 +141,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LoginActivityTest extends LoginActivityCommonTestCase {
 
     private static final String TAG = "LoginActivityTest";
+
+    @After
+    public void disablePcc() {
+        Log.d(TAG, "@After: disablePcc()");
+        disablePccDetectionFeature(sContext);
+    }
 
     @Test
     @AppModeFull(reason = "testAutoFillOneDataset() is enough")
@@ -407,12 +415,15 @@ public class LoginActivityTest extends LoginActivityCommonTestCase {
         BOTH
     }
 
+    @FlakyTest(bugId = 281726966)
     @Test
     public void autofillPccDatasetTest_setForAllHints() throws Exception {
         // Set service.
-        enableService();
         enablePccDetectionFeature(sContext, "username", "password", "new_password");
         sReplier.setIdMode(IdMode.PCC_ID);
+        enableService();
+
+        boolean isPccEnabled = isPccFieldClassificationSet(sContext);
 
         final CannedFillResponse.Builder builder = new CannedFillResponse.Builder()
                 .addDataset(new CannedDataset.Builder()
@@ -427,21 +438,26 @@ public class LoginActivityTest extends LoginActivityCommonTestCase {
         sReplier.addResponse(builder.build());
 
         // Trigger auto-fill.
-        requestFocusOnUsernameNoWindowChange();
+        requestFocusOnUsername();
 
         final FillRequest request = sReplier.getNextFillRequest();
-        assertThat(request.hints.size()).isEqualTo(3);
+        if (isPccEnabled) {
+            assertThat(request.hints.size()).isEqualTo(3);
+        }
 
         disablePccDetectionFeature(sContext);
         sReplier.setIdMode(IdMode.RESOURCE_ID);
     }
 
+    @FlakyTest(bugId = 281726966)
     @Test
     public void autofillPccDatasetTest() throws Exception {
         // Set service.
-        enableService();
         enablePccDetectionFeature(sContext, "username");
         sReplier.setIdMode(IdMode.PCC_ID);
+        enableService();
+
+        boolean isPccEnabled = isPccFieldClassificationSet(sContext);
 
         final CannedFillResponse.Builder builder = new CannedFillResponse.Builder()
                 .addDataset(new CannedDataset.Builder()
@@ -457,15 +473,16 @@ public class LoginActivityTest extends LoginActivityCommonTestCase {
         sReplier.addResponse(builder.build());
 
         // Trigger auto-fill.
-        requestFocusOnUsernameNoWindowChange();
+        requestFocusOnUsername();
 
         final FillRequest request = sReplier.getNextFillRequest();
-        assertThat(request.hints.size()).isEqualTo(1);
-        assertThat(request.hints.get(0)).isEqualTo("username");
+        if (isPccEnabled) {
+            assertThat(request.hints.size()).isEqualTo(1);
+            assertThat(request.hints.get(0)).isEqualTo("username");
+        }
 
         disablePccDetectionFeature(sContext);
         sReplier.setIdMode(IdMode.RESOURCE_ID);
-
     }
 
     private void autofillOneDatasetTest(BorderType borderType) throws Exception {

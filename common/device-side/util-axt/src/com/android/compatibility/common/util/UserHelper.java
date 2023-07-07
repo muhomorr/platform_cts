@@ -16,6 +16,7 @@
 
 package com.android.compatibility.common.util;
 
+import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.Display.INVALID_DISPLAY;
 
 import android.app.ActivityOptions;
@@ -29,6 +30,8 @@ import android.view.MotionEvent;
 
 import androidx.annotation.Nullable;
 import androidx.test.InstrumentationRegistry;
+
+import com.android.modules.utils.build.SdkLevel;
 
 import java.util.Objects;
 import java.util.function.Function;
@@ -67,30 +70,59 @@ public final class UserHelper {
     public UserHelper(Context context) {
         mUser = Objects.requireNonNull(context).getUser();
         UserManager userManager = context.getSystemService(UserManager.class);
-        mDisplayId = userManager.getMainDisplayIdAssignedToUser();
-        mVisibleBackgroundUsersSupported = userManager
-                .isVisibleBackgroundUsersSupported();
-        boolean isVisible = userManager.isUserVisible();
+
+        if (!SdkLevel.isAtLeastU()) {
+            mVisibleBackgroundUsersSupported = false;
+            if (DEBUG) {
+                Log.d(TAG, "Pre-UDC constructor (mUser=" + mUser + "): setting "
+                        + "mVisibleBackgroundUsersSupported as false");
+            }
+        } else {
+            mVisibleBackgroundUsersSupported = userManager.isVisibleBackgroundUsersSupported();
+        }
+        if (!mVisibleBackgroundUsersSupported) {
+            if (DEBUG) {
+                Log.d(TAG, "Device doesn't support visible background users; setting mDisplayId as"
+                        + " DEFAULT_DISPLAY and mIsVisibleBackgroundUser as false");
+            }
+            mIsVisibleBackgroundUser = false;
+            mDisplayId = DEFAULT_DISPLAY;
+            return;
+        }
+
         boolean isForeground = userManager.isUserForeground();
         boolean isProfile = userManager.isProfile();
-        if (DEBUG) {
-            Log.d(TAG, "Constructor: mUser=" + mUser + ", visible=" + isVisible + ", isForeground="
-                    + isForeground + ", isProfile=" + isProfile + ", mDisplayId=" + mDisplayId
-                    + ", mVisibleBackgroundUsersSupported=" + mVisibleBackgroundUsersSupported);
+        int displayId = DEFAULT_DISPLAY;
+        try {
+            // NOTE: getMainDisplayIdAssignedToUser() was added on UDC, but it's a @TestApi, so it
+            // will throw a NoSuchMethodError if the test is not configured to allow it
+            displayId = userManager.getMainDisplayIdAssignedToUser();
+        } catch (NoSuchMethodError e) {
+            Log.wtf(TAG, "test is not configured to access @TestApi; setting mDisplayId as"
+                    + " DEFAULT_DISPLAY", e);
         }
-        if (mVisibleBackgroundUsersSupported && isVisible && !isForeground && !isProfile) {
+        mDisplayId = displayId;
+        boolean isVisible = userManager.isUserVisible();
+        if (DEBUG) {
+            Log.d(TAG, "Constructor: mUser=" + mUser + ", visible=" + isVisible
+                    + ", isForeground=" + isForeground + ", isProfile=" + isProfile
+                    + ", mDisplayId=" + mDisplayId + ", mVisibleBackgroundUsersSupported="
+                    + mVisibleBackgroundUsersSupported);
+        }
+        // TODO(b/271153404): use TestApis.users().instrument() to set mIsVisibleBackgroundUser
+        if (isVisible && !isForeground && !isProfile) {
             if (mDisplayId == INVALID_DISPLAY) {
-                throw new IllegalStateException("UserManager returned INVALID_DISPLAY for visible"
-                        + "background user " + mUser);
+                throw new IllegalStateException("UserManager returned INVALID_DISPLAY for "
+                        + "visible background user " + mUser);
             }
             mIsVisibleBackgroundUser = true;
             Log.i(TAG, "Test user " + mUser + " is running on background, visible on display "
                     + mDisplayId);
         } else {
             mIsVisibleBackgroundUser = false;
-        }
-        if (DEBUG) {
-            Log.d(TAG, "Constructor: mIsVisibleBackgroundUser=" + mIsVisibleBackgroundUser);
+            if (DEBUG) {
+                Log.d(TAG, "Test user " + mUser + " is not running visible on background");
+            }
         }
     }
 
@@ -147,6 +179,13 @@ public final class UserHelper {
     }
 
     /**
+     * Get the proper {@code cmd appops} with the user id set, including the trailing space.
+     */
+    public String getAppopsCmd(String command) {
+        return "cmd appops " + command + " --user " + getUserId() + " ";
+    }
+
+    /**
      * Get a {@code cmd input} for the given {@code source}, setting the proper display (if needed).
      */
     public String getInputCmd(String source) {
@@ -156,13 +195,6 @@ public final class UserHelper {
         }
 
         return cmd.toString();
-    }
-
-    /**
-     * Get the proper {@code cmd appops} with the user id set, including the trailing space.
-     */
-    public String getAppopsCmd(String command) {
-        return "cmd appops " + command + " --user " + getUserId() + " ";
     }
 
     /**
@@ -200,8 +232,6 @@ public final class UserHelper {
             return event;
         }
         int eventDisplayId = event.getDisplayId();
-
-        // TODO(b/271153404): use TestApis.users().instrument() to check if it's visible bg
         if (!mIsVisibleBackgroundUser) {
             if (DEBUG) {
                 Log.d(TAG, "Not replacing display id (" + eventDisplayId + "->" + mDisplayId

@@ -59,7 +59,6 @@ import android.view.WindowManager;
 import android.view.WindowMetrics;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
-import androidx.test.filters.FlakyTest;
 import androidx.test.filters.LargeTest;
 import androidx.window.extensions.layout.DisplayFeature;
 import androidx.window.extensions.layout.FoldingFeature;
@@ -88,7 +87,8 @@ import java.util.stream.Collectors;
 
 /**
  * Tests for the {@link androidx.window.extensions.layout.WindowLayoutComponent} implementation
- * provided on the device (and only if one is available).
+ * provided on the device (and only if one is available). This class applies
+ * {@link SetRequestedOrientationRule} so that screen rotation is not blocked.
  *
  * Build/Install/Run:
  *     atest CtsWindowManagerJetpackTestCases:ExtensionWindowLayoutComponentTest
@@ -405,7 +405,6 @@ public class ExtensionWindowLayoutComponentTest extends WindowManagerJetpackTest
      * trigger rotations with a full screen activity on one Display Area, verify that
      * WindowLayoutInfo from both Activity and WindowContext are updated with callbacks.
      */
-    @FlakyTest(bugId = 254056760)
     @Test
     @ApiTest(apis = {
             "androidx.window.extensions.layout.WindowLayoutComponent#addWindowLayoutInfoListener",

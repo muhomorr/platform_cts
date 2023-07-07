@@ -18,14 +18,16 @@ package android.voiceinteraction.cts;
 
 import static android.Manifest.permission.CAPTURE_AUDIO_HOTWORD;
 import static android.Manifest.permission.MANAGE_HOTWORD_DETECTION;
-import static android.Manifest.permission.MANAGE_SOUND_TRIGGER;
 import static android.Manifest.permission.RECORD_AUDIO;
 import static android.content.pm.PackageManager.FEATURE_MICROPHONE;
 import static android.voiceinteraction.common.Utils.AUDIO_EGRESS_DETECTED_RESULT;
+import static android.voiceinteraction.common.Utils.AUDIO_EGRESS_DETECTED_RESULT_WRONG_COPY_BUFFER_SIZE;
+import static android.voiceinteraction.common.Utils.EXTRA_HOTWORD_DETECTION_SERVICE_CAN_READ_AUDIO_DATA_IS_NOT_ZERO;
 import static android.voiceinteraction.cts.testcore.Helper.CTS_SERVICE_PACKAGE;
 import static android.voiceinteraction.cts.testcore.Helper.MANAGE_VOICE_KEYPHRASES;
 import static android.voiceinteraction.cts.testcore.Helper.WAIT_TIMEOUT_IN_MS;
 import static android.voiceinteraction.cts.testcore.Helper.createKeyphraseRecognitionExtraList;
+import static android.voiceinteraction.cts.testcore.Helper.waitForFutureDoneAndAssertSuccessful;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
@@ -46,8 +48,7 @@ import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
-import android.media.soundtrigger.SoundTriggerInstrumentation;
-import android.media.soundtrigger.SoundTriggerManager;
+import android.media.soundtrigger.SoundTriggerInstrumentation.RecognitionSession;
 import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
 import android.os.SystemClock;
@@ -58,6 +59,7 @@ import android.service.voice.HotwordDetectionServiceFailure;
 import android.service.voice.HotwordDetector;
 import android.service.voice.HotwordRejectedResult;
 import android.service.voice.SandboxedDetectionInitializer;
+import android.soundtrigger.cts.instrumentation.SoundTriggerInstrumentationObserver;
 import android.util.Log;
 import android.voiceinteraction.common.Utils;
 import android.voiceinteraction.cts.services.BaseVoiceInteractionService;
@@ -137,11 +139,8 @@ public class HotwordDetectionServiceBasicTest {
     public RequiredFeatureRule REQUIRES_MIC_RULE = new RequiredFeatureRule(FEATURE_MICROPHONE);
 
     private SoundTrigger.Keyphrase[] mKeyphraseArray;
-    private SoundTriggerInstrumentation mInstrumentation = null;
-    private SoundTriggerInstrumentation.ModelSession mModelSession = null;
-    private SoundTriggerInstrumentation.RecognitionSession mRecognitionSession = null;
-
-    private CountDownLatch mSoundTriggerInjectedLatch;
+    private final SoundTriggerInstrumentationObserver mInstrumentationObserver =
+            new SoundTriggerInstrumentationObserver();
 
     @BeforeClass
     public static void enableIndicators() {
@@ -188,23 +187,12 @@ public class HotwordDetectionServiceBasicTest {
         // Check the test can get the service
         Objects.requireNonNull(mService);
 
-        mKeyphraseArray = Helper.createKeyprhaseArray(mService);
+        mKeyphraseArray = Helper.createKeyphraseArray(mService);
 
         // Hook up SoundTriggerInjection to inject/observe STHAL operations.
-        runWithShellPermissionIdentity(() -> {
-            mInstrumentation = sInstrumentation.getTargetContext()
-                .getSystemService(SoundTriggerManager.class)
-                .attachInstrumentation((Runnable r) -> r.run(),
-                    (SoundTriggerInstrumentation.ModelSession modelSession) -> {
-                        mModelSession = modelSession;
-                        mSoundTriggerInjectedLatch.countDown();
-                        mModelSession.setModelCallback((Runnable r) -> r.run(),
-                                (SoundTriggerInstrumentation.RecognitionSession recogSession) -> {
-                                    mRecognitionSession = recogSession;
-                                    mSoundTriggerInjectedLatch.countDown();
-                                });
-                    });
-        }, MANAGE_SOUND_TRIGGER, RECORD_AUDIO, CAPTURE_AUDIO_HOTWORD);
+        // Requires MANAGE_SOUND_TRIGGER
+        runWithShellPermissionIdentity(() ->
+                mInstrumentationObserver.attachInstrumentation());
 
         // Wait the original HotwordDetectionService finish clean up to avoid flaky
         // This also waits for mic indicator disappear
@@ -214,10 +202,13 @@ public class HotwordDetectionServiceBasicTest {
     @After
     public void tearDown() {
         // Clean up any unexpected HAL state
-        mInstrumentation.triggerRestart();
+        try {
+            mInstrumentationObserver.close();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         mService.resetState();
         mService = null;
-        mSoundTriggerInjectedLatch = null;
     }
 
     public String getTestVoiceInteractionService() {
@@ -566,7 +557,6 @@ public class HotwordDetectionServiceBasicTest {
     }
 
     @Test
-    @RequiresDevice
     public void testHotwordDetectionService_onDetectFromDspTimeout_triggerOnFailure()
             throws Throwable {
         // Create alwaysOnHotwordDetector with onFailure callback
@@ -610,7 +600,6 @@ public class HotwordDetectionServiceBasicTest {
     }
 
     @Test
-    @RequiresDevice
     public void testHotwordDetectionService_onDetectFromDspSecurityException_onFailure()
             throws Throwable {
         // Create alwaysOnHotwordDetector with onFailure callback
@@ -691,7 +680,6 @@ public class HotwordDetectionServiceBasicTest {
     }
 
     @Test
-    @RequiresDevice
     public void testHotwordDetectionService_onDetectFromMicSecurityException_onFailure()
             throws Throwable {
         // Create SoftwareHotwordDetector with onFailure callback
@@ -799,6 +787,17 @@ public class HotwordDetectionServiceBasicTest {
         AlwaysOnHotwordDetector alwaysOnHotwordDetector =
                 createAlwaysOnHotwordDetectorWithSoundTriggerInjection();
         try {
+            runWithShellPermissionIdentity(() -> {
+                // Update state with test scenario HotwordDetectionService can read audio and
+                // check the data is not zero
+                PersistableBundle persistableBundle = new PersistableBundle();
+                persistableBundle.putInt(Helper.KEY_TEST_SCENARIO,
+                        EXTRA_HOTWORD_DETECTION_SERVICE_CAN_READ_AUDIO_DATA_IS_NOT_ZERO);
+                alwaysOnHotwordDetector.updateState(
+                        persistableBundle,
+                        Helper.createFakeSharedMemoryData());
+            }, MANAGE_HOTWORD_DETECTION);
+
             adoptShellPermissionIdentityForHotword();
 
             verifyOnDetectFromDspWithSoundTriggerInjectionSuccess(alwaysOnHotwordDetector);
@@ -816,12 +815,11 @@ public class HotwordDetectionServiceBasicTest {
     }
 
     @Test
-    @RequiresDevice
     @CddTest(requirements = {"9.8/H-1-15"})
     public void testHotwordDetectionServiceDspWithAudioEgress() throws Throwable {
         // Create AlwaysOnHotwordDetector
         AlwaysOnHotwordDetector alwaysOnHotwordDetector =
-                createAlwaysOnHotwordDetector(/* useOnFailure= */ false);
+                createAlwaysOnHotwordDetectorWithSoundTriggerInjection();
 
         // Update HotwordDetectionService options to enable Audio egress
         runWithShellPermissionIdentity(() -> {
@@ -838,13 +836,14 @@ public class HotwordDetectionServiceBasicTest {
 
             mService.initDetectRejectLatch();
 
-            alwaysOnHotwordDetector.triggerHardwareRecognitionEventForTest(
-                    /* status= */ 0, /* soundModelHandle= */ 100,
-                    /* halEventReceivedMillis */ 12345, /* captureAvailable= */ true,
-                    /* captureSession= */ 101, /* captureDelayMs= */ 1000,
-                    /* capturePreambleMs= */ 1001, /* triggerInData= */ true,
-                    Helper.createFakeAudioFormat(), new byte[1024],
-                    Helper.createFakeKeyphraseRecognitionExtraList());
+            // start recognition and trigger recognition event via recognition session
+            alwaysOnHotwordDetector.startRecognition(0, new byte[]{1, 2, 3, 4, 5});
+            RecognitionSession recognitionSession = waitForFutureDoneAndAssertSuccessful(
+                    mInstrumentationObserver.getOnRecognitionStartedFuture());
+            assertThat(recognitionSession).isNotNull();
+
+            recognitionSession.triggerRecognitionEvent(new byte[1024],
+                    createKeyphraseRecognitionExtraList());
 
             // wait onDetected() called and verify the result
             mService.waitOnDetectOrRejectCalled();
@@ -859,11 +858,11 @@ public class HotwordDetectionServiceBasicTest {
             // Drop identity adopted.
             InstrumentationRegistry.getInstrumentation().getUiAutomation()
                     .dropShellPermissionIdentity();
+            disableTestModel();
         }
     }
 
     @Test
-    @RequiresDevice
     @CddTest(requirements = {"9.8/H-1-15"})
     public void testHotwordDetectionService_softwareDetectorWithAudioEgress() throws Throwable {
         // Create SoftwareHotwordDetector
@@ -901,7 +900,6 @@ public class HotwordDetectionServiceBasicTest {
     }
 
     @Test
-    @RequiresDevice
     @CddTest(requirements = {"9.8/H-1-15"})
     public void testHotwordDetectionService_onDetectFromExternalSourceWithAudioEgress()
             throws Throwable {
@@ -944,7 +942,138 @@ public class HotwordDetectionServiceBasicTest {
     }
 
     @Test
-    @RequiresDevice
+    public void testHotwordDetectionServiceDspWithAudioEgressWrongCopyBufferSize()
+            throws Throwable {
+        // Create AlwaysOnHotwordDetector
+        AlwaysOnHotwordDetector alwaysOnHotwordDetector =
+                createAlwaysOnHotwordDetectorWithSoundTriggerInjection();
+
+        // Update HotwordDetectionService options to enable Audio egress
+        runWithShellPermissionIdentity(() -> {
+            PersistableBundle persistableBundle = new PersistableBundle();
+            persistableBundle.putInt(Helper.KEY_TEST_SCENARIO,
+                    Utils.EXTRA_HOTWORD_DETECTION_SERVICE_ENABLE_AUDIO_EGRESS);
+            persistableBundle.putBoolean(Utils.KEY_AUDIO_EGRESS_USE_ILLEGAL_COPY_BUFFER_SIZE, true);
+            alwaysOnHotwordDetector.updateState(
+                    persistableBundle,
+                    Helper.createFakeSharedMemoryData());
+        }, MANAGE_HOTWORD_DETECTION);
+
+        try {
+            adoptShellPermissionIdentityForHotword();
+
+            mService.initDetectRejectLatch();
+
+            // start recognition and trigger recognition event via recognition session
+            alwaysOnHotwordDetector.startRecognition(0, new byte[]{1, 2, 3, 4, 5});
+            RecognitionSession recognitionSession = waitForFutureDoneAndAssertSuccessful(
+                    mInstrumentationObserver.getOnRecognitionStartedFuture());
+            assertThat(recognitionSession).isNotNull();
+
+            recognitionSession.triggerRecognitionEvent(new byte[1024],
+                    createKeyphraseRecognitionExtraList());
+
+            // wait onDetected() called and verify the result
+            mService.waitOnDetectOrRejectCalled();
+            AlwaysOnHotwordDetector.EventPayload detectResult =
+                    mService.getHotwordServiceOnDetectedResult();
+
+            Helper.verifyAudioEgressDetectedResult(detectResult,
+                    AUDIO_EGRESS_DETECTED_RESULT_WRONG_COPY_BUFFER_SIZE);
+
+        } finally {
+            // destroy detector
+            alwaysOnHotwordDetector.destroy();
+            // Drop identity adopted.
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
+            disableTestModel();
+        }
+    }
+
+    @Test
+    public void testHotwordDetectionService_softwareDetectorWithAudioEgressWrongCopyBufferSize()
+            throws Throwable {
+        // Create SoftwareHotwordDetector
+        HotwordDetector softwareHotwordDetector = createSoftwareHotwordDetector(/* useOnFailure= */
+                false);
+
+        // Update HotwordDetectionService options to enable Audio egress
+        runWithShellPermissionIdentity(() -> {
+            PersistableBundle persistableBundle = new PersistableBundle();
+            persistableBundle.putInt(Helper.KEY_TEST_SCENARIO,
+                    Utils.EXTRA_HOTWORD_DETECTION_SERVICE_ENABLE_AUDIO_EGRESS);
+            persistableBundle.putBoolean(Utils.KEY_AUDIO_EGRESS_USE_ILLEGAL_COPY_BUFFER_SIZE, true);
+            softwareHotwordDetector.updateState(
+                    persistableBundle,
+                    Helper.createFakeSharedMemoryData());
+        }, MANAGE_HOTWORD_DETECTION);
+
+        try {
+            adoptShellPermissionIdentityForHotword();
+
+            mService.initDetectRejectLatch();
+            softwareHotwordDetector.startRecognition();
+
+            // wait onDetected() called and verify the result
+            mService.waitOnDetectOrRejectCalled();
+            AlwaysOnHotwordDetector.EventPayload detectResult =
+                    mService.getHotwordServiceOnDetectedResult();
+
+            Helper.verifyAudioEgressDetectedResult(detectResult,
+                    AUDIO_EGRESS_DETECTED_RESULT_WRONG_COPY_BUFFER_SIZE);
+        } finally {
+            softwareHotwordDetector.destroy();
+            // Drop identity adopted.
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
+        }
+    }
+
+    @Test
+    public void testHotwordDetectionService_externalSourceWithAudioEgressWrongCopyBufferSize()
+            throws Throwable {
+        // Create AlwaysOnHotwordDetector
+        AlwaysOnHotwordDetector alwaysOnHotwordDetector =
+                createAlwaysOnHotwordDetector(/* useOnFailure= */ false);
+
+        // Update HotwordDetectionService options to enable Audio egress
+        runWithShellPermissionIdentity(() -> {
+            PersistableBundle persistableBundle = new PersistableBundle();
+            persistableBundle.putInt(Helper.KEY_TEST_SCENARIO,
+                    Utils.EXTRA_HOTWORD_DETECTION_SERVICE_ENABLE_AUDIO_EGRESS);
+            persistableBundle.putBoolean(Utils.KEY_AUDIO_EGRESS_USE_ILLEGAL_COPY_BUFFER_SIZE, true);
+            alwaysOnHotwordDetector.updateState(
+                    persistableBundle,
+                    Helper.createFakeSharedMemoryData());
+        }, MANAGE_HOTWORD_DETECTION);
+
+        try {
+            adoptShellPermissionIdentityForHotword();
+
+            ParcelFileDescriptor audioStream = Helper.createFakeAudioStream();
+            mService.initDetectRejectLatch();
+            alwaysOnHotwordDetector.startRecognition(audioStream,
+                    Helper.createFakeAudioFormat(),
+                    Helper.createFakePersistableBundleData());
+
+            // wait onDetected() called and verify the result
+            mService.waitOnDetectOrRejectCalled();
+            AlwaysOnHotwordDetector.EventPayload detectResult =
+                    mService.getHotwordServiceOnDetectedResult();
+
+            Helper.verifyAudioEgressDetectedResult(detectResult,
+                    AUDIO_EGRESS_DETECTED_RESULT_WRONG_COPY_BUFFER_SIZE);
+        } finally {
+            // destroy detector
+            alwaysOnHotwordDetector.destroy();
+            // Drop identity adopted.
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
+        }
+    }
+
+    @Test
     @CddTest(requirement = "9.8/H-1-2,H-1-8,H-1-14")
     public void testHotwordDetectionService_onDetectFromDsp_success() throws Throwable {
         startWatchingNoted();
@@ -969,7 +1098,6 @@ public class HotwordDetectionServiceBasicTest {
     }
 
     @Test
-    @RequiresDevice
     public void testHotwordDetectionService_onDetectFromDsp_rejection() throws Throwable {
         startWatchingNoted();
         // Create AlwaysOnHotwordDetector
@@ -1004,7 +1132,6 @@ public class HotwordDetectionServiceBasicTest {
     }
 
     @Test
-    @RequiresDevice
     @CddTest(requirement = "9.8/H-1-3")
     public void testHotwordDetectionService_onDetectFromDsp_timeout() throws Throwable {
         startWatchingNoted();
@@ -1171,7 +1298,6 @@ public class HotwordDetectionServiceBasicTest {
     }
 
     @Test
-    @RequiresDevice
     @CddTest(requirement = "9.8/H-1-2,H-1-8,H-1-14")
     public void testHotwordDetectionService_onDetectFromMic_success() throws Throwable {
         startWatchingNoted();
@@ -1224,7 +1350,6 @@ public class HotwordDetectionServiceBasicTest {
     }
 
     @Test
-    @RequiresDevice
     public void testHotwordDetectionService_onStopDetection() throws Throwable {
         // Create SoftwareHotwordDetector
         HotwordDetector softwareHotwordDetector = createSoftwareHotwordDetector(/* useOnFailure= */
@@ -1279,6 +1404,15 @@ public class HotwordDetectionServiceBasicTest {
                 try {
                     record.startRecording();
 
+                    // Update state with test scenario HotwordDetectionService can read audio
+                    // and check the data is not zero
+                    PersistableBundle persistableBundle = new PersistableBundle();
+                    persistableBundle.putInt(Helper.KEY_TEST_SCENARIO,
+                            EXTRA_HOTWORD_DETECTION_SERVICE_CAN_READ_AUDIO_DATA_IS_NOT_ZERO);
+                    softwareHotwordDetector.updateState(
+                            persistableBundle,
+                            Helper.createFakeSharedMemoryData());
+
                     mService.initDetectRejectLatch();
                     softwareHotwordDetector.startRecognition();
                     mService.waitOnDetectOrRejectCalled();
@@ -1311,6 +1445,17 @@ public class HotwordDetectionServiceBasicTest {
                 false);
 
         try {
+            runWithShellPermissionIdentity(() -> {
+                // Update state with test scenario HotwordDetectionService can read audio and
+                // check the data is not zero
+                PersistableBundle persistableBundle = new PersistableBundle();
+                persistableBundle.putInt(Helper.KEY_TEST_SCENARIO,
+                        EXTRA_HOTWORD_DETECTION_SERVICE_CAN_READ_AUDIO_DATA_IS_NOT_ZERO);
+                alwaysOnHotwordDetector.updateState(
+                        persistableBundle,
+                        Helper.createFakeSharedMemoryData());
+            }, MANAGE_HOTWORD_DETECTION);
+
             adoptShellPermissionIdentityForHotword();
             // Test AlwaysOnHotwordDetector to be able to detect well
             verifyOnDetectFromDspWithSoundTriggerInjectionSuccess(
@@ -1488,7 +1633,6 @@ public class HotwordDetectionServiceBasicTest {
     }
 
     @Test
-    @RequiresDevice
     public void testHotwordDetectionService_dspDetector_onRejectedTwice_clientOnlyOneOnRejected()
             throws Throwable {
         // Create AlwaysOnHotwordDetector
@@ -1534,7 +1678,6 @@ public class HotwordDetectionServiceBasicTest {
     }
 
     @Test
-    @RequiresDevice
     public void testHotwordDetectionService_dspDetector_duringOnDetect_serviceRestart()
             throws Throwable {
         // Create AlwaysOnHotwordDetector
@@ -1545,7 +1688,7 @@ public class HotwordDetectionServiceBasicTest {
                 // Inform the HotwordDetectionService to ignore the onDetect
                 PersistableBundle persistableBundle = new PersistableBundle();
                 persistableBundle.putInt(Helper.KEY_TEST_SCENARIO,
-                        Utils.EXTRA_HOTWORD_DETECTION_SERVICE_No_NEED_ACTION_DURING_DETECTION);
+                        Utils.EXTRA_HOTWORD_DETECTION_SERVICE_NO_NEED_ACTION_DURING_DETECTION);
                 alwaysOnHotwordDetector.updateState(
                         persistableBundle,
                         Helper.createFakeSharedMemoryData());
@@ -1553,23 +1696,13 @@ public class HotwordDetectionServiceBasicTest {
 
             adoptShellPermissionIdentityForHotword();
 
-            // Initial soundTrigger injection latch
-            mSoundTriggerInjectedLatch = new CountDownLatch(2);
-
             alwaysOnHotwordDetector.startRecognition(0, new byte[]{1, 2, 3, 4, 5});
-
-            try {
-                // Wait for soundTrigger injection is ready
-                mSoundTriggerInjectedLatch.await(WAIT_TIMEOUT_IN_MS, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException ex) {
-                throw new AssertionError("SoundTrigger Injection timeout");
-            }
+            RecognitionSession recognitionSession = waitForFutureDoneAndAssertSuccessful(
+                    mInstrumentationObserver.getOnRecognitionStartedFuture());
+            assertThat(recognitionSession).isNotNull();
 
             // Verify we received model load, recognition start
-            assertThat(mModelSession).isNotNull();
-            assertThat(mRecognitionSession).isNotNull();
-
-            mRecognitionSession.triggerRecognitionEvent(new byte[1024],
+            recognitionSession.triggerRecognitionEvent(new byte[1024],
                     createKeyphraseRecognitionExtraList());
 
             // Wait for a while to make sure onDetect() will be called in the
@@ -1624,24 +1757,13 @@ public class HotwordDetectionServiceBasicTest {
             AlwaysOnHotwordDetector alwaysOnHotwordDetector,
             boolean shouldDisableTestModel) throws Throwable {
         try {
-            // initial soundTrigger injection latch
-            mSoundTriggerInjectedLatch = new CountDownLatch(2);
-
             alwaysOnHotwordDetector.startRecognition(0, new byte[]{1, 2, 3, 4, 5});
-
-            try {
-                // wait for soundTrigger injection is ready
-                mSoundTriggerInjectedLatch.await(WAIT_TIMEOUT_IN_MS, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException ex) {
-                throw new AssertionError("SoundTrigger Injection timeout");
-            }
-
-            // Verify we received model load, recognition start
-            assertThat(mModelSession).isNotNull();
-            assertThat(mRecognitionSession).isNotNull();
+            RecognitionSession recognitionSession = waitForFutureDoneAndAssertSuccessful(
+                    mInstrumentationObserver.getOnRecognitionStartedFuture());
+            assertThat(recognitionSession).isNotNull();
 
             mService.initDetectRejectLatch();
-            mRecognitionSession.triggerRecognitionEvent(new byte[1024],
+            recognitionSession.triggerRecognitionEvent(new byte[1024],
                     createKeyphraseRecognitionExtraList());
 
             // wait onDetected() called and verify the result

@@ -43,7 +43,6 @@ import android.text.Html
 import android.util.Log
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.rule.ActivityTestRule
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.StaleObjectException
@@ -51,7 +50,6 @@ import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
 import com.android.compatibility.common.util.DisableAnimationRule
 import com.android.compatibility.common.util.FreezeRotationRule
-import com.android.compatibility.common.util.FutureResultActivity
 import com.android.compatibility.common.util.SystemUtil.runShellCommand
 import com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity
 import com.android.compatibility.common.util.UiAutomatorUtils2
@@ -114,13 +112,7 @@ abstract class BasePermissionTest {
     @get:Rule
     val freezeRotationRule = FreezeRotationRule()
 
-    @get:Rule
-    val activityRule = ActivityTestRule(StartForFutureActivity::class.java, false, false)
-
     var activityScenario: ActivityScenario<StartForFutureActivity>? = null
-
-    @get:Rule
-    val installDialogStarter = ActivityTestRule(FutureResultActivity::class.java)
 
     data class SessionResult(val status: Int?)
 
@@ -256,9 +248,10 @@ abstract class BasePermissionTest {
 
     protected fun installPackageViaSession(
         apkName: String,
-        appMetadata: PersistableBundle? = null
+        appMetadata: PersistableBundle? = null,
+        packageSource: Int? = null
     ) {
-        val (sessionId, session) = createPackageInstallerSession()
+        val (sessionId, session) = createPackageInstallerSession(packageSource)
         runWithShellPermissionIdentity {
             writePackageInstallerSession(session, apkName)
             if (appMetadata != null) {
@@ -385,9 +378,14 @@ abstract class BasePermissionTest {
             PackageManager.DONT_KILL_APP)
     }
 
-    private fun createPackageInstallerSession(): Pair<Int, PackageInstaller.Session> {
+    private fun createPackageInstallerSession(
+        packageSource: Int? = null
+    ): Pair<Int, PackageInstaller.Session> {
         // Create session
         val sessionParam = SessionParams(SessionParams.MODE_FULL_INSTALL)
+        if (packageSource != null) {
+            sessionParam.setPackageSource(packageSource)
+        }
 
         val sessionId = packageInstaller.createSession(sessionParam)
         val session = packageInstaller.openSession(sessionId)!!

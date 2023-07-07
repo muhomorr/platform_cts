@@ -55,7 +55,6 @@ import com.android.bedstead.harrier.annotations.RequireNotHeadlessSystemUserMode
 import com.android.bedstead.harrier.annotations.RequireRunOnWorkProfile;
 import com.android.bedstead.harrier.annotations.enterprise.AdditionalQueryParameters;
 import com.android.bedstead.harrier.annotations.enterprise.CannotSetPolicyTest;
-import com.android.bedstead.harrier.annotations.enterprise.CoexistenceFlagsOn;
 import com.android.bedstead.harrier.annotations.enterprise.EnsureHasNoDpc;
 import com.android.bedstead.harrier.annotations.enterprise.PolicyAppliesTest;
 import com.android.bedstead.harrier.annotations.enterprise.PolicyDoesNotApplyTest;
@@ -98,7 +97,6 @@ import java.util.UUID;
 
 @RunWith(BedsteadJUnit4.class)
 @RequireFeature(FEATURE_BLUETOOTH)
-@CoexistenceFlagsOn
 public final class BluetoothTest {
     @ClassRule
     @Rule
@@ -269,7 +267,6 @@ public final class BluetoothTest {
     @EnsureHasNoDpc
     @Postsubmit(reason = "new test")
     @ApiTest(apis = "android.os.UserManager#DISALLOW_BLUETOOTH_SHARING")
-    @RequireNotHeadlessSystemUserMode(reason = "Not working on headless TODO: Create bug")
     public void newManagedProfile_disallowBluetoothSharingIsSet() {
         try (RemoteDpc dpc = RemoteDpc.createWorkProfile()) {
             assertThat(TestApis.devicePolicy().userRestrictions(dpc.user())
@@ -440,6 +437,9 @@ public final class BluetoothTest {
     @CannotSetPolicyTest(policy = DisallowBluetooth.class)
     @Postsubmit(reason = "new test")
     @ApiTest(apis = "android.os.UserManager#DISALLOW_BLUETOOTH")
+    @RequireNotHeadlessSystemUserMode(reason =
+            "This is special cased so it's only usable by profile owner on 'main' user"
+                    + "- we need to simplify this state")
     public void addUserRestriction_disallowBluetooth_cannotSet_throwsException() {
         assertThrows(SecurityException.class,
                 () -> sDeviceState.dpc().devicePolicyManager().addUserRestriction(
@@ -462,6 +462,9 @@ public final class BluetoothTest {
             forTestApp = "dpc",
             query = @Query(targetSdkVersion = @IntegerQuery(isLessThan = UPSIDE_DOWN_CAKE))
     )
+    @RequireNotHeadlessSystemUserMode(reason =
+            "This is special cased so it's only usable by profile owner on 'main' user"
+                    + "- we need to simplify this state")
     public void addUserRestriction_preU_disallowBluetooth_cannotSet_throwsException() {
         assertThrows(SecurityException.class,
                 () -> sDeviceState.dpc().devicePolicyManager().addUserRestriction(
@@ -472,7 +475,7 @@ public final class BluetoothTest {
     @Test
     @Postsubmit(reason = "new test")
     @ApiTest(apis = "android.os.UserManager#DISALLOW_BLUETOOTH")
-    @RequireNotHeadlessSystemUserMode(reason = "b/276405672")
+    @RequireNotHeadlessSystemUserMode(reason = "b/276405672 bluetooth restriction not enforced on secondary users")
     public void share_disallowBluetoothRestrictionIsSet_canNotShare() {
         Poll.forValue("Opp Launcher Component Enabled",
                 () -> TestApis.packages().activity(OPP_LAUNCHER_COMPONENT)

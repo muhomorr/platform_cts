@@ -38,6 +38,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
@@ -1444,10 +1445,6 @@ public class PackageManagerShellCommandTest {
     @Test
     @LargeTest
     public void testPackageVerifierReject() throws Exception {
-        // PackageManager.verifyPendingInstall() call only works with user 0 as verifier is expected
-        // to be user 0. So skip the test if it is not user 0.
-        // TODO(b/232317379) Fix this in proper way
-        assumeTrue(getContext().getUserId() == UserHandle.USER_SYSTEM);
         AtomicInteger dataLoaderType = new AtomicInteger(-1);
 
         runPackageVerifierTest("Failure [INSTALL_FAILED_VERIFICATION_FAILURE: Install not allowed",
@@ -1502,10 +1499,6 @@ public class PackageManagerShellCommandTest {
         installPackage(TEST_VERIFIER_REJECT);
         assertTrue(isAppInstalled(TEST_VERIFIER_PACKAGE));
 
-        // PackageManager.verifyPendingInstall() call only works with user 0 as verifier is expected
-        // to be user 0. So skip the test if it is not user 0.
-        // TODO(b/232317379) Fix this in proper way
-        assumeTrue(getContext().getUserId() == UserHandle.USER_SYSTEM);
         AtomicInteger dataLoaderType = new AtomicInteger(-1);
 
         runPackageVerifierTest("Failure [INSTALL_FAILED_VERIFICATION_FAILURE: Install not allowed",
@@ -1529,10 +1522,6 @@ public class PackageManagerShellCommandTest {
         installPackage(TEST_VERIFIER_REJECT);
         assertTrue(isAppInstalled(TEST_VERIFIER_PACKAGE));
 
-        // PackageManager.verifyPendingInstall() call only works with user 0 as verifier is expected
-        // to be user 0. So skip the test if it is not user 0.
-        // TODO(b/232317379) Fix this in proper way
-        assumeTrue(getContext().getUserId() == UserHandle.USER_SYSTEM);
         AtomicInteger dataLoaderType = new AtomicInteger(-1);
 
         runPackageVerifierTest("Failure [INSTALL_FAILED_VERIFICATION_FAILURE: Install not allowed",
@@ -1561,10 +1550,6 @@ public class PackageManagerShellCommandTest {
         installPackage(TEST_VERIFIER_DELAYED_REJECT);
         assertTrue(isAppInstalled(TEST_VERIFIER_PACKAGE));
 
-        // PackageManager.verifyPendingInstall() call only works with user 0 as verifier is expected
-        // to be user 0. So skip the test if it is not user 0.
-        // TODO(b/232317379) Fix this in proper way
-        assumeTrue(getContext().getUserId() == UserHandle.USER_SYSTEM);
         AtomicInteger dataLoaderType = new AtomicInteger(-1);
 
         runPackageVerifierTest("Failure [INSTALL_FAILED_VERIFICATION_FAILURE: Install not allowed",
@@ -1698,10 +1683,6 @@ public class PackageManagerShellCommandTest {
 
     @Test
     public void testPackageVerifierWithOneVerifierDisabledAtRunTime() throws Exception {
-        // PackageManager.verifyPendingInstall() call only works with user 0 as verifier is expected
-        // to be user 0. So skip the test if it is not user 0.
-        // TODO(b/232317379) Fix this in proper way
-        assumeTrue(getContext().getUserId() == UserHandle.USER_SYSTEM);
         installPackage(TEST_VERIFIER_REJECT);
         assertTrue(isAppInstalled(TEST_VERIFIER_PACKAGE));
         runPackageVerifierTest("Failure [INSTALL_FAILED_VERIFICATION_FAILURE: Install not allowed",
@@ -1735,10 +1716,6 @@ public class PackageManagerShellCommandTest {
 
     @Test
     public void testPackageVerifierWithOneVerifierDisabledAtManifest() throws Exception {
-        // PackageManager.verifyPendingInstall() call only works with user 0 as verifier is expected
-        // to be user 0. So skip the test if it is not user 0.
-        // TODO(b/232317379) Fix this in proper way
-        assumeTrue(getContext().getUserId() == UserHandle.USER_SYSTEM);
         // The second verifier package is disabled in its manifest
         installPackage(TEST_VERIFIER_REJECT);
         assertTrue(isAppInstalled(TEST_VERIFIER_PACKAGE));
@@ -1912,16 +1889,23 @@ public class PackageManagerShellCommandTest {
             }
         }
         public void assertBroadcastReceived() throws Exception {
-            executeShellCommand("am wait-for-broadcast-barrier");
-            assertTrue(mUserReceivedBroadcast.get(2, TimeUnit.SECONDS));
+            // Make sure broadcast has been sent from PackageManager
+            executeShellCommand("pm wait-for-handler --timeout 2000");
+            // Make sure broadcast has been dispatched from the queue
+            executeShellCommand(String.format(
+                    "am wait-for-broadcast-dispatch -a %s -d package:%s",
+                    Intent.ACTION_PACKAGE_FULLY_REMOVED, mTargetPackage));
+            // Checks that broadcast is delivered here
+            assertTrue(mUserReceivedBroadcast.get(500, TimeUnit.MILLISECONDS));
         }
         public void assertBroadcastNotReceived() throws Exception {
-            try {
-                executeShellCommand("am wait-for-broadcast-barrier");
-                assertFalse(mUserReceivedBroadcast.get(2, TimeUnit.SECONDS));
-            } catch (TimeoutException ignored) {
-                // expected
-            }
+            // Make sure broadcast has been sent from PackageManager
+            executeShellCommand("pm wait-for-handler --timeout 2000");
+            executeShellCommand(String.format(
+                    "am wait-for-broadcast-dispatch -a %s -d package:%s",
+                    Intent.ACTION_PACKAGE_FULLY_REMOVED, mTargetPackage));
+            assertThrows(TimeoutException.class,
+                    () -> mUserReceivedBroadcast.get(500, TimeUnit.MILLISECONDS));
         }
     }
 

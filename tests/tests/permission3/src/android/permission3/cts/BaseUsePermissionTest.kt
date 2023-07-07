@@ -22,7 +22,12 @@ import android.app.Instrumentation
 import android.content.ComponentName
 import android.content.Intent
 import android.content.Intent.ACTION_REVIEW_APP_DATA_SHARING_UPDATES
+import android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
 import android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+import android.content.pm.PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE
+import android.content.pm.PackageInstaller.PACKAGE_SOURCE_LOCAL_FILE
+import android.content.pm.PackageInstaller.PACKAGE_SOURCE_OTHER
+import android.content.pm.PackageInstaller.PACKAGE_SOURCE_STORE
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -34,6 +39,7 @@ import android.text.style.ClickableSpan
 import android.view.View
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
+import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.UiObjectNotFoundException
 import androidx.test.uiautomator.UiScrollable
 import androidx.test.uiautomator.UiSelector
@@ -294,10 +300,18 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         uninstallPackage(APP_PACKAGE_NAME, requireSuccess = false)
     }
 
-    protected fun clearTargetSdkWarning(timeoutMillis: Long = TIMEOUT_MILLIS) =
-        waitFindObjectOrNull(By.res("android:id/button1"), timeoutMillis)?.click()?.also {
+    protected fun clearTargetSdkWarning(timeoutMillis: Long = TIMEOUT_MILLIS) {
+        waitForIdle()
+        waitFindObjectOrNull(By.res("android:id/button1"), timeoutMillis)?.let {
+            try {
+                it.click()
+            } catch (e: StaleObjectException) {
+                // Click sometimes fails with StaleObjectException (b/280430717).
+                e.printStackTrace()
+            }
             waitForIdle()
         }
+    }
 
     protected fun clickPermissionReviewContinue() {
         if (isAutomotive || isWatch) {
@@ -317,6 +331,34 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         apkName: String
     ) {
         installPackageViaSession(apkName, AppMetadata.createDefaultAppMetadata())
+    }
+
+    protected fun installPackageWithInstallSourceAndMetadataFromStore(
+        apkName: String
+    ) {
+        installPackageViaSession(apkName, AppMetadata.createDefaultAppMetadata(),
+            PACKAGE_SOURCE_STORE)
+    }
+
+    protected fun installPackageWithInstallSourceAndMetadataFromLocalFile(
+        apkName: String
+    ) {
+        installPackageViaSession(apkName, AppMetadata.createDefaultAppMetadata(),
+            PACKAGE_SOURCE_LOCAL_FILE)
+    }
+
+    protected fun installPackageWithInstallSourceAndMetadataFromDownloadedFile(
+        apkName: String
+    ) {
+        installPackageViaSession(apkName, AppMetadata.createDefaultAppMetadata(),
+            PACKAGE_SOURCE_DOWNLOADED_FILE)
+    }
+
+    protected fun installPackageWithInstallSourceAndMetadataFromOther(
+        apkName: String
+    ) {
+        installPackageViaSession(apkName, AppMetadata.createDefaultAppMetadata(),
+            PACKAGE_SOURCE_OTHER)
     }
 
     protected fun installPackageWithInstallSourceAndNoMetadata(
@@ -776,6 +818,7 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                     putExtra(Intent.EXTRA_PERMISSION_NAME, permission)
                     putExtra(Intent.EXTRA_USER, Process.myUserHandle())
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 })
         }
     }
@@ -827,6 +870,7 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                             putExtra(Intent.EXTRA_PERMISSION_NAME, permission)
                             putExtra(Intent.EXTRA_USER, Process.myUserHandle())
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
                         })
                 }
             }

@@ -27,6 +27,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.SystemClock;
 import android.service.credentials.Action;
+import android.service.credentials.BeginCreateCredentialRequest;
 import android.service.credentials.CallingAppInfo;
 import android.service.credentials.CreateEntry;
 import android.service.credentials.CredentialEntry;
@@ -45,10 +46,16 @@ public class TestUtils {
         assertThat(a.getAllowedProviders()).containsExactlyElementsIn(b.getAllowedProviders());
     }
 
-    public static void assertEquals(CredentialDescription a, CredentialDescription b) {
+    public static void assertEquals(BeginCreateCredentialRequest a,
+            BeginCreateCredentialRequest b) {
         assertThat(a.getType()).isEqualTo(b.getType());
-        assertThat(a.getSupportedElementKeys()).isEqualTo(b.getSupportedElementKeys());
-        assertThat(a.getCredentialEntries()).isEqualTo(b.getCredentialEntries());
+        assertEquals(a.getData(), b.getData());
+        assertEquals(a.getCallingAppInfo(), b.getCallingAppInfo());
+    }
+
+    public static void assertEquals(CredentialDescription a, CredentialDescription b) {
+        assertThat(a).isEqualTo(b);
+        assertThat(a.getCredentialEntries()).hasSize(b.getCredentialEntries().size());
     }
 
     public static void assertEquals(Slice a, Slice b) {

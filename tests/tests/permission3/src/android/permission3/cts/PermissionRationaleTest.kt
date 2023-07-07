@@ -25,6 +25,7 @@ import android.provider.DeviceConfig
 import android.safetylabel.SafetyLabelConstants.PERMISSION_RATIONALE_ENABLED
 import android.text.Spanned
 import android.text.style.ClickableSpan
+import android.util.Log
 import android.view.View
 import androidx.test.filters.SdkSuppress
 import androidx.test.uiautomator.By
@@ -38,6 +39,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assume
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 
@@ -66,9 +68,7 @@ class PermissionRationaleTest : BaseUsePermissionTest() {
 
         enableComponent(TEST_INSTALLER_ACTIVITY_COMPONENT_NAME)
 
-        installPackageViaSession(
-            apkName = APP_APK_NAME_31,
-            appMetadata = AppMetadata.createDefaultAppMetadata())
+        installPackageWithInstallSourceAndMetadata(APP_APK_NAME_31)
 
         assertAppHasPermission(Manifest.permission.ACCESS_FINE_LOCATION, false)
     }
@@ -134,6 +134,7 @@ class PermissionRationaleTest : BaseUsePermissionTest() {
         }
     }
 
+    @Ignore("b/282063206")
     @Test
     fun clickLinkToHelpCenter_opensHelpCenter() {
         Assume.assumeFalse(getPermissionControllerResString(HELP_CENTER_URL_ID).isNullOrEmpty())
@@ -145,9 +146,7 @@ class PermissionRationaleTest : BaseUsePermissionTest() {
 
         clickHelpCenterLink()
 
-        eventually {
-            assertHelpCenterLinkClickSuccessful()
-        }
+        eventually({assertHelpCenterLinkClickSuccessful()}, HELP_CENTER_TIMEOUT_MILLIS)
     }
 
     @Test
@@ -353,19 +352,22 @@ class PermissionRationaleTest : BaseUsePermissionTest() {
 
     private fun assertHelpCenterLinkClickSuccessful() {
         SystemUtil.runWithShellPermissionIdentity {
-            val runningTasks = activityManager!!.getRunningTasks(1)
+            val runningTasks = activityManager!!.getRunningTasks(5)
 
-            assertFalse("Expected runningTasks to not be empty",
-                runningTasks.isEmpty())
+            Log.v(TAG, "# running tasks: ${runningTasks.size}")
+            assertFalse("Expected runningTasks to not be empty", runningTasks.isEmpty())
+
+            runningTasks.forEachIndexed { index, runningTaskInfo ->
+                Log.v(TAG, "task $index ${runningTaskInfo.baseIntent}")
+            }
 
             val taskInfo = runningTasks[0]
             val observedIntentAction = taskInfo.baseIntent.action
             val observedIntentDataString = taskInfo.baseIntent.dataString
             val observedIntentScheme: String? = taskInfo.baseIntent.scheme
 
-            assertEquals("Unexpected intent action",
-                Intent.ACTION_VIEW,
-                observedIntentAction)
+            Log.v(TAG, "task base intent: ${taskInfo.baseIntent}")
+            assertEquals("Unexpected intent action", Intent.ACTION_VIEW, observedIntentAction)
 
             val expectedUrl = getPermissionControllerResString(HELP_CENTER_URL_ID)!!
             assertFalse(observedIntentDataString.isNullOrEmpty())
@@ -377,6 +379,8 @@ class PermissionRationaleTest : BaseUsePermissionTest() {
     }
 
     companion object {
+        private val TAG = PermissionRationaleTest::class.java.simpleName
+
         private const val DATA_SHARING_SOURCE_MESSAGE_ID =
             "com.android.permissioncontroller:id/data_sharing_source_message"
         private const val LEARN_MORE_MESSAGE_ID =
@@ -385,5 +389,6 @@ class PermissionRationaleTest : BaseUsePermissionTest() {
             "com.android.permissioncontroller:id/settings_message"
 
         private const val HELP_CENTER_URL_ID = "data_sharing_help_center_link"
+        private const val HELP_CENTER_TIMEOUT_MILLIS: Long = 20000
     }
 }

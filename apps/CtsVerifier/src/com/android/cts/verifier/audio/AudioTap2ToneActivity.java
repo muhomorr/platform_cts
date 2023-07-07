@@ -22,6 +22,7 @@ import static com.android.cts.verifier.TestListAdapter.setTestNameSuffix;
 import android.mediapc.cts.common.PerformanceClassEvaluator;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
@@ -103,11 +104,11 @@ public class AudioTap2ToneActivity
     // Stats for latency
     private double mMaxRequiredLatency;
 
-    // REQUIRED CDD  5.6/H-1-1
-    private static final int MAX_TAP_2_TONE_LATENCY_BASIC = 500;  // ms
+    // REQUIRED CDD  [5.6/H-1-2]
+    private static final int MAX_TAP_2_TONE_LATENCY_BASIC = 300;  // ms
     // Requirement for "R" and "S"
     private static final int MAX_TAP_2_TONE_LATENCY_RS = 100;  // ms
-    // Requirement for "T"
+    // Requirement for "T" (or later)
     private static final int MAX_TAP_2_TONE_LATENCY_T     = 80;   // ms
     // Requirement for any builds declaring "ProAudio" and "LowLatency"
     private static final int MAX_TAP_2_TONE_LATENCY_PRO     = 80;   // ms
@@ -131,28 +132,6 @@ public class AudioTap2ToneActivity
     private boolean mArmed = true;  // OK to fire another beep
 
     private double[] mLatencyMillis = new double[NUM_TEST_PHASES];
-
-    @Override
-    public boolean requiresReportLog() {
-        return true;
-    }
-
-    @Override
-    public String getReportFileName() {
-        return PassFailButtons.AUDIO_TESTS_REPORT_LOG_NAME;
-    }
-
-    @Override
-    public final String getReportSectionName() {
-        return setTestNameSuffix(sCurrentDisplayMode, "tap_to_tone_latency");
-    }
-
-    // ReportLog Schema
-    // Note that each key will be suffixed with the ID of the API tested
-    private static final String KEY_LATENCY_MIN = "latency_min_";
-    private static final String KEY_LATENCY_MAX = "latency_max_";
-    private static final String KEY_LATENCY_AVE = "latency_max_";
-    private static final String KEY_LATENCY_NUM_MEASUREMENTS = "latency_num_measurements_";
 
     public final TestName testName = new TestName();
 
@@ -185,14 +164,15 @@ public class AudioTap2ToneActivity
 
         String mediaPerformanceClassString;
         int mpc = Build.VERSION.MEDIA_PERFORMANCE_CLASS;
-        if (mpc == Build.VERSION_CODES.TIRAMISU) {
-            mediaPerformanceClassString = "T";
+        if (mpc >= Build.VERSION_CODES.TIRAMISU) {
+            mediaPerformanceClassString = "T (or greater)";
         } else if (mpc == Build.VERSION_CODES.S)  {
             mediaPerformanceClassString = "S";
         } else if (mpc == Build.VERSION_CODES.R) {
             mediaPerformanceClassString = "R";
         } else {
-            mediaPerformanceClassString = "none [" + mpc + "]";
+            mediaPerformanceClassString = "other [" + mpc + "]";
+            Log.e(TAG, "Unexpected Media Performance Class: " + mpc);
         }
         ((TextView) findViewById(R.id.audio_t2t_mpc)).setText(mediaPerformanceClassString);
 
@@ -204,11 +184,11 @@ public class AudioTap2ToneActivity
         if (claimsLowLatencyAudio) {
             mMaxRequiredLatency = Math.min(mMaxRequiredLatency, MAX_TAP_2_TONE_LATENCY_LOW);
         }
-        if (mpc == Build.VERSION_CODES.TIRAMISU) {
-            mMaxRequiredLatency = Math.min(mMaxRequiredLatency, MAX_TAP_2_TONE_LATENCY_T);
-        }
         if (mpc == Build.VERSION_CODES.R || mpc == Build.VERSION_CODES.S) {
             mMaxRequiredLatency = Math.min(mMaxRequiredLatency, MAX_TAP_2_TONE_LATENCY_RS);
+        }
+        if (mpc >= Build.VERSION_CODES.TIRAMISU) {
+            mMaxRequiredLatency = Math.min(mMaxRequiredLatency, MAX_TAP_2_TONE_LATENCY_T);
         }
 
         ((TextView) findViewById(R.id.audio_t2t_required_latency))
@@ -509,6 +489,29 @@ public class AudioTap2ToneActivity
         }
     }
 
+    @Override
+    public boolean requiresReportLog() {
+        return true;
+    }
+
+    @Override
+    public String getReportFileName() {
+        return PassFailButtons.AUDIO_TESTS_REPORT_LOG_NAME;
+    }
+
+    @Override
+    public final String getReportSectionName() {
+        return setTestNameSuffix(sCurrentDisplayMode, SECTION_TAP_2_TONE_LATENCY);
+    }
+
+    // ReportLog Schema
+    // Note that each key will be suffixed with the ID of the API tested
+    private static final String SECTION_TAP_2_TONE_LATENCY = "tap_to_tone_latency";
+    private static final String KEY_LATENCY_MIN = "latency_min_";
+    private static final String KEY_LATENCY_MAX = "latency_max_";
+    private static final String KEY_LATENCY_AVE = "latency_ave_";
+    private static final String KEY_LATENCY_NUM_MEASUREMENTS = "latency_num_measurements_";
+
     private void reportTestResultForApi(int api) {
         CtsVerifierReportLog reportLog = getReportLog();
         reportLog.addValue(
@@ -533,6 +536,16 @@ public class AudioTap2ToneActivity
                 ResultUnit.NONE);
     }
 
+    @Override
+    public void recordTestResults() {
+        reportTestResultForApi(TEST_API_NATIVE);
+        reportTestResultForApi(TEST_API_JAVA);
+
+        getReportLog().submit();
+
+        recordPerfClassResults();
+    }
+
     /** Records perf class results and returns if mpc is met */
     private void recordPerfClassResults() {
         PerformanceClassEvaluator pce = new PerformanceClassEvaluator(testName);
@@ -545,17 +558,7 @@ public class AudioTap2ToneActivity
         pce.submitAndVerify();
     }
 
-    @Override
-    public void recordTestResults() {
-        reportTestResultForApi(TEST_API_NATIVE);
-        reportTestResultForApi(TEST_API_JAVA);
-
-        getReportLog().submit();
-
-        recordPerfClassResults();
-    }
-
-    //
+     //
     // AppCallback overrides
     //
     @Override

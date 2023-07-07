@@ -76,7 +76,6 @@ import android.widget.PopupWindow;
 import android.window.WindowInfosListenerForTest.WindowInfo;
 
 import androidx.test.InstrumentationRegistry;
-import androidx.test.filters.FlakyTest;
 import androidx.test.rule.ActivityTestRule;
 
 import com.android.compatibility.common.util.CtsTouchUtils;
@@ -430,7 +429,6 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
 
     @Test
     @RequiresDevice
-    @FlakyTest(bugId = 152103238)
     public void testEmbeddedViewIsHardwareAccelerated() throws Throwable {
         // Hardware accel may not be supported on devices without GLES 2.0
         if (getGlEsVersion(mActivity) < 2) {
@@ -895,7 +893,7 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
                 mSurfaceView = new SurfaceView(mActivity);
                 mSurfaceView.setZOrderOnTop(true);
                 content.addView(mSurfaceView, new FrameLayout.LayoutParams(
-                        DEFAULT_SURFACE_VIEW_WIDTH, DEFAULT_SURFACE_VIEW_HEIGHT, 
+                        DEFAULT_SURFACE_VIEW_WIDTH, DEFAULT_SURFACE_VIEW_HEIGHT,
                         Gravity.LEFT | Gravity.TOP));
                 mActivity.setContentView(content, new ViewGroup.LayoutParams(
                         DEFAULT_SURFACE_VIEW_WIDTH, DEFAULT_SURFACE_VIEW_HEIGHT));
@@ -1077,7 +1075,7 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
         addForwardingSurfaceView(100, 100);
         mInstrumentation.waitForIdleSync();
         waitUntilEmbeddedViewDrawn();
-        
+
         assertFalse(drv.mDetached);
         mActivityRule.runOnUiThread(() -> {
             mViewParent.removeView(mSurfaceView);
@@ -1185,7 +1183,10 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
         });
         // TODO(b/279051608): Add touchable regions in WindowInfo test so we can make sure the
         // touchable regions for the host have been set before proceeding.
-        waitForWindowVisible(mSurfaceView);
+        assertTrue("Failed to wait for host window to be visible",
+                waitForWindowVisible(mSurfaceView));
+        assertTrue("Failed to wait for embedded window to be visible",
+                waitForWindowVisible(mTestService.getWindowToken()));
         mCtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mSurfaceView);
 
         int retryCount = 0;
@@ -1213,7 +1214,11 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
         });
         // TODO(b/279051608): Add touchable regions in WindowInfo test so we can make sure the
         // touchable regions for the host have been set before proceeding.
-        waitForWindowVisible(mSurfaceView);
+        assertTrue("Failed to wait for host window to be visible",
+                waitForWindowVisible(mSurfaceView));
+        assertTrue("Failed to wait for embedded window to be visible",
+                waitForWindowVisible(mTestService.getWindowToken()));
+
         mCtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mSurfaceView);
 
         assertFalse(mTestService.getViewIsTouched());
@@ -1289,6 +1294,9 @@ public class SurfaceControlViewHostTests extends ActivityManagerTestBase impleme
             Rect parentBounds = null;
             Rect popupBounds = null;
             for (WindowInfo windowInfo : windowInfos) {
+                if (!windowInfo.isVisible) {
+                    continue;
+                }
                 if (windowInfo.windowToken == parentWindowToken) {
                     parentBounds = windowInfo.bounds;
                 } else if (windowInfo.windowToken == popupWindowToken) {

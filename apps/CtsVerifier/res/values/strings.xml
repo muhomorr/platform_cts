@@ -905,6 +905,7 @@
         \nGo setting mode, set Bluetooth to unpair other device.
     </string>
 
+    <string name="ble_mtu_unexpected_message">Unexpected MTU request</string>
     <string name="ble_mtu_mismatch_message">MTU is not correct.(Request:%1$d, Actual:%2$d)</string>
     <string name="ble_mtu_fail_message">MTU test: failed to receive data</string>
 
@@ -1619,9 +1620,9 @@
     <string name="camera_orientation">Camera Orientation</string>
     <string name="co_info">This test verifies the orientation capabilities of
     camera preview and capture.\n - The left view shows a preview window rotated
-    clockwise by a given magnitude of degrees.\n - The right view, after taking
+    by a given magnitude of degrees.\n - The right view, after taking
     a photo, shows the captured image.\n - For each camera and orientation, both
-    the left and right views should appear rotated clockwise by the amount of
+    the left and right views should appear rotated by the amount of
     degrees specified. Choose \"Pass\" if this is the case. Otherwise, choose
     \"Fail\".\n - For front-facing cameras, the test will horizontally mirror
     the captured image prior to rotation, in attempt to make the left and right
@@ -1633,7 +1634,6 @@
     <string name="co_format_label">Oriented photo</string>
     <string name="co_camera_label">Camera:</string>
     <string name="co_orientation_label">Orientation</string>
-    <string name="co_orientation_direction_label">clockwise</string>
     <string name="co_instruction_heading_label">Instruction:</string>
     <string name="co_instruction_text_photo_label">Take a photo</string>
     <string name="co_instruction_text_passfail_label">Choose \"Pass\" if the left view is oriented the same as the right view. Otherwise, choose \"Fail\".</string>
@@ -1850,6 +1850,37 @@
     </string>
     <string name="its_test_progress">ITS test progress will be shown here.</string>
 
+    <!-- Strings for the Camera Webcam test activity -->
+    <string name="camera_webcam_test">Camera Webcam Test</string>
+    <string name="camera_webcam_test_info">
+        This test verifies the FPS rates the device advertises as a webcam. It also
+        includes manual verification on the functionality of the webcam stream.
+
+        \n\nInstructions for Test Run:
+        \n1. Connect your Android device to a computer with adb installed via a USB cable.
+        \n\n2. Setup the Camera Webcam test environment by following the setup instructions in the
+        README file found in the DeviceAsWebcam directory
+        (packages/services/DeviceAsWebcam/tests).
+
+        \n\n3. Ensure the camera is aimed at a bright scene to get the most accurate FPS reading.
+        \n\n4. Run the test script.
+        (python run_webcam_test.py -c config.yml).
+        Once the test has been run, the \'Yes\' and \'No\' buttons will be enabled. Confirm if the frames
+        from the webcam service were okay. Then, click \'Done\'. The \'PASS\' will be enabled
+        if the script results passed and the frames contained no issues.
+    </string>
+
+    <string name="camera_webcam_frames_pass">Yes</string>
+    <string name="camera_webcam_frames_fail">No</string>
+    <string name="camera_webcam_done_button">Done</string>
+    <string name="camera_webcam_start_text">Run the test script to begin.</string>
+    <string name="camera_webcam_confirm_frames_text">Webcam testing complete. Confirm if the frames from webcam stream were okay.</string>
+    <string name="camera_webcam_results_pass_frames_fail_text">Script results passed but frames contained errors. Test failed. Click Done to complete.</string>
+    <string name="camera_webcam_results_pass_frames_pass_text">Script results passed and frames were normal. Test passed Click Done to complete.</string>
+    <string name="camera_webcam_results_fail_frames_pass_text">Script results failed but frames were normal. Test failed. Click Done to complete.</string>
+    <string name="camera_webcam_results_fail_frames_fail_text">Script results failed and frames contained errors. Test failed. Click Done to complete.</string>
+    <string name="camera_webcam_not_supported_text">Webcam feature not supported. Test skipped. Click Done to complete.</string>
+
     <!-- Strings for the Camera Flashlight test activity -->
     <string name="camera_flashlight_test">Camera Flashlight</string>
     <string name="camera_flashlight_info">
@@ -1927,8 +1958,8 @@
     <string name="wifi_test_info">
         The Wi-Fi tests requires an open or PSK access point in the environment along with the DUT.
         \nPlease perform a network settings reset between each test to reset platform\'s internal state which
-        might interfere with the test flow.\nNavigate to \"Settings -> System -> Reset Options -> Reset Wi-Fi,
-        mobile &amp; Bluetooth\" to perform a network settings reset.
+        might interfere with the test flow.\nNavigate to \"Settings -> System -> Reset Options -> Reset Bluetooth
+        &amp; Wi-Fi\" to perform a network settings reset.
     </string>
     <string name="wifi_location_not_enabled">Wi-Fi / Location Mode is not enabled</string>
     <string name="wifi_location_not_enabled_message">These tests require Wi-Fi and Location Mode to be enabled.
@@ -2358,7 +2389,7 @@
         particular ringer mode states works properly.
     </string>
     <string name="ringer_mode_pass_test">These tests are handled by CTS.</string>
-    <string name="test_sound_effects">Test touch sound</string>
+    <string name="test_sound_effects">Test Tap &amp; click sounds</string>
     <string name="test_vibrate_notification">Test vibrate notification</string>
     <string name="test_vibrate_ringer">Test vibrate ringer</string>
     <string name="test_access_ringer_mode">Test access ringer mode</string>
@@ -2366,7 +2397,7 @@
     <string name="test_volume_dnd_affected_stream">Test volume change</string>
     <string name="test_mute_dnd_affected_streams">Test mute streams</string>
     <string name="test_ringer_manager">Test RingtoneManager</string>
-    <string name="enable_sound_effects">Please enable touch sound in Sound settings.</string>
+    <string name="enable_sound_effects">Please enable Tap &amp; click sounds in Sound settings.</string>
     <string name="attention_ready">I\'m done</string>
     <string name="attention_filter_any">Please enable \"Do not disturb\" by tapping the Quick Settings tile.</string>
     <string name="attention_filter_all">Please disable \"Do not disturb\" by tapping the Quick Settings tile.</string>
@@ -2428,14 +2459,12 @@
     <string name="nd_test_info">This test checks if Notifications can only be
         dismissed, when it is allowed.</string>
     <string name="nd_notif_title">NotifDismissTest</string>
-    <string name="nd_notif_public_version_title">NotifDismissTest: REDACTED</string>
-    <string name="nd_notif_private_version_title">NotifDismissTest: EXPOSED</string>
     <string name="dismiss_notif_from_the_shade">Open the shade while the device is unlocked and find the NotifDismissTest notification.\n
         Swipe it to either side to dismiss it.\n
-        Fail the test if it could\'t be dismissed.</string>
+        Pass the test if it can be dismissed.</string>
     <string name="dismiss_notif_from_the_ls">Lock the screen and find the NotifDismissTest notification.\n
         Swipe it to either side to dismiss it.\n
-        Fail the test if it couldn\'t be dismissed from the lock screen.</string>
+        Pass the test if it can be dismissed from the lock screen.</string>
     <string name="non_dismissable_notif_from_the_ls">Lock the screen and find the NotifDismissTest notification.\n
         Try to dismiss it. Verify that it is non-dismissible.\n
         Fail the test if it could be dismissed from the lock screen.</string>
@@ -2489,7 +2518,10 @@
         Fsi Notif Content Fsi Notif Content Fsi Notif Content</string>
     <string name="fsi_grant_permission">Please toggle on the full screen intents permission for CTSVerifier.</string>
     <string name="fsi_deny_permission">Please toggle off the full screen intents permission for CTSVerifier</string>
-    <string name="fsi_sticky_hun">There should be a Heads Up Notification on the screen.\n
+    <string name="fsi_sticky_hun">There should be a sticky Heads Up Notification on the screen.\n
+        It would not be automatically cleared out.\n
+        Fail the test if it doesn\'t show or disappears within 60s.</string>
+    <string name="fsi_sticky_hun_60s">There should be a Heads Up Notification on the screen.\n
         It would show for 60s.\n
         Fail the test if it doesn\'t show or disappears within 60s.</string>
     <string name="np_start_channel_settings">Launch Channel Settings</string>
@@ -2617,6 +2649,8 @@ When the buttons are enabled, pass this test if the information in the dialog wa
     <string name="nls_block_group">Please block the linked notification channel group and return here.</string>
     <string name="nls_channel_settings_with_filter_instructions">In the following dialog, please take a note of which channel settings are visible. Then turn on vibration for the channel and press \"Done\".</string>
     <string name="nls_channel_settings_with_filter_verification">Were the channel settings shown in a bottom sheet instead of the normal \"full-screen\" settings? Were sound and vibration the only available options?</string>
+    <string name="nls_channel_settings_with_filter_instructions_no_vibrator">In the following dialog, please take a note of which channel settings are visible. Then add a sound for the channel and press \"Done\".</string>
+    <string name="nls_channel_settings_with_filter_verification_no_vibrator">Were the channel settings shown in a bottom sheet instead of the normal \"full-screen\" settings? Was sound the only available option?</string>
     <string name="nls_disable_service">Please disable \"Notification Listener for CTS Verifier\"
         under Apps > Gear Icon > Special Access > Notification Access and return here.</string>
     <string name="nls_start_settings">Launch Settings</string>
@@ -4173,7 +4207,7 @@ You should be prompted to select credentials; choose the ones you just installed
         Then press Go to open the WiFi page in Settings.
         Confirm that:\n\n
         - You cannot add a new WiFi configuration.\n
-        - The UI indicates that this is disabled due to admin policy.\n
+        - Tapping on the disabled network shows a dialog explaining the admin restriction.\n
         \n
         Use the Back button to return to this page.
     </string>
@@ -4393,7 +4427,7 @@ You should be prompted to select credentials; choose the ones you just installed
     <!-- Strings used for policy transparency test -->
     <string name="device_profile_owner_policy_transparency_test">Policy transparency test</string>
     <string name="device_profile_owner_policy_transparency_test_info">
-        This test checks that if an admin has enforced a policy, we let the user know about this.\nSet the short and long support messages before proceeding with the tests.
+        This test checks that if an admin has enforced a policy, we let the user know about this.\nSet the short support message before proceeding with the tests.
     </string>
     <string name="policy_transparency_open_settings_label">Open settings</string>
     <string name="policy_transparency_short_support_msg_label">Set short support message</string>
@@ -5250,21 +5284,6 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="tv_start_test">Start Test</string>
     <string name="tv_done">Done</string>
 
-    <!-- Audio Capabilities test -->
-    <string name="tv_audio_capabilities_test">Audio Capabilities Test</string>
-    <string name="tv_audio_capabilities_test_info">This test checks if AudioDeviceInfo and
-    AudioTrack#isDirectPlaybackSupported APIs correctly report the Audio capabilities
-    of the connected audio devices.</string>
-    <string name="tv_audio_capabilities_no_receiver_connected">Disconnect all receivers or
-    soundbars which are connected. </string>
-    <string name="tv_audio_capabilities_receiver_connected">Connect a receiver or
-    soundbar which can play Dolby Atmos. </string>
-    <string name="tv_audio_capabilities_atmos_supported">Does your Android TV device support Dolby
-    Atmos (either passthrough or decode)?  </string>
-    <string name="tv_audio_capabilities_skip_test"> This test is only applicable to OTT and STB
-        devices. Is your device a soundbar or panel TV?
-    </string>
-
     <!-- Hotplug Test -->
     <string name="tv_hotplug_test">Hotplug Test</string>
     <string name="tv_hotplug_test_info">This test checks whether DisplayManager responds correctly
@@ -5419,7 +5438,7 @@ You should be prompted to select credentials; choose the ones you just installed
 
     <string name="audio_uap_buttons_test">USB Audio Peripheral Buttons Test</string>
     <string name="uapButtonTestInstructions">Connect the USB Audio headset with buttons
-        and press each transport/media button in turn.</string>
+        and press each button on the headset to verify recognition.</string>
 
      <string name="uapNotificationsTestInfo">
          This test verifies that the correct notifications and Intents are sent when a USB audio
@@ -5627,6 +5646,8 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="audio_general_not_tested">Not Tested</string>
     <string name="audio_general_not_required">Please Test If Supported</string>
     <string name="audio_general_required">Required</string>
+    <string name="audio_general_run">Run</string>
+    <string name="audio_general_cancel">Cancel</string>
 
     <string name="audio_general_Input">Input</string>
     <string name="audio_general_Output">Output</string>
@@ -5740,9 +5761,9 @@ You should be prompted to select credentials; choose the ones you just installed
         This time is defined as the \"cold start latency\". To pass this test, a maximum
         cold start latency time of 500ms or less is REQUIRED, while a time of 100ms or less
         is STRONGLY RECOMMENDED. (See <a href="https://source.android.com/compatibility/android-cdd#5_6_audio_latency">Android CDD § 5.6. Audio Latency</a>)
-        \n\nTo run this test, it is required to have touch-sounds disabled in the device
-        \"Sound &amp; Vibration\" settings
-        panel.
+        \n\nTo run this test, it is required to have Tap &amp; click sounds disabled in the device
+        \"Sound &amp; Vibration\" settings panel. Note that in some versions of Android, this setting
+        may be called \"Touch sounds\".
         \n\nThe \"Java API\" and \"Native API\" allow for capturing performance data from the
         two streaming APIs. The cold start latency measurement need only pass for one API.
         The Native API generally gives the best performance.
@@ -5767,9 +5788,10 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="audio_coldstart_outputlbl">Output Cold Start Latency</string>
     <string name="audio_coldstart_inputlbl">Input Cold Start Latency</string>
     <string name="audio_coldstart_touchsounds_message">
-        Touch sounds are ENABLED. Please DISABLE touch sounds in the \"Sound &amp; Vibration\" settings panel.
+        Tap &amp; click sounds are ENABLED. Please DISABLE Tap &amp; click in the \"Sound &amp; Vibration\" settings panel.
+        \nNote that in some versions of Android, this setting may be called \"Touch sounds\".
     </string>
-    <string name="audio_coldstart_notouchsounds_message">Touch sound are DISABLED.</string>
+    <string name="audio_coldstart_notouchsounds_message">Tap &amp; click sounds are DISABLED.</string>
 
     <!-- Audio Frequency Line Test -->
     <string name="audio_frequency_line_test">Audio Frequency Line Test</string>
@@ -5901,7 +5923,7 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="analog_headset_pass_noheadset">"PASS (No headset port available)"</string>
     <string name="analog_headset_pass">PASS</string>
     <string name="analog_headset_port_detected">"Analog port detected"</string>
-    <string name="analog_headset_press_buttons">Press headset buttons to verify recognition</string>
+    <string name="analog_headset_press_buttons">Press each button on the headset verify recognition</string>
     <string name="analog_headset_no_buttons">No buttons detected</string>
     <string name="analog_headset_headset_connected">Headset connected</string>
     <string name="analog_headset_no_headset">No Headset - Connect headset to 3.5mm analog jack</string>
@@ -5934,10 +5956,12 @@ Follow the instructions on the screen to measure the frequency response for the 
         The Acoustic Coupling Factor (ACF) will be computed for each case. A successful test expects ACF less than 0.4 for AEC ON,
         and ACF greater than 0.6 for AEC OFF.
         This test requires a quiet environment, and no headphones or similar connected.
-        This test must pass in devices where AEC functionality is mandatory or any device which implements AEC.
+        This test must pass on any device which implements AEC.
     </string>
     <string name="audio_aec_instructions">Press [TEST] to play a voice recording twice with different parameters.</string>
     <string name="audio_aec_mandatory_test">Is AEC mandatory in this device?</string>
+    <string name="audio_aec_no_aec_support">No AEC Support.</string>
+    <string name="audio_aec_no_aec_pass">AEC is not supported on this device. Test may pass.</string>
 
     <!-- Audio Connection Test -->
     <string name="audio_disconnect_test">Audio Stream Disconnect Test</string>
@@ -6327,13 +6351,7 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="telecom_audio_call_test">Telecom Call Audio Test</string>
     <string name="telecom_audio_call_test_info">This test verifies that there are no audio
         issues when starting a sim call while in an active self-managed call. Note, this test
-        an active sim with service.
-    </string>
-    <string name="tel_audio_call_test_in_call_ui_label">call audio test InCallUi</string>
-    <string name="tel_audio_call_test_in_call_ui_instructions_text">
-        The self-managed call is now active. There should be audio playing to simulate a call.
-        Hold your ear to the phone and determine if you can hear audio playing.  Return to the
-        test by clicking "Go back to test" below.
+        requires the device under test to have an active sim with service.
     </string>
     <string name="telecom_status_image_description"> The image represents the status of the step
     in the test. The start state is indeterminate which is a question mark image. If the test step
@@ -6342,11 +6360,12 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="tel_as1_instructions">set default outgoing phone account to a SIM based account
     </string>
     <string name="tel_as2_instructions">
-        Click the button below to initiate a self-managed call. You should be segued over
-        to a InCall-UI screen and hear an audio clip.
+        Click the button below to initiate a self-managed call. Once clicked, you should hear an
+        audio clip looping in whichever audio route is active (e.g. earpiece).
     </string>
     <string name="tel_as3_instructions">Click the button below to confirm the audio from the
-        self-managed call is audible
+        self-managed call is audible. Hearing the audio means the self-managed call was created
+        successfully.
     </string>
     <string name="tel_as4_instructions">Now, enter a valid phone number and start an active sim
         based call. Ensure call audio is working both ways and end the sim call.
@@ -6897,6 +6916,7 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="stop_advertising_presence">Stop Advertising</string>
     <string name="device_id_info_presence">You are advertising with deviceId: %1$d</string>
     <string name="device_found_presence">Reference device found. %1$d of %2$d samples collected</string>
+    <string name="result_pending_presence">Awaiting Rx RSSI median from reference device... </string>
     <string name="dut_test_result_info_presence">Tx RSSI median: %1$d. Rx RSSI median received from reference device: %2$d</string>
     <string name="ref_test_result_info_presence">Rx RSSI median computed: %1$d.</string>
     <string name="reference_device_id_input_presence">Enter the device ID displayed on the advertising device</string>
@@ -6921,7 +6941,7 @@ Follow the instructions on the screen to measure the frequency response for the 
         \n1. Ensure that the test is already started on the reference device.
         \n2. Input the device ID of the reference device (displayed on the reference device) into the provided field and click "Start Test"
         \n3. The test is automatically stopped and passed (or failed) when all the required data is collected
-        \n4. The test is passed if the median RSSI from both DUT and reference device is between -45dBm and 65dBm.
+        \n4. The test is passed if the median RSSI from both DUT and reference device is between -65dBm and -45dBm.
         \nReference device instructions
         \n1. Ensure that the "Is reference device" checkbox is checked, then click, "Start Advertising"
     </string>
@@ -6987,6 +7007,7 @@ Follow the instructions on the screen to measure the frequency response for the 
 
     <!-- Strings for ControlsPanelVerifierActivity -->
     <string name="controls_panel_test">Controls Panel tests</string>
+    <string name="controls_panel_not_supported">This feature is not supported in this device due to multi-window not being supported. Pass this test.</string>
     <string name="controls_panel_install_test">0. Install helper app</string>
     <string name="controls_panel_install_test_info">This test helps install the helper app that will be used for all subsequent tests in this group.</string>
     <string name="controls_panel_install_test_instructions">You should have received a helper app apk with this CTS

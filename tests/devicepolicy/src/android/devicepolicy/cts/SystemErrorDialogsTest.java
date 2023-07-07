@@ -20,7 +20,6 @@ import static android.provider.Settings.Secure.SHOW_FIRST_CRASH_DIALOG_DEV_OPTIO
 
 import static com.android.bedstead.harrier.UserType.ADDITIONAL_USER;
 import static com.android.bedstead.harrier.UserType.INITIAL_USER;
-import static com.android.bedstead.harrier.annotations.AnnotationRunPrecedence.LAST;
 import static com.android.bedstead.nene.userrestrictions.CommonUserRestrictions.DISALLOW_SYSTEM_ERROR_DIALOGS;
 import static com.android.queryable.queries.ActivityQuery.activity;
 
@@ -28,19 +27,23 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.testng.Assert.assertThrows;
 
+import android.provider.Settings;
+
 import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.Until;
 
 import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
 import com.android.bedstead.harrier.annotations.EnsureDoesNotHaveUserRestriction;
+import com.android.bedstead.harrier.annotations.EnsureGlobalSettingSet;
 import com.android.bedstead.harrier.annotations.EnsureHasUserRestriction;
 import com.android.bedstead.harrier.annotations.EnsureSecureSettingSet;
 import com.android.bedstead.harrier.annotations.Postsubmit;
+import com.android.bedstead.harrier.annotations.UserTest;
 import com.android.bedstead.harrier.annotations.enterprise.CanSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.CannotSetPolicyTest;
-import com.android.bedstead.harrier.annotations.enterprise.CoexistenceFlagsOn;
 import com.android.bedstead.harrier.policies.DisallowSystemErrorDialogs;
+import com.android.bedstead.harrier.policies.DisallowSystemErrorDialogsPermissionBased;
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.testapp.TestAppInstance;
 import com.android.compatibility.common.util.ApiTest;
@@ -48,6 +51,7 @@ import com.android.compatibility.common.util.ApiTest;
 import com.google.common.truth.Truth;
 
 import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.runner.RunWith;
 
@@ -74,7 +78,6 @@ public final class SystemErrorDialogsTest {
     @ApiTest(apis = "android.os.UserManager#DISALLOW_SYSTEM_ERROR_DIALOGS")
     // TODO: Add restriction for target U+
     // TODO: Test that this is actually global
-    @CoexistenceFlagsOn(weight = LAST)
     public void addUserRestriction_disallowSystemErrorDialogs_isSet() {
         try {
             sDeviceState.dpc().devicePolicyManager().addUserRestriction(
@@ -90,12 +93,11 @@ public final class SystemErrorDialogsTest {
         }
     }
 
-    @CanSetPolicyTest(policy = DisallowSystemErrorDialogs.class)
+    @CanSetPolicyTest(policy = DisallowSystemErrorDialogsPermissionBased.class)
     @Postsubmit(reason = "new test")
     @ApiTest(apis = "android.os.UserManager#DISALLOW_SYSTEM_ERROR_DIALOGS")
     // TODO: Add restriction for target U+
     // TODO: Test that this is actually global
-    @CoexistenceFlagsOn(weight = LAST)
     public void addUserRestrictionGlobally_disallowSystemErrorDialogs_isSet() {
         try {
             sDeviceState.dpc().devicePolicyManager().addUserRestrictionGlobally(
@@ -115,7 +117,6 @@ public final class SystemErrorDialogsTest {
     @ApiTest(apis = "android.os.UserManager#DISALLOW_SYSTEM_ERROR_DIALOGS")
     // TODO: Add restriction for target U+
     // TODO: Test that this is actually global
-    @CoexistenceFlagsOn(weight = LAST)
     public void clearUserRestriction_disallowSystemErrorDialogs_isNotSet() {
         try {
             sDeviceState.dpc().devicePolicyManager().addUserRestriction(
@@ -135,9 +136,12 @@ public final class SystemErrorDialogsTest {
     }
 
     @EnsureDoesNotHaveUserRestriction(DISALLOW_SYSTEM_ERROR_DIALOGS)
-    @com.android.bedstead.harrier.annotations.UserTest({INITIAL_USER, ADDITIONAL_USER})
+    @UserTest({INITIAL_USER, ADDITIONAL_USER})
     @EnsureSecureSettingSet(key = SHOW_FIRST_CRASH_DIALOG_DEV_OPTION, value = "1")
-    public void appCrashes_disallowSystemErrorDialogsNotSet_alwaysShowSystemErrorDialogsEnabled_showsDialog() throws Exception {
+    @EnsureGlobalSettingSet(
+            key = Settings.Global.ACTIVITY_MANAGER_CONSTANTS, value = "min_crash_interval=500")
+    @Ignore("b/279876672 crash dialogs do not show reliably in test")
+    public void appCrashes_disallowSystemErrorDialogsNotSet_alwaysShowSystemErrorDialogsEnabled_showsDialog() {
         try (TestAppInstance t = sDeviceState.testApps().query()
                 .whereActivities().contains(
                         activity().where().exported().isTrue()
@@ -157,8 +161,10 @@ public final class SystemErrorDialogsTest {
     }
 
     @EnsureHasUserRestriction(DISALLOW_SYSTEM_ERROR_DIALOGS)
-    @com.android.bedstead.harrier.annotations.UserTest({INITIAL_USER, ADDITIONAL_USER})
+    @UserTest({INITIAL_USER, ADDITIONAL_USER})
     @EnsureSecureSettingSet(key = SHOW_FIRST_CRASH_DIALOG_DEV_OPTION, value = "1")
+    @EnsureGlobalSettingSet(
+            key = Settings.Global.ACTIVITY_MANAGER_CONSTANTS, value = "min_crash_interval=500")
     public void appCrashes_disallowSystemErrorDialogsSet_alwaysShowSystemErrorDialogsEnabled_doesNotShowDialog() {
         try (TestAppInstance t = sDeviceState.testApps().query()
                 .whereActivities().contains(

@@ -17,6 +17,7 @@
 import logging
 import math
 import os
+import pathlib
 import cv2
 import numpy
 
@@ -50,6 +51,7 @@ CV2_LINE_THICKNESS = 3  # line thickness for drawing on images
 CV2_RED = (255, 0, 0)  # color in cv2 to draw lines
 
 CV2_HOME_DIRECTORY = os.path.dirname(cv2.__file__)
+CV2_ALTERNATE_DIRECTORY = pathlib.Path(CV2_HOME_DIRECTORY).parents[3]
 HAARCASCADE_FILE_NAME = 'haarcascade_frontalface_default.xml'
 
 FOV_THRESH_TELE25 = 25
@@ -64,6 +66,7 @@ RGB_GRAY_WEIGHTS = (0.299, 0.587, 0.114)  # RGB to Gray conversion matrix
 SCALE_RFOV_IN_WFOV_BOX = 0.67
 SCALE_TELE_IN_WFOV_BOX = 0.5
 SCALE_TELE_IN_RFOV_BOX = 0.67
+SCALE_TELE40_IN_WFOV_BOX = 0.33
 SCALE_TELE40_IN_RFOV_BOX = 0.5
 SCALE_TELE25_IN_RFOV_BOX = 0.33
 
@@ -115,16 +118,15 @@ def binarize_image(img_gray):
 
 def _load_opencv_haarcascade_file():
   """Return Haar Cascade file for face detection."""
-  for path, _, files in os.walk(CV2_HOME_DIRECTORY):
-    if HAARCASCADE_FILE_NAME in files:
-      haarcascade_file = os.path.join(path, HAARCASCADE_FILE_NAME)
-      break
-  if os.path.isfile(haarcascade_file):
-    logging.debug('Haar Cascade file location: %s', haarcascade_file)
-    return haarcascade_file
-  else:
-    raise error_util.CameraItsError('haarcascade_frontalface_default.xml file '
-                                    f'must be in {haarcascade_file}')
+  for cv2_directory in (CV2_HOME_DIRECTORY, CV2_ALTERNATE_DIRECTORY,):
+    for path, _, files in os.walk(cv2_directory):
+      if HAARCASCADE_FILE_NAME in files:
+        haarcascade_file = os.path.join(path, HAARCASCADE_FILE_NAME)
+        logging.debug('Haar Cascade file location: %s', haarcascade_file)
+        return haarcascade_file
+  raise error_util.CameraItsError('haarcascade_frontalface_default.xml was '
+                                  f'not found in {CV2_HOME_DIRECTORY} '
+                                  f'or {CV2_ALTERNATE_DIRECTORY}')
 
 
 def find_opencv_faces(img, scale_factor, min_neighbors):
@@ -177,10 +179,13 @@ def calc_chart_scaling(chart_distance, camera_fov):
       math.isclose(
           chart_distance, CHART_DISTANCE_WFOV, rel_tol=CHART_SCALE_RTOL)):
     chart_scaling = SCALE_RFOV_IN_WFOV_BOX
-  elif (camera_fov <= FOV_THRESH_TELE and
+  elif (FOV_THRESH_TELE40 < camera_fov <= FOV_THRESH_TELE and
         math.isclose(
             chart_distance, CHART_DISTANCE_WFOV, rel_tol=CHART_SCALE_RTOL)):
     chart_scaling = SCALE_TELE_IN_WFOV_BOX
+  elif (camera_fov <= FOV_THRESH_TELE40 and
+        math.isclose(chart_distance, CHART_DISTANCE_WFOV, rel_tol=CHART_SCALE_RTOL)):
+    chart_scaling = SCALE_TELE40_IN_WFOV_BOX
   elif (camera_fov <= FOV_THRESH_TELE25 and
         (math.isclose(
             chart_distance, CHART_DISTANCE_RFOV, rel_tol=CHART_SCALE_RTOL) or
@@ -307,6 +312,16 @@ class Chart(object):
     logging.debug('Template height: %dpixels', template.shape[0])
     chart_pixel_h = self._height * focal_l / (self._distance * pixel_pitch)
     scale_factor = template.shape[0] / chart_pixel_h
+    if rotation == 90 or rotation == 270:
+      # With the landscape to portrait override turned on, the width and height
+      # of the active array, normally w x h, will be h x (w * (h/w)^2). Reduce
+      # the applied scaling by the same factor to compensate for this, because
+      # the chart will take up more of the scene. Assume w > h, since this is
+      # meant for landscape sensors.
+      rotate_physical_aspect = (
+          props['android.sensor.info.physicalSize']['height'] /
+          props['android.sensor.info.physicalSize']['width'])
+      scale_factor *= rotate_physical_aspect ** 2
     logging.debug('Chart/image scale factor = %.2f', scale_factor)
     return template, img_3a, scale_factor
 

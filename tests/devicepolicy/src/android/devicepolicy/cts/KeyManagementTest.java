@@ -18,9 +18,6 @@ package android.devicepolicy.cts;
 
 import static android.security.KeyChain.ACTION_KEYCHAIN_CHANGED;
 
-import static com.android.bedstead.nene.flags.CommonFlags.DevicePolicyManager.PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG;
-import static com.android.bedstead.nene.flags.CommonFlags.NAMESPACE_DEVICE_POLICY_MANAGER;
-
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
@@ -38,11 +35,11 @@ import com.android.activitycontext.ActivityContext;
 import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
 import com.android.bedstead.harrier.annotations.Postsubmit;
-import com.android.bedstead.harrier.annotations.RequireFeatureFlagNotEnabled;
 import com.android.bedstead.harrier.annotations.enterprise.CanSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.CannotSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.PolicyAppliesTest;
 import com.android.bedstead.harrier.policies.KeyManagement;
+import com.android.bedstead.harrier.policies.KeyManagementWithAdminReceiver;
 import com.android.bedstead.harrier.policies.KeySelection;
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.packages.ProcessReference;
@@ -183,8 +180,6 @@ public final class KeyManagementTest {
 
     @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = KeyManagement.class, singleTestOnly = true)
-    @RequireFeatureFlagNotEnabled(namespace = NAMESPACE_DEVICE_POLICY_MANAGER,
-            key = PERMISSION_BASED_ACCESS_EXPERIMENT_FLAG)
     public void installKeyPair_nullAdminComponent_throwException() {
         assertThrows(SecurityException.class,
                 () -> sDeviceState.dpc().devicePolicyManager().installKeyPair(
@@ -298,7 +293,7 @@ public final class KeyManagementTest {
     }
 
     @Postsubmit(reason = "new test")
-    @PolicyAppliesTest(policy = KeyManagement.class)
+    @PolicyAppliesTest(policy = KeyManagementWithAdminReceiver.class)
     public void choosePrivateKeyAlias_aliasIsSelectedByAdmin_returnAlias() throws Exception {
         // Test doesn't apply to HSUM DO case as no app on that user is expected to request keypair.
         assumeFalse(isHeadlessDoMode());
@@ -322,7 +317,7 @@ public final class KeyManagementTest {
     }
 
     @Postsubmit(reason = "new test")
-    @PolicyAppliesTest(policy = KeyManagement.class)
+    @PolicyAppliesTest(policy = KeyManagementWithAdminReceiver.class)
     public void choosePrivateKeyAlias_NonexistentAliasSelectedByAdmin_returnNull()
             throws Exception {
         // Test doesn't apply to HSUM DO case as no app on that user is expected to request keypair.
@@ -337,7 +332,7 @@ public final class KeyManagementTest {
     }
 
     @Postsubmit(reason = "new test")
-    @PolicyAppliesTest(policy = KeyManagement.class)
+    @PolicyAppliesTest(policy = KeyManagementWithAdminReceiver.class)
     public void choosePrivateKeyAlias_adminDenySelection_returnNull()
             throws Exception {
         // Test doesn't apply to HSUM DO case as no app on that user is expected to request keypair.
@@ -352,7 +347,7 @@ public final class KeyManagementTest {
     }
 
     @Postsubmit(reason = "new test")
-    @PolicyAppliesTest(policy = KeyManagement.class)
+    @PolicyAppliesTest(policy = KeyManagementWithAdminReceiver.class)
     public void choosePrivateKeyAlias_nonUserSelectedAliasIsSelectedByAdmin_returnAlias()
             throws Exception {
         // Test doesn't apply to HSUM DO case as no app on that user is expected to request keypair.
@@ -377,7 +372,7 @@ public final class KeyManagementTest {
     }
 
     @Postsubmit(reason = "new test")
-    @PolicyAppliesTest(policy = KeyManagement.class)
+    @PolicyAppliesTest(policy = KeyManagementWithAdminReceiver.class)
     public void getPrivateKey_aliasIsGranted_returnPrivateKey() throws Exception {
         // Test doesn't apply to HSUM DO case as no app on that user is expected to request keypair.
         assumeFalse(isHeadlessDoMode());

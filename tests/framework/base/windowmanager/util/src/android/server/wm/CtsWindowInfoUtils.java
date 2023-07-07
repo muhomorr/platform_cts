@@ -23,6 +23,7 @@ import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.IBinder;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.view.Window;
@@ -50,6 +51,9 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class CtsWindowInfoUtils {
+    private static final int HW_TIMEOUT_MULTIPLIER = SystemProperties.getInt(
+            "ro.hw_timeout_multiplier", 1);
+
     /**
      * Calls the provided predicate each time window information changes.
      *
@@ -65,7 +69,7 @@ public class CtsWindowInfoUtils {
      * the timeout is reached. False otherwise.
      */
     public static boolean waitForWindowInfos(@NonNull Predicate<List<WindowInfo>> predicate,
-            int timeout, @NonNull TimeUnit unit) throws InterruptedException {
+            long timeout, @NonNull TimeUnit unit) throws InterruptedException {
         var latch = new CountDownLatch(1);
         var satisfied = new AtomicBoolean();
 
@@ -91,7 +95,7 @@ public class CtsWindowInfoUtils {
     }
 
     /**
-     * Calls the provided predicate each time window information changes if a
+     * Calls the provided predicate each time window information changes if a visible
      * window is found that matches the supplied window token.
      *
      * <p>
@@ -110,7 +114,7 @@ public class CtsWindowInfoUtils {
      * reached. False otherwise.
      * @hide
      */
-    public static boolean waitForWindowInfo(@NonNull Predicate<WindowInfo> predicate, int timeout,
+    public static boolean waitForWindowInfo(@NonNull Predicate<WindowInfo> predicate, long timeout,
             @NonNull TimeUnit unit, @NonNull Supplier<IBinder> windowTokenSupplier)
             throws InterruptedException {
         Predicate<List<WindowInfo>> wrappedPredicate = windowInfos -> {
@@ -120,6 +124,9 @@ public class CtsWindowInfoUtils {
             }
 
             for (var windowInfo : windowInfos) {
+                if (!windowInfo.isVisible) {
+                    continue;
+                }
                 if (windowInfo.windowToken == windowToken) {
                     return predicate.test(windowInfo);
                 }
@@ -134,8 +141,14 @@ public class CtsWindowInfoUtils {
      * Waits for the window associated with the view to be present.
      */
     public static boolean waitForWindowVisible(@NonNull View view) throws InterruptedException {
-        return waitForWindowInfo(windowInfo -> true, 5, TimeUnit.SECONDS,
+        return waitForWindowInfo(windowInfo -> true, HW_TIMEOUT_MULTIPLIER * 5L, TimeUnit.SECONDS,
                 view::getWindowToken);
+    }
+
+    public static boolean waitForWindowVisible(@NonNull IBinder windowToken)
+            throws InterruptedException {
+        return waitForWindowInfo(windowInfo -> true, HW_TIMEOUT_MULTIPLIER * 5L, TimeUnit.SECONDS,
+                () -> windowToken);
     }
 
     /**
@@ -209,7 +222,7 @@ public class CtsWindowInfoUtils {
                         targetWindowInfo = windowInfo;
                         break;
                     }
-                    if (windowInfo.isTrustedOverlay) {
+                    if (windowInfo.isTrustedOverlay || !windowInfo.isVisible) {
                         continue;
                     }
                     aboveWindowInfos.add(windowInfo);
@@ -223,7 +236,8 @@ public class CtsWindowInfoUtils {
                 }
 
                 for (var windowInfo : aboveWindowInfos) {
-                    if (Rect.intersects(targetWindowInfo.bounds, windowInfo.bounds)) {
+                    if (targetWindowInfo.displayId == windowInfo.displayId
+                            && Rect.intersects(targetWindowInfo.bounds, windowInfo.bounds)) {
                         // The window is occluded. If we have an active timer, we need to cancel it
                         // as it's possible the window was previously not occluded and now is
                         // occluded.
@@ -389,7 +403,7 @@ public class CtsWindowInfoUtils {
         });
 
         try {
-            if (!latch.await(3, TimeUnit.SECONDS)) {
+            if (!latch.await(HW_TIMEOUT_MULTIPLIER * 10L, TimeUnit.SECONDS)) {
                 return false;
             }
         } catch (InterruptedException e) {

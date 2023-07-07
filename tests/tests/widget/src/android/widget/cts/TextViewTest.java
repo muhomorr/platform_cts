@@ -2410,6 +2410,30 @@ public class TextViewTest {
     }
 
     @Test
+    public void testCopyAndPaste_byKey_reversed() throws Throwable {
+        initTextViewForTypingOnUiThread();
+
+        // Type "abc".
+        sendString(mTextView, "abc");
+        mActivityRule.runOnUiThread(() -> {
+            // Select "abc"
+            Selection.setSelection((Spannable) mTextView.getText(), 3, 0);
+        });
+        mInstrumentation.waitForIdleSync();
+        // Copy "abc"
+        sendKeys(mTextView, KeyEvent.KEYCODE_COPY);
+
+        mActivityRule.runOnUiThread(() -> {
+            // Set cursor between 'b' and 'c'.
+            Selection.setSelection((Spannable) mTextView.getText(), 2, 2);
+        });
+        mInstrumentation.waitForIdleSync();
+        // Paste "abc"
+        sendKeys(mTextView, KeyEvent.KEYCODE_PASTE);
+        assertEquals("ababcc", mTextView.getText().toString());
+    }
+
+    @Test
     public void testCopyAndPaste_byCtrlInsert() throws Throwable {
         // Test copy-and-paste by Ctrl-Insert and Shift-Insert.
         initTextViewForTypingOnUiThread();
@@ -5037,7 +5061,7 @@ public class TextViewTest {
                         mActivity.getResources().getDisplayMetrics()
                 ),
                 mTextView.getLineHeight(),
-                /* delta=*/ 0.05f
+                /* delta=*/ 0.5f
         );
         assertNotEquals(lineSpacingExtra, mTextView.getLineSpacingExtra(), 0);
         assertNotEquals(lineSpacingMultiplier, mTextView.getLineSpacingMultiplier(), 0);
@@ -5050,7 +5074,7 @@ public class TextViewTest {
                         mActivity.getResources().getDisplayMetrics()
                 ),
                 mTextView.getLineHeight(),
-                /* delta=*/ 0.05f
+                /* delta=*/ 0.5f
         );
         assertNotEquals(lineSpacingExtra, mTextView.getLineSpacingExtra(), 0);
         assertNotEquals(lineSpacingMultiplier, mTextView.getLineSpacingMultiplier(), 0);

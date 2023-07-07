@@ -103,7 +103,7 @@ public class BitmapFactoryTest {
                 new TestImage(R.drawable.bmp_test, 320, 240),
                 new TestImage(R.drawable.webp_test, 640, 480)
         }));
-        if (MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
+        if (ImageDecoder.isMimeTypeSupported("image/heif")) {
             // HEIF support is optional when HEVC decoder is not supported.
             testImages.add(new TestImage(R.raw.heifwriter_input, 1920, 1080));
         }
@@ -1043,6 +1043,7 @@ public class BitmapFactoryTest {
     }
 
     @Test
+    @CddTest(requirements = {"5.1.5/C-0-7"})
     @RequiresDevice
     public void testDecode10BitAVIFTo10BitBitmap() {
         assumeTrue("AVIF is not supported on this device, skip this test.",
@@ -1094,6 +1095,7 @@ public class BitmapFactoryTest {
     }
 
     @Test
+    @CddTest(requirements = {"5.1.5/C-0-7"})
     @RequiresDevice
     public void testDecode10BitAVIFTo8BitBitmap() {
         assumeTrue("AVIF is not supported on this device, skip this test.",
@@ -1117,7 +1119,7 @@ public class BitmapFactoryTest {
     @Test
     @RequiresDevice
     public void testDecode8BitHEIFTo10BitBitmap() {
-        if (!MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
+        if (!ImageDecoder.isMimeTypeSupported("image/heif")) {
             return;
         }
         BitmapFactory.Options opt = new BitmapFactory.Options();
@@ -1136,6 +1138,7 @@ public class BitmapFactoryTest {
     }
 
     @Test
+    @CddTest(requirements = {"5.1.5/C-0-7"})
     @RequiresDevice
     public void testDecode8BitAVIFTo10BitBitmap() {
         assumeTrue("AVIF is not supported on this device, skip this test.",

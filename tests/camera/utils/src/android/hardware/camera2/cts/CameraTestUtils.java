@@ -99,6 +99,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -3360,6 +3361,30 @@ public class CameraTestUtils extends Assert {
         }
     }
 
+    public static Optional<Long> getSurfaceUsage(Surface s) {
+        if (s == null || !s.isValid()) {
+            Log.e(TAG, "Invalid Surface!");
+            return Optional.empty();
+        }
+
+        long usage = 0;
+        ImageWriter writer = ImageWriter.newInstance(s, /*maxImages*/1, ImageFormat.YUV_420_888);
+        try {
+            Image img = writer.dequeueInputImage();
+            if (img != null) {
+                usage = img.getHardwareBuffer().getUsage();
+                img.close();
+            } else {
+                Log.e(TAG, "Unable to dequeue ImageWriter buffer!");
+                return Optional.empty();
+            }
+        } finally {
+            writer.close();
+        }
+
+        return Optional.of(usage);
+    }
+
     /**
      * Get the degree of an EXIF orientation.
      */
@@ -4111,6 +4136,37 @@ public class CameraTestUtils extends Assert {
         zoomRatios.add(zoomRatioRange.getUpper());
 
         return zoomRatios;
+    }
+
+    /**
+     * Get the primary rear facing camera from an ID list
+     */
+    public static String getPrimaryRearCamera(CameraManager manager, String[] cameraIds)
+            throws Exception {
+        return getPrimaryCamera(manager, cameraIds, CameraCharacteristics.LENS_FACING_BACK);
+    }
+
+    /**
+     * Get the primary front facing camera from an ID list
+     */
+    public static String getPrimaryFrontCamera(CameraManager manager, String[] cameraIds)
+            throws Exception {
+        return getPrimaryCamera(manager, cameraIds, CameraCharacteristics.LENS_FACING_FRONT);
+    }
+
+    private static String getPrimaryCamera(CameraManager manager,
+            String[] cameraIds, Integer facing) throws Exception {
+        if (cameraIds == null) {
+            return null;
+        }
+
+        for (String id : cameraIds) {
+            if (isPrimaryCamera(manager, id, facing)) {
+                return id;
+            }
+        }
+
+        return null;
     }
 
     /**

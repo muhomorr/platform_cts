@@ -135,6 +135,9 @@ import com.android.compatibility.common.util.ShellIdentityUtils;
 import com.android.compatibility.common.util.TestThread;
 import com.android.internal.telephony.uicc.IccUtils;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -197,6 +200,8 @@ public class TelephonyManagerTest {
     private static final int WAIT_FOR_CONDITION = 3000;
     private static final int TOLERANCE = 1000;
     private static final int TIMEOUT_FOR_NETWORK_OPS = TOLERANCE * 180;
+
+    private static final int TIMEOUT_FOR_CARRIER_STATUS_FILE_CHECK = TOLERANCE * 180;
     private PhoneStateListener mListener;
     private static ConnectivityManager mCm;
     private static final String TAG = "TelephonyManagerTest";
@@ -301,11 +306,11 @@ public class TelephonyManagerTest {
             + "\n7bdw"
             + "\n-----END CERTIFICATE-----";
 
-    private static final int RADIO_HAL_VERSION_1_3 = makeRadioVersion(1, 3);
     private static final int RADIO_HAL_VERSION_1_5 = makeRadioVersion(1, 5);
     private static final int RADIO_HAL_VERSION_1_6 = makeRadioVersion(1, 6);
     private static final int RADIO_HAL_VERSION_2_0 = makeRadioVersion(2, 0);
     private static final int RADIO_HAL_VERSION_2_1 = makeRadioVersion(2, 1);
+    private static final int RADIO_HAL_VERSION_2_2 = makeRadioVersion(2, 2);
 
     static {
         EMERGENCY_NUMBER_SOURCE_SET = new HashSet<Integer>();
@@ -366,6 +371,11 @@ public class TelephonyManagerTest {
     private Map<Integer, Long> mAllowedNetworkTypesList = new HashMap<>();
 
     private final CountryChangedReceiver mCountryChangedReceiver = new CountryChangedReceiver();
+
+    private static final String CARRIER_RESTRICTION_OPERATOR_DETAILS = "{\"com.vzw.hss"
+            + ".myverizon\":{\"carrierId\":1839,"
+    + "\"callerSHA1Id\":[\"C58EE7871896786F8BF70EBDB137DE10074043E9\","
+    + "\"AE23A03436DF07B0CD70FE881CDA2EC1D21215D7B7B0CC68E67B67F5DF89526A\"]}}";
 
     private class CarrierPrivilegeChangeMonitor implements AutoCloseable {
         // CarrierPrivilegesCallback will be triggered upon registration. Filter the first callback
@@ -432,7 +442,8 @@ public class TelephonyManagerTest {
         }
 
         void waitForIntent() throws Exception {
-            mLatch.await(5000, TimeUnit.MILLISECONDS);
+            // Extend to wait up to 10 seconds to receive CountryChanged Intent.
+            mLatch.await(10000, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -1664,13 +1675,64 @@ public class TelephonyManagerTest {
             mLock.wait(TOLERANCE);
         }
 
-        assertEquals(mServiceState, mTelephonyManager.getServiceState());
-        assertServiceStateSanitization(mServiceState, mTelephonyManager.getServiceState(
-                TelephonyManager.INCLUDE_LOCATION_DATA_NONE));
-        assertServiceStateFineLocationSanitization(mServiceState,
-                mTelephonyManager.getServiceState(TelephonyManager.INCLUDE_LOCATION_DATA_COARSE));
-        assertEquals(mServiceState, mTelephonyManager.getServiceState(
-                TelephonyManager.INCLUDE_LOCATION_DATA_FINE));
+        // Service state changes frequently and there can be a mismatch between the current service
+        // state from TelephonyManager and the slightly delayed one from the listener.
+        // Retry all assertions multiple times to prevent flaky test failures.
+        int retries = 5;
+        for (int i = 0; i < retries; i++) {
+            try {
+                assertEquals(mServiceState, mTelephonyManager.getServiceState());
+                // Exit if the assertion passes without an exception
+                break;
+            } catch (AssertionError e) {
+                if (i == retries - 1) {
+                    throw(e);
+                }
+            }
+            waitForMs(100);
+        }
+        for (int i = 0; i < retries; i++) {
+            try {
+                assertServiceStateSanitization(mServiceState,
+                        mTelephonyManager.getServiceState(
+                                TelephonyManager.INCLUDE_LOCATION_DATA_NONE));
+                // Exit if the assertion passes without an exception
+                break;
+            } catch (AssertionError e) {
+                if (i == retries - 1) {
+                    throw(e);
+                }
+            }
+            waitForMs(100);
+        }
+        for (int i = 0; i < retries; i++) {
+            try {
+                assertServiceStateFineLocationSanitization(mServiceState,
+                        mTelephonyManager.getServiceState(
+                                TelephonyManager.INCLUDE_LOCATION_DATA_COARSE));
+                // Exit if the assertion passes without an exception
+                break;
+            } catch (AssertionError e) {
+                if (i == retries - 1) {
+                    throw(e);
+                }
+            }
+            waitForMs(100);
+        }
+        for (int i = 0; i < retries; i++) {
+            try {
+                assertEquals(mServiceState,
+                        mTelephonyManager.getServiceState(
+                                TelephonyManager.INCLUDE_LOCATION_DATA_FINE));
+                // Exit if the assertion passes without an exception
+                break;
+            } catch (AssertionError e) {
+                if (i == retries - 1) {
+                    throw(e);
+                }
+            }
+            waitForMs(100);
+        }
 
         NetworkRegistrationInfo regInfo = mServiceState.getNetworkRegistrationInfo(
                 NetworkRegistrationInfo.DOMAIN_PS, AccessNetworkConstants.TRANSPORT_TYPE_WWAN);
@@ -1965,8 +2027,9 @@ public class TelephonyManagerTest {
     @Test
     public void testRebootRadio() throws Throwable {
         assumeTrue(hasFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS));
-        if (mModemHalVersion <= RADIO_HAL_VERSION_2_0) {
-            Log.d(TAG, "Skipping test since rebootModem is not supported.");
+        if (mModemHalVersion <= RADIO_HAL_VERSION_2_2) {
+            Log.d(TAG,
+                    "Skipping test since rebootModem is not supported/enforced until IRadio 2.3.");
             return;
         }
 
@@ -5763,10 +5826,12 @@ public class TelephonyManagerTest {
         private final Object mLock = new Object();
         ServiceState mServiceState;
         int mRadioPowerState;
+        int mDesireRadioPowerState;
 
         ServiceStateRadioStateListener(ServiceState serviceState, int radioPowerState) {
             mServiceState = serviceState;
             mRadioPowerState = radioPowerState;
+            mDesireRadioPowerState = radioPowerState;
         }
 
         @Override
@@ -5779,15 +5844,22 @@ public class TelephonyManagerTest {
             Log.d(TAG, "onRadioPowerStateChanged to " + radioState);
             synchronized (mLock) {
                 mRadioPowerState = radioState;
-                mLock.notify();
+                if (radioState == mDesireRadioPowerState) {
+                    mLock.notify();
+                }
             }
         }
 
-        private void waitForRadioStateIntent(int desiredState) {
+        public void waitForRadioStateIntent(int desiredRadioState) {
+            Log.d(TAG, "waitForRadioStateIntent: desiredRadioState=" + desiredRadioState);
             synchronized (mLock) {
-                if (mRadioPowerState != desiredState) {
+                if (mRadioPowerState != desiredRadioState) {
+                    mDesireRadioPowerState = desiredRadioState;
                     try {
-                        mLock.wait(5000);
+                        // Since SST sets waiting time up to 10 seconds for the power off radio,
+                        // the RadioStateIntent timer extends the wait time up to 15 seconds
+                        // here as well.
+                        mLock.wait(TimeUnit.SECONDS.toMillis(15));
                     } catch (Exception e) {
                         fail(e.getMessage());
                     }
@@ -5811,12 +5883,12 @@ public class TelephonyManagerTest {
                 Log.i(TAG, "testSetVoiceServiceStateOverride: turning radio off to force OOS");
                 ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
                         tm -> tm.setRadioPower(false), permission.MODIFY_PHONE_STATE);
+                callback.waitForRadioStateIntent(TelephonyManager.RADIO_POWER_OFF);
                 turnedRadioOff = true;
                 // Wait up to 20s until ServiceState reflects the power change,
                 // but this should only take a little over 10s in reality.
                 int retry = 0;
-                while ((callback.mRadioPowerState != TelephonyManager.RADIO_POWER_OFF
-                        || callback.mServiceState.getState() == ServiceState.STATE_IN_SERVICE)
+                while ((callback.mServiceState.getState() == ServiceState.STATE_IN_SERVICE)
                         && retry < 10) {
                     retry++;
                     waitForMs(2000);
@@ -5878,14 +5950,15 @@ public class TelephonyManagerTest {
                         permission.BIND_TELECOM_CONNECTION_SERVICE);
             }
             if (turnedRadioOff) {
-                // Turn the radio back on and wait for ServiceState to become stable again so we
+                // Turn the radio back on and wait for ServiceState to become stable again, so we
                 // don't cause flakes in other tests
                 Log.i(TAG, "testSetVoiceServiceStateOverride: turning radio back on");
                 ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
                         tm -> tm.setRadioPower(true), permission.MODIFY_PHONE_STATE);
+                callback.waitForRadioStateIntent(TelephonyManager.RADIO_POWER_ON);
+
                 int retry = 0;
-                while ((callback.mRadioPowerState != TelephonyManager.RADIO_POWER_ON
-                        || callback.mServiceState.getState() != ServiceState.STATE_IN_SERVICE)
+                while ((callback.mServiceState.getState() != ServiceState.STATE_IN_SERVICE)
                         && retry < 10) {
                     retry++;
                     waitForMs(1000);
@@ -6225,6 +6298,63 @@ public class TelephonyManagerTest {
                 Log.i(TAG, "testLastKnownCountryIso: turning radio back on");
                 turnRadioOn(callback, TelephonyManager.RADIO_POWER_REASON_USER);
             }
+        }
+    }
+
+    private static class CarrierInfo {
+        final private int mCallerCarrierId;
+        final private List<String> mSHAIdList;
+
+        public CarrierInfo(int carrierId, List<String> SHAIds) {
+            mCallerCarrierId = carrierId;
+            mSHAIdList = SHAIds;
+        }
+
+        public int getCallerCarrierId() {
+            return mCallerCarrierId;
+        }
+
+        public List<String> getSHAIdList() {
+            return mSHAIdList;
+        }
+    }
+
+    private static final String CALLER_SHA_1_ID = "callerSHA1Id";
+    private static final String CALLER_CARRIER_ID = "carrierId";
+    private CarrierInfo parseJsonForCallerInfo(String callerPackage, JSONObject dataJson) {
+        try {
+            if (dataJson != null && callerPackage != null) {
+                JSONObject callerJSON = dataJson.getJSONObject(callerPackage.trim());
+                JSONArray callerJSONArray = callerJSON.getJSONArray(CALLER_SHA_1_ID);
+                int carrierId = callerJSON.getInt(CALLER_CARRIER_ID);
+                List<String> appSignatures = new ArrayList<>();
+                for (int index = 0; index < callerJSONArray.length(); index++) {
+                    appSignatures.add((String) callerJSONArray.get(index));
+                }
+                return new CarrierInfo(carrierId, appSignatures);
+            }
+        } catch (JSONException ex) {
+            Log.e(TAG, "getCallerSignatureInfo: JSONException = " + ex);
+        }
+        return null;
+    }
+
+    @Test
+    public void testCarrierRestrictionStatusAllowList() throws JSONException {
+        JSONObject testJson = new JSONObject(CARRIER_RESTRICTION_OPERATOR_DETAILS);
+        Set<String> testPkgSet = testJson.keySet();
+        testPkgSet.remove("_comment");
+        for (String srcPkg : testPkgSet) {
+            final CarrierInfo testCarrierInfo = parseJsonForCallerInfo(srcPkg, testJson);
+            List<String> shaIdList = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelephonyManager, (tm) -> tm.getShaIdFromAllowList(srcPkg,
+                            testCarrierInfo.mCallerCarrierId));
+
+            if (shaIdList == null || shaIdList.isEmpty()) {
+                Log.d(TAG, "shaIdList is empty");
+                fail();
+            }
+            assertTrue(shaIdList.equals(testCarrierInfo.getSHAIdList()));
         }
     }
 }

@@ -19,6 +19,7 @@ package android.server.wm;
 import static android.Manifest.permission.INTERACT_ACROSS_USERS;
 import static android.app.AppOpsManager.MODE_ALLOWED;
 import static android.app.AppOpsManager.MODE_ERRORED;
+import static android.server.wm.BuildUtils.HW_TIMEOUT_MULTIPLIER;
 import static android.server.wm.ShellCommandHelper.executeShellCommand;
 import static android.server.wm.UiDeviceUtils.pressHomeButton;
 import static android.server.wm.WindowManagerState.STATE_INITIALIZING;
@@ -53,9 +54,9 @@ import android.content.pm.ResolveInfo;
 import android.content.pm.UserInfo;
 import android.os.IBinder;
 import android.os.ResultReceiver;
-import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.platform.test.annotations.AsbSecurityTest;
 import android.platform.test.annotations.Presubmit;
 import android.provider.Settings;
 import android.server.wm.backgroundactivity.appa.Components;
@@ -422,7 +423,6 @@ public class BackgroundActivityLaunchTest extends BackgroundActivityTestBase {
     }
 
     @Test
-    @FlakyTest(bugId = 270713916)
     public void testPendingIntentActivity_appAIsForeground_isNotBlocked() {
         // Start AppA foreground activity
         Intent intent = new Intent();
@@ -459,32 +459,6 @@ public class BackgroundActivityLaunchTest extends BackgroundActivityTestBase {
         result = waitForActivityFocused(APP_A.BACKGROUND_ACTIVITY);
         assertWithMessage("Able to launch background activity").that(result).isFalse();
         assertTaskStackHasComponents(APP_B.FOREGROUND_ACTIVITY, APP_B.FOREGROUND_ACTIVITY);
-    }
-
-    @Test
-    public void testPendingIntentBroadcastActivity_appBIsForegroundAndFeatureOff_isNotBlocked() {
-        enableDefaultRescindBalPrivilegesFromPendingIntentSender(false);
-        // Start AppB foreground activity
-        Intent intent = new Intent();
-        intent.setComponent(APP_B.FOREGROUND_ACTIVITY);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        mContext.startActivity(intent);
-        boolean result = waitForActivityFocused(APP_B.FOREGROUND_ACTIVITY);
-        assertTrue("Not able to start foreground Activity", result);
-        assertTaskStackHasComponents(APP_B.FOREGROUND_ACTIVITY, APP_B.FOREGROUND_ACTIVITY);
-
-        // Send pendingIntent from AppA to AppB, and the AppB launch the pending intent to start
-        // activity in App A
-        sendPendingIntentActivity(APP_A, APP_B);
-        result = waitForActivityFocused(APP_A.BACKGROUND_ACTIVITY);
-        assertTrue("Not able to launch background activity", result);
-        assertTaskStackHasComponents(APP_A.BACKGROUND_ACTIVITY, APP_A.BACKGROUND_ACTIVITY);
-        assertTaskStackHasComponents(APP_B.FOREGROUND_ACTIVITY, APP_B.FOREGROUND_ACTIVITY);
-    }
-
-    private void enableDefaultRescindBalPrivilegesFromPendingIntentSender(boolean enable) {
-        mDeviceConfig.set(ENABLE_DEFAULT_RESCIND_BAL_PRIVILEGES_FROM_PENDING_INTENT_SENDER,
-                String.valueOf(enable));
     }
 
     @Test
@@ -589,9 +563,7 @@ public class BackgroundActivityLaunchTest extends BackgroundActivityTestBase {
         // timeout. Before the timeout, the start would be allowed because app B (the PI sender) was
         // in the foreground during PI send, so app A (the PI creator) would have
         // (10s * hw_multiplier) to start background activity starts.
-        assertPendingIntentBroadcastTimeoutTest(APP_A, APP_B,
-                12000 * SystemProperties.getInt("ro.hw_timeout_multiplier", 1),
-                false);
+        assertPendingIntentBroadcastTimeoutTest(APP_A, APP_B, 12000 * HW_TIMEOUT_MULTIPLIER, false);
     }
 
     @Test
@@ -621,10 +593,7 @@ public class BackgroundActivityLaunchTest extends BackgroundActivityTestBase {
         // MANAGE_USERS.
         UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         uiAutomation.adoptShellPermissionIdentity(Manifest.permission.CREATE_USERS);
-        List<UserInfo> userList = mContext.getSystemService(UserManager.class)
-                .getUsers(/* excludePartial= */ true,
-                        /* excludeDying= */ true,
-                        /* excludePreCreated= */ true);
+        List<UserInfo> userList = mContext.getSystemService(UserManager.class).getAliveUsers();
         uiAutomation.dropShellPermissionIdentity();
         return userList;
     }
@@ -757,12 +726,56 @@ public class BackgroundActivityLaunchTest extends BackgroundActivityTestBase {
         assertFalse("Should not able to launch background activity", result);
     }
 
+    @Test
+    @AsbSecurityTest(cveBugId = 271576718)
+    public void testPipCannotStartFromBackground() throws Exception {
+        Intent intent = new Intent();
+        intent.setComponent(APP_A.LAUNCH_INTO_PIP_ACTIVITY);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(intent);
+
+        boolean result = waitForActivityFocused(APP_A.LAUNCH_INTO_PIP_ACTIVITY);
+        assertTrue("Should not able to launch background activity", result);
+
+        pressHomeAndWaitHomeResumed();
+        result = waitForActivityFocused(APP_A.LAUNCH_INTO_PIP_ACTIVITY);
+        assertFalse("Activity should be in background", result);
+
+        Intent broadcast = new Intent(APP_A.LAUNCH_INTO_PIP_ACTIONS.LAUNCH_INTO_PIP);
+        mContext.sendBroadcast(broadcast);
+        result = waitForActivityFocused(APP_A.BACKGROUND_ACTIVITY);
+        assertFalse("Should not able to launch LaunchIntoPip activity", result);
+
+        assertPinnedStackDoesNotExist();
+    }
+
     // Check that a presentation on a virtual display won't allow BAL after pressing home.
     @Test
-    public void testVirtualDisplayCannotStartAfterHomeButton() throws Exception {
+    public void testPrivateVirtualDisplayCannotStartAfterHomeButton() throws Exception {
         Intent intent = new Intent();
         intent.setComponent(APP_A.VIRTUAL_DISPLAY_ACTIVITY);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.putExtra(APP_A.VIRTUAL_DISPLAY_ACTIVITY_EXTRA.USE_PUBLIC_PRESENTATION, false);
+        mContext.startActivity(intent);
+
+        assertTrue("VirtualDisplay activity not started", waitUntilForegroundChanged(
+                APP_A.APP_PACKAGE_NAME, true, ACTIVITY_START_TIMEOUT_MS));
+
+        // Click home button, and test app activity onPause() will trigger which tries to launch
+        // the background activity.
+        pressHomeAndWaitHomeResumed();
+
+        boolean result = waitForActivityFocused(APP_A.BACKGROUND_ACTIVITY);
+        assertFalse("Should not able to launch background activity", result);
+    }
+
+    // Check that a presentation on a virtual display won't allow BAL after pressing home.
+    @Test
+    public void testPublicVirtualDisplayCannotStartAfterHomeButton() throws Exception {
+        Intent intent = new Intent();
+        intent.setComponent(APP_A.VIRTUAL_DISPLAY_ACTIVITY);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.putExtra(APP_A.VIRTUAL_DISPLAY_ACTIVITY_EXTRA.USE_PUBLIC_PRESENTATION, true);
         mContext.startActivity(intent);
 
         assertTrue("VirtualDisplay activity not started", waitUntilForegroundChanged(
