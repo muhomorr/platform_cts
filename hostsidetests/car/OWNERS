@@ -1,5 +1,2 @@
 # Bug component: 526680
-ericjeong@google.com
-sgurun@google.com
-xiangw@google.com
-ycheo@google.com
+include platform/packages/services/Car:/OWNERS
