@@ -23,6 +23,7 @@ import static android.content.Intent.ACTION_VIEW;
 import static android.content.pm.PackageManager.FEATURE_INPUT_METHODS;
 import static android.content.pm.PackageManager.FEATURE_SCREEN_LANDSCAPE;
 import static android.content.pm.PackageManager.FEATURE_SCREEN_PORTRAIT;
+import static android.content.pm.PackageManager.FEATURE_SENSOR_ACCELEROMETER;
 import static android.view.View.GONE;
 import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
@@ -201,7 +202,8 @@ public class BubblesVerifierActivity extends PassFailButtons.Activity {
             //
             // Check if devices do not support rotation
             if (getPackageManager().hasSystemFeature(FEATURE_SCREEN_LANDSCAPE) &&
-                getPackageManager().hasSystemFeature(FEATURE_SCREEN_PORTRAIT))
+                getPackageManager().hasSystemFeature(FEATURE_SCREEN_PORTRAIT) &&
+                getPackageManager().hasSystemFeature(FEATURE_SENSOR_ACCELEROMETER))
             {
                 mTests.add(new PortraitAndLandscape());
             }
@@ -1084,7 +1086,8 @@ public class BubblesVerifierActivity extends PassFailButtons.Activity {
                 .build();
         RemoteInput remoteInput = new RemoteInput.Builder("reply_key").setLabel("reply").build();
         PendingIntent inputIntent = PendingIntent.getActivity(getApplicationContext(), 0,
-                new Intent(), PendingIntent.FLAG_MUTABLE);
+                new Intent().setPackage(getApplicationContext().getPackageName()),
+                PendingIntent.FLAG_MUTABLE);
         Icon icon = Icon.createWithResource(getApplicationContext(), R.drawable.ic_android);
         Notification.Action replyAction = new Notification.Action.Builder(icon, "Reply",
                 inputIntent).addRemoteInput(remoteInput)
