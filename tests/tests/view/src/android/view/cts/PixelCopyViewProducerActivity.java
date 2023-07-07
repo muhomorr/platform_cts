@@ -72,9 +72,10 @@ public class PixelCopyViewProducerActivity extends Activity implements OnDrawLis
         view.setSystemUiVisibility(View.SYSTEM_UI_FLAG_HIDE_NAVIGATION);
         mContent.getViewTreeObserver().addOnDrawListener(this);
         mContent.setOnApplyWindowInsetsListener(this);
+    }
 
-        //setDecorFitsSystemWindows to false will ignore the cutout
-        getWindow().setDecorFitsSystemWindows(false);
+    public View getContentView() {
+        return mContent;
     }
 
     @Override
