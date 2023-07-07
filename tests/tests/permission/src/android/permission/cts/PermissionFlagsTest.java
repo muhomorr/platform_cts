@@ -41,12 +41,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import android.os.Build;
 import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.AsbSecurityTest;
 
+import androidx.test.filters.SdkSuppress;
 import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -55,6 +58,7 @@ import org.junit.runner.RunWith;
  */
 @RunWith(AndroidJUnit4.class)
 @AppModeFull(reason = "Cannot read permission flags of other app.")
+@SdkSuppress(minSdkVersion = Build.VERSION_CODES.UPSIDE_DOWN_CAKE, codeName = "UpsideDownCake")
 public class PermissionFlagsTest {
     /** The package name of most apps used in the test */
     private static final String APP_PKG = "android.permission.cts.appthatrequestpermission";
@@ -72,6 +76,7 @@ public class PermissionFlagsTest {
             TMP_DIR + "CtsAppThatRequestsSystemAlertWindow23.apk";
 
     @After
+    @Before
     public void uninstallTestApp() {
         uninstallApp(APP_PKG);
         uninstallApp(APP_SYSTEM_ALERT_WINDOW_PKG);
