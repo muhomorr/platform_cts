@@ -16,56 +16,30 @@
 
 package android.security.cts;
 
+import static com.android.sts.common.SystemUtil.withSetting;
+
 import static org.junit.Assume.assumeNoException;
 
 import android.platform.test.annotations.AsbSecurityTest;
 
-import com.android.sts.common.tradefed.testtype.StsExtraBusinessLogicHostTestBase;
-import com.android.tradefed.device.ITestDevice;
+import com.android.sts.common.tradefed.testtype.NonRootSecurityTestCase;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class CVE_2022_20197 extends StsExtraBusinessLogicHostTestBase {
+public class CVE_2022_20197 extends NonRootSecurityTestCase {
     private static final String TEST_PKG = "android.security.cts.CVE_2022_20197";
 
     @AsbSecurityTest(cveBugId = 208279300)
     @Test
     public void testPocCVE_2022_20197() {
-        ITestDevice device = null;
-        boolean isPolicyPresent = true;
-        boolean isHiddenApiEnabled = true;
-        String status = "";
-        try {
-            device = getDevice();
+        try (AutoCloseable a = withSetting(getDevice(), "global", "hidden_api_policy", "1")) {
             installPackage("CVE-2022-20197.apk");
-
-            status = AdbUtils.runCommandLine("settings get global hidden_api_policy", device);
-            if (status.toLowerCase().contains("null")) {
-                isPolicyPresent = false;
-            } else if (!status.toLowerCase().contains("1")) {
-                isHiddenApiEnabled = false;
-            }
-            if (!isPolicyPresent || !isHiddenApiEnabled) {
-                AdbUtils.runCommandLine("settings put global hidden_api_policy 1", device);
-            }
             runDeviceTests(TEST_PKG, TEST_PKG + ".DeviceTest", "testParcel");
         } catch (Exception e) {
             assumeNoException(e);
-        } finally {
-            try {
-                if (!isPolicyPresent) {
-                    AdbUtils.runCommandLine("settings delete global hidden_api_policy", device);
-                } else if (!isHiddenApiEnabled) {
-                    AdbUtils.runCommandLine("settings put global hidden_api_policy " + status,
-                            device);
-                }
-            } catch (Exception e) {
-                // ignore all exceptions.
-            }
         }
     }
 }
