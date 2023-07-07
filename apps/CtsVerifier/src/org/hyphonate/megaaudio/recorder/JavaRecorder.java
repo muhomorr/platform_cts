@@ -108,13 +108,13 @@ public class JavaRecorder extends Recorder {
 //            Log.i(TAG, "  bufferSizeInBytes:" + bufferSizeInBytes);
 //            Log.i(TAG, "  (in frames)" + (bufferSizeInBytes / 4 / mChannelCount));
 
-            AudioFormat.Builder formatBuilder = new AudioFormat.Builder();
-            formatBuilder.setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
-                    .setSampleRate(mSampleRate)
-                    .setChannelIndexMask(StreamBase.channelCountToIndexMask(mChannelCount));
-
             AudioRecord.Builder recordBuilder = new AudioRecord.Builder();
-            recordBuilder.setAudioFormat(formatBuilder.build())
+
+            recordBuilder.setAudioFormat(new AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
+                    .setSampleRate(mSampleRate)
+                    .setChannelIndexMask(StreamBase.channelCountToIndexMask(mChannelCount))
+                    .build())
                     /*.setBufferSizeInBytes(bufferSizeInBytes)*/;
             if (mInputPreset != Recorder.INPUT_PRESET_NONE) {
                 recordBuilder.setAudioSource(mInputPreset);
@@ -140,20 +140,16 @@ public class JavaRecorder extends Recorder {
             if (LOG) {
                 Log.e(TAG, "Couldn't open AudioRecord: " + ex);
             }
-            return ERROR_UNSUPPORTED;
-        } catch (java.lang.IllegalArgumentException ex) {
-            if (LOG) {
-                Log.e(TAG, "Invalid arguments to AudioRecord.Builder: " + ex);
-            }
+            mAudioRecord = null;
+            mNumExchangeFrames = 0;
+            mRecorderBuffer = null;
+
             return ERROR_UNSUPPORTED;
         }
     }
 
     @Override
     public int teardownStream() {
-        if (LOG) {
-            Log.i(TAG, "teardownStream()");
-        }
         stopStream();
 
         waitForStreamThreadToExit();

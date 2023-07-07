@@ -32,7 +32,7 @@ public class DuplexAudioManager {
     @SuppressWarnings("unused")
     private static final String TAG = DuplexAudioManager.class.getSimpleName();
     @SuppressWarnings("unused")
-    private static final boolean LOG = true;
+    private static final boolean LOG = false;
 
     // Player
     //TODO - explain these constants
@@ -123,6 +123,7 @@ public class DuplexAudioManager {
 //                mNumRecorderBufferFrames = Recorder.calcMinBufferFramesStatic(
 //                        mNumRecorderChannels, mRecorderSampleRate);
                 mNumRecorderBufferFrames = StreamBase.getNumBurstFrames(BuilderBase.TYPE_NONE);
+                Log.i(TAG, "mNumRecorderBufferFrames: " + mNumRecorderBufferFrames);
                 RecorderBuilder builder = (RecorderBuilder) new RecorderBuilder()
                         .setRecorderType(recorderType)
                         .setAudioSinkProvider(mSinkProvider)
@@ -142,6 +143,8 @@ public class DuplexAudioManager {
         if ((playerType & BuilderBase.TYPE_MASK) != BuilderBase.TYPE_NONE) {
             try {
                 mNumPlayerBurstFrames = StreamBase.getNumBurstFrames(playerType);
+                Log.i(TAG, "mNumPlayerBurstFrames:" + mNumPlayerBurstFrames);
+
                 PlayerBuilder builder = (PlayerBuilder) new PlayerBuilder()
                         .setPlayerType(playerType)
                         .setSourceProvider(mSourceProvider)
@@ -163,60 +166,34 @@ public class DuplexAudioManager {
     }
 
     public int start() {
-        if (LOG) {
-            Log.i(TAG, "start()...");
-        }
         int result = StreamBase.OK;
         if (mRecorder != null && (result = mRecorder.startStream()) != StreamBase.OK) {
-            if (LOG) {
-                Log.i(TAG, "  recorder fails result:" + result);
-            }
             return result;
         }
 
         if (mPlayer != null && (result = mPlayer.startStream()) != StreamBase.OK) {
-            if (LOG) {
-                Log.i(TAG, "  player fails result:" + result);
-            }
             return result;
         }
 
-        if (LOG) {
-            Log.i(TAG, "  result:" + result);
-        }
         return result;
     }
 
     public int stop() {
-        if (LOG) {
-            Log.i(TAG, "stop()");
-        }
         int playerResult = StreamBase.OK;
-        if (LOG) {
-            Log.i(TAG, "  mPlayer:" + mPlayer);
-        }
         if (mPlayer != null) {
-            int result1 = mPlayer.stopStream();
-            int result2 = mPlayer.teardownStream();
-            playerResult = result1 != StreamBase.OK ? result1 : result2;
+           int result1 = mPlayer.stopStream();
+           int result2 = mPlayer.teardownStream();
+           playerResult = result1 != StreamBase.OK ? result1 : result2;
         }
 
         int recorderResult = StreamBase.OK;
-        if (LOG) {
-            Log.i(TAG, "  mRecorder:" + mRecorder);
-        }
         if (mRecorder != null) {
             int result1 = mRecorder.stopStream();
             int result2 = mRecorder.teardownStream();
             recorderResult = result1 != StreamBase.OK ? result1 : result2;
         }
 
-        int ret = playerResult != StreamBase.OK ? playerResult : recorderResult;
-
-        if (LOG) {
-            Log.i(TAG, "  returns:" + ret);
-        }
-        return ret;
+        return playerResult != StreamBase.OK ? playerResult: recorderResult;
     }
 
     public int getNumPlayerBufferFrames() {
@@ -229,34 +206,5 @@ public class DuplexAudioManager {
 
     public AudioSource getAudioSource() {
         return mPlayer != null ? mPlayer.getAudioSource() : null;
-    }
-
-    /**
-     * Don't call this until the streams are started
-     * @return true if both player and recorder are routed to the devices specified
-     * with setRecorderRouteDevice() and setPlayerRouteDevice().
-     */
-    public boolean validateRouting() {
-        if (mPlayerSelectedDevice == null && mRecorderSelectedDevice == null) {
-            return true;
-        }
-
-        if (mPlayer == null || !mPlayer.isPlaying()
-                || mRecorder == null || !mRecorder.isRecording()) {
-            return false;
-        }
-
-        if (mPlayerSelectedDevice != null
-                && mPlayer.getRoutedDeviceId() != mPlayerSelectedDevice.getId()) {
-            return false;
-        }
-
-        if (mRecorderSelectedDevice != null
-                && mRecorder.getRoutedDeviceId() != mRecorderSelectedDevice.getId()) {
-            return false;
-        }
-
-        // Everything checks out OK.
-        return true;
     }
 }
