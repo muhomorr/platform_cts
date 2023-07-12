@@ -45,7 +45,6 @@ import com.android.bedstead.harrier.annotations.RequireRunOnWorkProfile;
 
 import org.junit.After;
 import org.junit.ClassRule;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -134,7 +133,6 @@ public class PhotoPickerCrossProfileTest extends PhotoPickerBaseTest {
      * ACTION_PICK_IMAGES is allowlisted by default from work to personal only (not vice-a-versa)
      */
     @Test
-    @Ignore("Re-enable once b/286026837 is fixed")
     @EnsureHasWorkProfile
     public void testPersonalApp_cannotAccessWorkProfile_default() throws Exception {
         assertBlockedByAdmin(/* isInvokedFromWorkProfile */ false);
