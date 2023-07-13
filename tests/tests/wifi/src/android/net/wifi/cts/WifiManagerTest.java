@@ -1454,26 +1454,26 @@ public class WifiManagerTest extends WifiJUnit4TestBase {
 
         @Override
         public void onScanResultsAvailable(List<ScanResult> scanResults) {
-            latch.countDown();
             mScanResults = scanResults;
+            latch.countDown();
         }
 
         @Override
         public void onRegisterSuccess() {
-            latch.countDown();
             mRegisterSuccess = true;
+            latch.countDown();
         }
 
         @Override
         public void onRegisterFailed(int reason) {
-            latch.countDown();
             mRegisterFailedReason = reason;
+            latch.countDown();
         }
 
         @Override
         public void onRemoved(int reason) {
-            latch.countDown();
             mRemovedReason = reason;
+            latch.countDown();
         }
 
         public boolean isRegisterSuccess() {
@@ -5935,7 +5935,7 @@ public class WifiManagerTest extends WifiJUnit4TestBase {
         try {
             uiAutomation.adoptShellPermissionIdentity();
             boolean enabled = DeviceConfig.getBoolean(DEVICE_CONFIG_NAMESPACE,
-                    "application_qos_policy_api_enabled", false);
+                    "application_qos_policy_api_enabled", true);
 
             // If the feature flag is disabled, verify that all policies are rejected.
             if (!enabled) {
