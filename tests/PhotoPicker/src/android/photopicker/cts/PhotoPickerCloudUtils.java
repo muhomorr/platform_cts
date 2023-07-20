@@ -72,7 +72,6 @@ public class PhotoPickerCloudUtils {
                     + "Device config may reset to server values at any point during test runs.", e);
         }
     }
-
     public static List<String> extractMediaIds(ClipData clipData, int minCount) {
         final int count = clipData.getItemCount();
         assertThat(count).isAtLeast(minCount);
