@@ -247,8 +247,8 @@ public class PerformanceClassEvaluator {
 
         /**
          * [2.2.7.2/7.5/H-1-6] MUST have camera2 startup latency (open camera to first
-         * preview frame) < 600ms as measured by the CTS camera PerformanceTest under ITS lighting
-         * conditions (3000K) for both primary cameras.
+         * preview frame) < 600ms (S and below) or 500ms (T and above) as measured by the CTS camera
+         * PerformanceTest under ITS lighting conditions (3000K) for both primary cameras.
          */
         public static CameraLatencyRequirement createLaunchLatencyReq() {
             RequiredMeasurement<Float> rearLaunchLatency = RequiredMeasurement
@@ -257,8 +257,8 @@ public class PerformanceClassEvaluator {
                     .setPredicate(RequirementConstants.FLOAT_LTE)
                     .addRequiredValue(Build.VERSION_CODES.R, 600.0f)
                     .addRequiredValue(Build.VERSION_CODES.S, 600.0f)
-                    .addRequiredValue(Build.VERSION_CODES.TIRAMISU, 600.0f)
-                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 600.0f)
+                    .addRequiredValue(Build.VERSION_CODES.TIRAMISU, 500.0f)
+                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 500.0f)
                     .build();
             RequiredMeasurement<Float> frontLaunchLatency = RequiredMeasurement
                     .<Float>builder()
@@ -266,8 +266,8 @@ public class PerformanceClassEvaluator {
                     .setPredicate(RequirementConstants.FLOAT_LTE)
                     .addRequiredValue(Build.VERSION_CODES.R, 600.0f)
                     .addRequiredValue(Build.VERSION_CODES.S, 600.0f)
-                    .addRequiredValue(Build.VERSION_CODES.TIRAMISU, 600.0f)
-                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 600.0f)
+                    .addRequiredValue(Build.VERSION_CODES.TIRAMISU, 500.0f)
+                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 500.0f)
                     .build();
 
             return new CameraLatencyRequirement(RequirementConstants.R7_5__H_1_6,
@@ -1985,7 +1985,7 @@ public class PerformanceClassEvaluator {
         }
 
         /**
-         * [2.2.7.1/5.1/H-1-19] MUST support AV1 encoder which can encode up to 480p resolution
+         * [2.2.7.1/5.1/H-1-18] MUST support AV1 encoder which can encode up to 480p resolution
          * at 30fps and 1Mbps.
          */
         public static VideoCodecRequirement createRAV1EncoderReq() {
@@ -1993,7 +1993,7 @@ public class PerformanceClassEvaluator {
                     .<Integer>builder()
                     .setId(RequirementConstants.AV1_ENC_RESOLUTION)
                     .setPredicate(RequirementConstants.INTEGER_GTE)
-                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 720 * 480)
+                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 480)
                     .build();
 
             RequiredMeasurement<Double> fps = RequiredMeasurement
@@ -2010,7 +2010,7 @@ public class PerformanceClassEvaluator {
                     .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 1)
                     .build();
 
-            return new VideoCodecRequirement(RequirementConstants.R5_1__H_1_19, resolution, fps,
+            return new VideoCodecRequirement(RequirementConstants.R5_1__H_1_18, resolution, fps,
                     bitrate);
         }
 
@@ -2217,8 +2217,7 @@ public class PerformanceClassEvaluator {
         return this.addRequirement(VideoCodecRequirement.createRAVIFDecoderReq());
     }
 
-
-    /* Adds requirement 5.1/H-1-19 */
+    /* Adds requirement 5.1/H-1-18 */
     public VideoCodecRequirement addRAV1EncoderReq() {
         return this.addRequirement(VideoCodecRequirement.createRAV1EncoderReq());
     }
