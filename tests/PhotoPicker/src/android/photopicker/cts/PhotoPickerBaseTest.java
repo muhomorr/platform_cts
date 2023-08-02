@@ -28,12 +28,8 @@ import androidx.annotation.Nullable;
 import androidx.test.InstrumentationRegistry;
 import androidx.test.uiautomator.UiDevice;
 
-
-
-
 import org.junit.Assume;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 
@@ -53,14 +49,15 @@ public class PhotoPickerBaseTest {
     protected GetResultActivity mActivity;
     protected Context mContext;
 
-    @BeforeClass
-    public static void  setUpBeforeSuperClass() {
-        disableDeviceConfigSync();
-    }
+    // Do not use org.junit.BeforeClass (b/260380362) or
+    // com.android.bedstead.harrier.annotations.BeforeClass (b/246986339#comment18)
+    // when using DeviceState. Some subclasses of PhotoPickerBaseTest may use DeviceState so avoid
+    // adding either @BeforeClass methods here.
 
     @Before
     public void setUp() throws Exception {
         Assume.assumeTrue(isHardwareSupported());
+        disableDeviceConfigSync();
 
         final String setSyncDelayCommand =
                 "device_config put storage pickerdb.default_sync_delay_ms 0";
