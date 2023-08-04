@@ -62,7 +62,6 @@ import android.telecom.Call;
 import android.telecom.InCallService;
 import android.telecom.PhoneAccountHandle;
 import android.telecom.TelecomManager;
-import android.telephony.PhoneNumberUtils;
 import android.telephony.SmsManager;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
@@ -101,6 +100,8 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @RequireFeature(FEATURE_TELEPHONY)
 @RunWith(BedsteadJUnit4.class)
@@ -140,9 +141,8 @@ public final class WorkProfileTelephonyTest {
         try (PermissionContext p = TestApis.permissions().withPermission(READ_PHONE_NUMBERS)) {
             SubscriptionManager subscriptionManager = sContext.getSystemService(
                     SubscriptionManager.class);
-            mDestinationNumber = PhoneNumberUtils.formatNumberToE164(
-                    subscriptionManager.getPhoneNumber(SubscriptionManager.DEFAULT_SUBSCRIPTION_ID),
-                    mTelephonyManager.getSimCountryIso());
+            mDestinationNumber =
+                    subscriptionManager.getPhoneNumber(SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
         }
     }
 
@@ -152,7 +152,8 @@ public final class WorkProfileTelephonyTest {
     @Postsubmit(reason = "new test")
     @Test
     @CddTest(requirements = {"7.4.1.4/C-3-1"})
-    public void sendTextMessage_fromWorkProfile_allManagedSubscriptions_smsSentSuccessfully() {
+    public void sendTextMessage_fromWorkProfile_allManagedSubscriptions_smsSentSuccessfully()
+        throws ExecutionException, InterruptedException, TimeoutException {
         assumeSmsCapableDevice();
         assertValidSimCardPresent();
         String previousDefaultSmsPackage = Telephony.Sms.getDefaultSmsPackage(sContext);
@@ -162,8 +163,7 @@ public final class WorkProfileTelephonyTest {
         try (TestAppInstance smsApp = sSmsApp.install(workProfileUser)) {
             dpm.setManagedSubscriptionsPolicy(new ManagedSubscriptionsPolicy(
                     ManagedSubscriptionsPolicy.TYPE_ALL_MANAGED_SUBSCRIPTIONS));
-            dpm.setDefaultSmsApplication(sDeviceState.profileOwner(WORK_PROFILE).componentName(),
-                    smsApp.packageName());
+            setPackageAsSmsRoleHolderForUser(smsApp.packageName(), workProfileUser.userHandle());
             Intent sentIntent = new Intent(SMS_SENT_INTENT_ACTION).setPackage(smsApp.packageName());
             PendingIntent sentPendingIntent = PendingIntent.getBroadcast(
                     TestApis.context().instrumentedContext(), 0, sentIntent,
@@ -195,7 +195,7 @@ public final class WorkProfileTelephonyTest {
     @Test
     @CddTest(requirements = {"7.4.1.4/C-1-1", "7.4.1.4/C-3-2"})
     public void sendTextMessage_fromPersonalProfile_allManagedSubscriptions_errorUserNotAllowed()
-            throws ExecutionException, InterruptedException {
+            throws ExecutionException, InterruptedException, TimeoutException {
         assumeSmsCapableDevice();
         assertValidSimCardPresent();
         String previousDefaultSmsPackage = Telephony.Sms.getDefaultSmsPackage(sContext);
@@ -295,7 +295,8 @@ public final class WorkProfileTelephonyTest {
     @Postsubmit(reason = "new test")
     @Test
     @CddTest(requirements = {"7.4.1.4/C-3-1"})
-    public void allManagedSubscriptions_accessWorkMessageFromWorkProfile_works() {
+    public void allManagedSubscriptions_accessWorkMessageFromWorkProfile_works()
+        throws ExecutionException, InterruptedException, TimeoutException  {
         assumeSmsCapableDevice();
         String previousDefaultSmsPackage = Telephony.Sms.getDefaultSmsPackage(sContext);
         RemoteDevicePolicyManager dpm = sDeviceState.profileOwner(
@@ -304,8 +305,7 @@ public final class WorkProfileTelephonyTest {
         try (TestAppInstance smsApp = sSmsApp.install(workProfileUser)) {
             dpm.setManagedSubscriptionsPolicy(new ManagedSubscriptionsPolicy(
                     ManagedSubscriptionsPolicy.TYPE_ALL_MANAGED_SUBSCRIPTIONS));
-            dpm.setDefaultSmsApplication(sDeviceState.profileOwner(WORK_PROFILE).componentName(),
-                    smsApp.packageName());
+            setPackageAsSmsRoleHolderForUser(smsApp.packageName(), workProfileUser.userHandle());
             String insertMessageBody =
                     "This is a test message with timestamp : " + System.currentTimeMillis();
             ContentValues smsValues = new ContentValues();
@@ -558,7 +558,7 @@ public final class WorkProfileTelephonyTest {
     }
 
     private void setPackageAsSmsRoleHolderForUser(String packageName, UserHandle userHandle)
-            throws ExecutionException, InterruptedException {
+            throws ExecutionException, InterruptedException, TimeoutException {
         CompletableFuture<Boolean> roleUpdateFuture = new CompletableFuture<>();
         SystemUtil.runWithShellPermissionIdentity(() -> {
             mRoleManager.addRoleHolderAsUser(ROLE_SMS, packageName,
@@ -566,7 +566,7 @@ public final class WorkProfileTelephonyTest {
                     roleUpdateFuture::complete);
         });
         // Wait for the future to complete.
-        roleUpdateFuture.get();
+        roleUpdateFuture.get(60, TimeUnit.SECONDS);
     }
 
     private String getDefaultDialerPackage() {
