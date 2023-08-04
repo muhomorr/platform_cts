@@ -18,7 +18,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           package="com.android.cts.verifier"
           android:versionCode="5"
-          android:versionName="13_r5">
+          android:versionName="13_r6">
 
     <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="33"/>
 
@@ -4432,7 +4432,7 @@
             <meta-data android:name="display_mode" android:value="single_display_mode" />
             <meta-data
                 android:name="test_required_configs"
-                android:value="config_battery_supported" />
+                android:value="config_battery_supported"/>
             <meta-data android:name="CddTest" android:value="7.3/C-1-5" />
         </activity>
 

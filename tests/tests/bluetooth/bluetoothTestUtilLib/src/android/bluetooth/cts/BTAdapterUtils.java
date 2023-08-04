@@ -37,11 +37,11 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class BTAdapterUtils {
     private static final String TAG = "BTAdapterUtils";
-    private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
 
     // ADAPTER_ENABLE_TIMEOUT_MS = AdapterState.BLE_START_TIMEOUT_DELAY +
-    //                              AdapterState.BREDR_START_TIMEOUT_DELAY
-    private static final int ADAPTER_ENABLE_TIMEOUT_MS = 8000;
+    //                             AdapterState.BREDR_START_TIMEOUT_DELAY +
+    //                             (10 seconds of additional delay)
+    private static final int ADAPTER_ENABLE_TIMEOUT_MS = 18000;
     // ADAPTER_DISABLE_TIMEOUT_MS = AdapterState.BLE_STOP_TIMEOUT_DELAY +
     //                                  AdapterState.BREDR_STOP_TIMEOUT_DELAY
     private static final int ADAPTER_DISABLE_TIMEOUT_MS = 5000;
@@ -78,18 +78,14 @@ public class BTAdapterUtils {
             String action = intent.getAction();
             if (BluetoothAdapter.ACTION_BLE_STATE_CHANGED.equals(action)) {
                 int newState = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1);
-                if (DBG) {
-                    Log.d(TAG, "Bluetooth adapter state changed: " + newState);
-                }
+                Log.d(TAG, "Bluetooth adapter state changed: " + newState);
 
                 // Signal if the state is set to the one we are waiting on
                 sBluetoothAdapterLock.lock();
                 sAdapterState = newState;
                 try {
                     if (sDesiredState == newState) {
-                        if (DBG) {
-                            Log.d(TAG, "Adapter has reached desired state: " + sDesiredState);
-                        }
+                        Log.d(TAG, "Adapter has reached desired state: " + sDesiredState);
                         sConditionAdapterStateReached.signal();
                     }
                 } finally {
@@ -103,9 +99,7 @@ public class BTAdapterUtils {
      * Initialize all static state variables
      */
     private static void initAdapterStateVariables(Context context) {
-        if (DBG) {
-            Log.d(TAG, "Initializing adapter state variables");
-        }
+        Log.d(TAG, "Initializing adapter state variables");
         sAdapterReceiver = new BluetoothAdapterReceiver();
         sBluetoothAdapterLock = new ReentrantLock();
         sConditionAdapterStateReached = sBluetoothAdapterLock.newCondition();
@@ -126,9 +120,7 @@ public class BTAdapterUtils {
             throws InterruptedException {
         int timeout = sStateTimeouts.get(desiredState, ADAPTER_ENABLE_TIMEOUT_MS);
 
-        if (DBG) {
-            Log.d(TAG, "Waiting for adapter state " + desiredState);
-        }
+        Log.d(TAG, "Waiting for adapter state " + desiredState);
         sDesiredState = desiredState;
 
         // Wait until we have reached the desired state
@@ -137,7 +129,9 @@ public class BTAdapterUtils {
                 // Handle situation where state change occurs, but we don't receive the broadcast
                 if (desiredState >= BluetoothAdapter.STATE_OFF
                         && desiredState <= BluetoothAdapter.STATE_TURNING_OFF) {
-                    return adapter.getState() == desiredState;
+                    int currentState = adapter.getState();
+                    Log.d(TAG, "desiredState: " + desiredState + ", currentState: " + currentState);
+                    return desiredState == currentState;
                 } else if (desiredState == STATE_BLE_ON) {
                     Log.d(TAG, "adapter isLeEnabled: " + adapter.isLeEnabled());
                     return adapter.isLeEnabled();
@@ -148,9 +142,7 @@ public class BTAdapterUtils {
             }
         }
 
-        if (DBG) {
-            Log.d(TAG, "Final state while waiting: " + sAdapterState);
-        }
+        Log.d(TAG, "Final state while waiting: " + sAdapterState);
 
         return sAdapterState == desiredState;
     }
@@ -184,9 +176,7 @@ public class BTAdapterUtils {
 
         sBluetoothAdapterLock.lock();
         try {
-            if (DBG) {
-                Log.d(TAG, "Enabling Bluetooth low energy only mode");
-            }
+            Log.d(TAG, "Enabling Bluetooth low energy only mode");
             if (!bluetoothAdapter.enableBLE()) {
                 Log.e(TAG, "Unable to enable Bluetooth low energy only mode");
                 return false;
@@ -214,9 +204,7 @@ public class BTAdapterUtils {
 
         sBluetoothAdapterLock.lock();
         try {
-            if (DBG) {
-                Log.d(TAG, "Disabling Bluetooth low energy");
-            }
+            Log.d(TAG, "Disabling Bluetooth low energy");
             bluetoothAdapter.disableBLE();
             return waitForAdapterStateLocked(BluetoothAdapter.STATE_OFF, bluetoothAdapter);
         } catch (InterruptedException e) {
@@ -244,9 +232,7 @@ public class BTAdapterUtils {
 
         sBluetoothAdapterLock.lock();
         try {
-            if (DBG) {
-                Log.d(TAG, "Enabling Bluetooth adapter");
-            }
+            Log.d(TAG, "Enabling Bluetooth adapter");
             TestUtils.dropPermissionAsShellUid();
             TestUtils.adoptPermissionAsShellUid(BLUETOOTH_CONNECT, BLUETOOTH_PRIVILEGED);
             bluetoothAdapter.enable();
@@ -288,9 +274,7 @@ public class BTAdapterUtils {
 
         sBluetoothAdapterLock.lock();
         try {
-            if (DBG) {
-                Log.d(TAG, "Disabling Bluetooth adapter, persist=" + persist);
-            }
+            Log.d(TAG, "Disabling Bluetooth adapter, persist=" + persist);
             TestUtils.dropPermissionAsShellUid();
             TestUtils.adoptPermissionAsShellUid(BLUETOOTH_CONNECT, BLUETOOTH_PRIVILEGED);
             bluetoothAdapter.disable(persist);
