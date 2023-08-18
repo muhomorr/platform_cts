@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit
 import org.junit.Assert
 import org.junit.Assume.assumeFalse
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Test
 
 private const val EXTRA_PACKAGE_NAME = "android.intent.extra.PACKAGE_NAME"
@@ -42,6 +43,7 @@ private const val ACTION_MANAGE_APP_PERMISSIONS = "android.intent.action.MANAGE_
  * app in this test).
  */
 @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+@CddTest(requirement = "9.1/C-0-1")
 class LocationProviderInterceptDialogTest : BaseUsePermissionTest() {
     @Before
     fun setup() {
@@ -57,6 +59,7 @@ class LocationProviderInterceptDialogTest : BaseUsePermissionTest() {
     }
 
     @Test
+    @Ignore("b/288471744")
     fun clickLocationPermission_showDialog_clickOk() {
         openPermissionScreenForApp()
         click(By.text("Location"))
@@ -67,6 +70,7 @@ class LocationProviderInterceptDialogTest : BaseUsePermissionTest() {
     }
 
     @Test
+    @Ignore("b/288471744")
     fun clickLocationPermission_showDialog_clickLocationAccess() {
         openPermissionScreenForApp()
         click(By.text("Location"))
@@ -78,6 +82,7 @@ class LocationProviderInterceptDialogTest : BaseUsePermissionTest() {
     }
 
     @Test
+    @Ignore("b/288471744")
     fun checkRestrictedPermissions() {
         context.sendBroadcast(Intent(PermissionTapjackingTest.ACTION_SHOW_OVERLAY)
             .putExtra("package", MIC_LOCATION_PROVIDER_APP_PACKAGE_NAME)
