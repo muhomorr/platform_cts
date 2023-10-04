@@ -22,6 +22,14 @@
     <option name="compatibility:exclude-filter" value="CtsAutoFillServiceTestCases" />
     <option name="compatibility:exclude-filter" value="CtsTelecomTestCases" />
     <option name="compatibility:exclude-filter" value="CtsDynamicMimeHostTestCases" />
+    <option name="compatibility:exclude-filter" value="CtsDynamicMimePreferredActivitiesHostTestCases" />
+    <option name="compatibility:exclude-filter" value="CtsDynamicMimeSingleAppRebootHostTestCases" />
+    <option name="compatibility:exclude-filter" value="CtsDynamicMimeRemoveRebootHostTestCases" />
+    <option name="compatibility:exclude-filter" value="CtsDynamicMimeSingleAppGroupRebootHostTestCases" />
+    <option name="compatibility:exclude-filter" value="CtsDynamicMimeIndependentGroupRebootHostTestCases" />
+    <option name="compatibility:exclude-filter" value="CtsDynamicMimeComplexFilterRebootHostTestCases" />
+    <option name="compatibility:exclude-filter" value="CtsDynamicMimeComplexFilterClearGroupRebootHostTestCases" />
+    <option name="compatibility:exclude-filter" value="CtsDynamicMimeChangedGroupAppUpdateHostTestCases" />
     <option name="compatibility:exclude-filter" value="CtsViewTestCases" />
     <option name="compatibility:exclude-filter" value="CtsWindowManagerDeviceTestCases" />
     <option name="compatibility:exclude-filter" value="CtsProviderTestCases" />
@@ -496,4 +504,7 @@
     <!-- b/204720226 -->
     <option name="compatibility:exclude-filter" value="CtsPhotoPickerTest android.photopicker.cts.PhotoPickerCrossProfileTest#testPersonalApp_cannotAccessWorkProfile_default" />
     <option name="compatibility:exclude-filter" value="CtsMediaHostTestCases android.media.session.cts.MediaSessionManagerHostTest#testGetActiveSessionsFull_managedProfiles" />
+
+    <!-- b/292213604 -->
+    <option name="compatibility:exclude-filter" value="CtsDomainVerificationDeviceMultiUserTestCases" />
 </configuration>

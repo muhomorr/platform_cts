@@ -19,6 +19,7 @@ package android.videocodec.cts;
 import static android.media.MediaFormat.PICTURE_TYPE_B;
 import static android.media.MediaFormat.PICTURE_TYPE_I;
 import static android.media.MediaFormat.PICTURE_TYPE_P;
+import static android.mediav2.common.cts.CodecTestBase.ComponentClass.HARDWARE;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -96,24 +97,19 @@ public class VideoEncoderMaxBFrameTest extends VideoEncoderValidationTestBase {
 
     @Parameterized.Parameters(name = "{index}_{0}_{1}_{4}")
     public static Collection<Object[]> input() {
-        final String[] mediaTypes = new String[]{MediaFormat.MIMETYPE_VIDEO_AVC,
-                MediaFormat.MIMETYPE_VIDEO_HEVC, MediaFormat.MIMETYPE_VIDEO_AV1};
-        final int[] maxBFramesPerSubGop = new int[]{0, 1};
-        for (String mediaType : mediaTypes) {
+        final String[] mediaTypesSupportingBFrames = new String[]{MediaFormat.MIMETYPE_VIDEO_AVC,
+                MediaFormat.MIMETYPE_VIDEO_HEVC};
+        final int[] maxBFramesPerSubGop = new int[]{0, 1, 4};
+        for (String mediaType : mediaTypesSupportingBFrames) {
             for (int maxBFrames : maxBFramesPerSubGop) {
                 // mediaType, cfg, resource file, test label
-                if (!mediaType.equals(MediaFormat.MIMETYPE_VIDEO_AVC)
-                        && !mediaType.equals((MediaFormat.MIMETYPE_VIDEO_HEVC))
-                        && maxBFrames != 0) {
-                    continue;
-                }
                 String label = String.format("%dkbps_%dx%d_maxb-%d", BIT_RATE / 1000, WIDTH,
                         HEIGHT, maxBFrames);
                 exhaustiveArgsList.add(new Object[]{mediaType, getVideoEncoderCfgParams(mediaType,
                         maxBFrames), BIRTHDAY_FULLHD_LANDSCAPE, label});
             }
         }
-        return prepareParamList(exhaustiveArgsList, true, false, true, false);
+        return prepareParamList(exhaustiveArgsList, true, false, true, false, HARDWARE);
     }
 
     public VideoEncoderMaxBFrameTest(String encoder, String mediaType, EncoderConfigParams cfg,

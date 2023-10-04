@@ -22,17 +22,18 @@ import static com.android.cts.verifier.TestListActivity.sInitialLaunch;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.res.Resources;
 import android.hardware.SensorPrivacyManager;
 import android.os.Bundle;
+import android.os.BatteryManager;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.widget.ListView;
 
-import com.android.compatibility.common.util.BatteryUtils;
 import com.android.cts.verifier.TestListActivity.DisplayMode;
 
 import java.lang.reflect.InvocationTargetException;
@@ -491,7 +492,7 @@ public class ManifestTestListAdapter extends TestListAdapter {
                         }
                         break;
                     case CONFIG_BATTERY_SUPPORTED:
-                        if (!BatteryUtils.hasBattery()) {
+                        if (!hasBattery()) {
                             return false;
                         }
                         break;
@@ -558,6 +559,11 @@ public class ManifestTestListAdapter extends TestListAdapter {
         return Arrays.stream(deviceTypesStr.split(","))
                 .map(Integer::parseInt)
                 .collect(Collectors.toList());
+    }
+
+    private boolean hasBattery(){
+        final Intent batteryInfo = mContext.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        return batteryInfo.getBooleanExtra(BatteryManager.EXTRA_PRESENT, true);
     }
 
     List<TestListItem> filterTests(List<TestListItem> tests, String mode) {
