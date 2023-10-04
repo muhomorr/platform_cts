@@ -121,6 +121,7 @@
     <option name="compatibility:exclude-filter" value="CtsHdmiCecHostTestCases android.hdmicec.cts.tv.HdmiCecRemoteControlPassThroughTest" />
     <option name="compatibility:exclude-filter" value="CtsHdmiCecHostTestCases android.hdmicec.cts.tv.HdmiCecRoutingControlTest" />
     <option name="compatibility:exclude-filter" value="CtsHdmiCecHostTestCases android.hdmicec.cts.tv.HdmiCecTvOneTouchPlayTest" />
+    <option name="compatibility:exclude-filter" value="CtsHdmiCecHostTestCases android.hdmicec.cts.common.HdmiCecInvalidMessagesTest#cect_IgnoreBroadcastedFromSameSource" />
 
     <!-- b/192113622, b/203031609, b/204402327, b/204615046, b/204860049  Remove tests for S "optional" algorithms for GRF devices -->
     <option name="compatibility:exclude-filter" value="CtsNetTestCases android.net.cts.IpSecAlgorithmImplTest#testChaCha20Poly1305" />
@@ -144,5 +145,9 @@
     <option name="compatibility:exclude-filter" value="MicrodroidHostTestCases" />
     <option name="compatibility:exclude-filter" value="MicrodroidTestApp" />
     <option name="compatibility:exclude-filter" value="odsign_e2e_tests" />
+
+    <!-- b/212223944 -->
+    <option name="compatibility:exclude-filter" value="CtsViewTestCases android.view.cts.ASurfaceControlTest#testSurfaceTransaction_setDesiredPresentTime_30ms" />
+    <option name="compatibility:exclude-filter" value="CtsViewTestCases android.view.cts.ASurfaceControlTest#testSurfaceTransaction_setDesiredPresentTime_100ms" />
 
 </configuration>

@@ -43,6 +43,7 @@ import com.android.tradefed.testtype.ITestFilterReceiver;
 import com.android.tradefed.testtype.suite.ITestSuite;
 import com.android.tradefed.testtype.suite.TestSuiteInfo;
 import com.android.tradefed.util.FileUtil;
+import com.android.tradefed.util.ModuleTestTypeUtil;
 
 import com.google.common.base.Strings;
 
@@ -253,6 +254,13 @@ public class CommonConfigLoadingTest {
             }
             // Ensure options have been set
             c.validateOptions();
+
+            // Check that no performance test module is included
+            if (ModuleTestTypeUtil.isPerformanceModule(c)) {
+                throw new ConfigurationException(
+                        String.format("config: %s. Performance test modules are not allowed in xTS",
+                                config.getName()));
+            }
         }
     }
 

@@ -110,6 +110,16 @@ public class TestUtils {
                 packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE));
     }
 
+    /**
+     * Returns 0 if not implemented. Otherwise returns the feature version.
+     */
+    public static int getFeatureVersionKeystore(Context appContext, boolean useStrongbox) {
+        if (useStrongbox) {
+            return getFeatureVersionKeystoreStrongBox(appContext);
+        }
+        return getFeatureVersionKeystore(appContext);
+    }
+
     // Returns 0 if not implemented. Otherwise returns the feature version.
     //
     public static int getFeatureVersionKeystore(Context appContext) {
@@ -205,6 +215,13 @@ public class TestUtils {
      */
     public static boolean supports3DES() {
         return "true".equals(SystemProperties.get("ro.hardware.keystore_desede"));
+    }
+
+    /**
+     * Returns ro.vendor.api_level.
+     */
+    public static int getVendorApiLevel() {
+        return SystemProperties.getInt("ro.vendor.api_level", 0);
     }
 
     /**
@@ -1140,15 +1157,27 @@ public class TestUtils {
             String encryptionPadding = TestUtils.getCipherEncryptionPadding(transformation);
             boolean randomizedEncryptionRequired =
                     !KeyProperties.ENCRYPTION_PADDING_NONE.equalsIgnoreCase(encryptionPadding);
-            return new KeyProtection.Builder(
+            // For algorithm transformation such as "RSA/ECB/OAEPWithSHA-224AndMGF1Padding",
+            // Some providers uses same digest for OAEP main digest(SHA-224) and
+            // MGF1 digest(SHA-224), and some providers uses main digest as (SHA-224) and
+            // MGF1 digest as (SHA-1) hence adding both digest for MGF1 digest.
+            String[] mgf1DigestList = null;
+            if (digest != null) {
+                mgf1DigestList = digest.equalsIgnoreCase("SHA-1")
+                        ? new String[] {digest} : new String[] {digest, "SHA-1"};
+            }
+            KeyProtection.Builder keyProtectionBuilder = new KeyProtection.Builder(
                     purposes)
                     .setDigests((digest != null) ? new String[] {digest} : EmptyArray.STRING)
                     .setEncryptionPaddings(encryptionPadding)
                     .setRandomizedEncryptionRequired(randomizedEncryptionRequired)
                     .setUserAuthenticationRequired(isUserAuthRequired)
                     .setUserAuthenticationValidityDurationSeconds(3600)
-                    .setUnlockedDeviceRequired(isUnlockedDeviceRequired)
-                    .build();
+                    .setUnlockedDeviceRequired(isUnlockedDeviceRequired);
+            if (mgf1DigestList != null) {
+                keyProtectionBuilder.setMgf1Digests(mgf1DigestList);
+            }
+            return keyProtectionBuilder.build();
         } else {
             throw new IllegalArgumentException("Unsupported key algorithm: " + keyAlgorithm);
         }
