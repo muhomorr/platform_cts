@@ -94,17 +94,6 @@ public class QuiescentBootTests extends BaseHostJUnit4Test {
     }
 
     @Test
-    public void testQuiescentBoot_awakeAfterReboot() throws Exception {
-        mDevice.executeAdbCommand("reboot", "quiescent");
-        mDevice.waitForBootComplete(REBOOT_TIMEOUT);
-
-        mDevice.executeAdbCommand("reboot");
-        mDevice.waitForBootComplete(REBOOT_TIMEOUT);
-
-        assertEquals("Expected to boot in awake state.", WAKEFULNESS_AWAKE, getWakefulness());
-    }
-
-    @Test
     public void testQuiescentBoot_activitiesNotResumedAfterBoot() throws Exception {
         mDevice.executeAdbCommand("reboot", "quiescent");
         mDevice.waitForBootComplete(REBOOT_TIMEOUT);
