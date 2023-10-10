@@ -24,12 +24,12 @@ import android.content.pm.PackageManager
 import android.content.res.Resources.NotFoundException
 import android.hardware.SensorPrivacyManager
 import android.hardware.SensorPrivacyManager.OnSensorPrivacyChangedListener
-import android.hardware.SensorPrivacyManager.TOGGLE_TYPE_HARDWARE
-import android.hardware.SensorPrivacyManager.TOGGLE_TYPE_SOFTWARE
 import android.hardware.SensorPrivacyManager.OnSensorPrivacyChangedListener.SensorPrivacyChangedParams
 import android.hardware.SensorPrivacyManager.Sensors.CAMERA
 import android.hardware.SensorPrivacyManager.Sensors.MICROPHONE
 import android.hardware.SensorPrivacyManager.Sources.OTHER
+import android.hardware.SensorPrivacyManager.TOGGLE_TYPE_HARDWARE
+import android.hardware.SensorPrivacyManager.TOGGLE_TYPE_SOFTWARE
 import android.os.PowerManager
 import android.platform.test.annotations.AppModeFull
 import android.platform.test.annotations.AsbSecurityTest
@@ -42,6 +42,11 @@ import com.android.compatibility.common.util.SystemUtil.eventually
 import com.android.compatibility.common.util.SystemUtil.runShellCommandOrThrow
 import com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity
 import com.android.compatibility.common.util.UiAutomatorUtils
+import java.nio.charset.StandardCharsets
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.regex.Pattern
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -51,10 +56,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Assume
 import org.junit.Before
 import org.junit.Test
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-import java.util.regex.Pattern
 
 abstract class SensorPrivacyBaseTest(
     val sensor: Int,
@@ -100,8 +101,6 @@ abstract class SensorPrivacyBaseTest(
     open fun init() {
         oldState = isSensorPrivacyEnabled()
         setSensor(false)
-        Assume.assumeTrue(spm.supportsSensorToggle(sensor))
-        Assume.assumeTrue(spm.supportsSensorToggle(TOGGLE_TYPE_SOFTWARE, sensor))
         uiDevice.wakeUp()
         runShellCommandOrThrow("wm dismiss-keyguard")
         uiDevice.waitForIdle()
@@ -116,6 +115,7 @@ abstract class SensorPrivacyBaseTest(
 
     @Test
     fun testSetSensor() {
+        assumeSensorToggleSupport()
         setSensor(true)
         assertTrue(isSensorPrivacyEnabled())
 
@@ -125,6 +125,7 @@ abstract class SensorPrivacyBaseTest(
 
     @Test
     fun testSensorPrivacy_softwareToggle() {
+        assumeSensorToggleSupport()
         setSensor(true)
         assertTrue(isToggleSensorPrivacyEnabled(TOGGLE_TYPE_SOFTWARE))
 
@@ -134,6 +135,7 @@ abstract class SensorPrivacyBaseTest(
 
     @Test
     fun testSensorPrivacy_hardwareToggle() {
+        assumeSensorToggleSupport()
         // Default value should be false weather HW toggles
         // are supported or not
         assertFalse(isToggleSensorPrivacyEnabled(TOGGLE_TYPE_HARDWARE))
@@ -141,6 +143,7 @@ abstract class SensorPrivacyBaseTest(
 
     @Test
     fun testSensorPrivacy_comboToggle() {
+        assumeSensorToggleSupport()
         setSensor(sensor, true)
         assertTrue(isCombinedSensorPrivacyEnabled())
 
@@ -150,16 +153,19 @@ abstract class SensorPrivacyBaseTest(
 
     @Test
     fun testDialog() {
+        assumeSensorToggleSupport()
         testDialog(delayedActivity = false, delayedActivityNewTask = false)
     }
 
     @Test
     fun testDialog_remainsOnTop() {
+        assumeSensorToggleSupport()
         testDialog(delayedActivity = true, delayedActivityNewTask = false)
     }
 
     @Test
     fun testDialog_remainsOnTop_newTask() {
+        assumeSensorToggleSupport()
         testDialog(delayedActivity = true, delayedActivityNewTask = true)
     }
 
@@ -187,6 +193,7 @@ abstract class SensorPrivacyBaseTest(
 
     @Test
     fun testListener() {
+        assumeSensorToggleSupport()
         val executor = Executors.newSingleThreadExecutor()
         setSensor(false)
         val latchEnabled = CountDownLatch(1)
@@ -223,6 +230,7 @@ abstract class SensorPrivacyBaseTest(
 
     @Test
     fun testToggleListener() {
+        assumeSensorToggleSupport()
         val executor = Executors.newSingleThreadExecutor()
         setSensor(false)
         val latchEnabled = CountDownLatch(1)
@@ -272,6 +280,7 @@ abstract class SensorPrivacyBaseTest(
 
     @Test
     fun testToggleListener_defaultExecutor() {
+        assumeSensorToggleSupport()
         setSensor(false)
         val latchEnabled = CountDownLatch(1)
         var listenerSensorEnabled = object : OnSensorPrivacyChangedListener {
@@ -317,6 +326,7 @@ abstract class SensorPrivacyBaseTest(
     @Test
     @AppModeFull(reason = "Instant apps can't manage keyguard")
     fun testCantChangeWhenLocked() {
+        assumeSensorToggleSupport()
         Assume.assumeTrue(packageManager
                 .hasSystemFeature(PackageManager.FEATURE_SECURE_LOCK_SCREEN))
 
@@ -367,6 +377,7 @@ abstract class SensorPrivacyBaseTest(
     @Test
     @AppModeFull(reason = "Uses secondary app, instant apps have no visibility")
     fun testOpNotRunningWhileSensorPrivacyEnabled() {
+        assumeSensorToggleSupport()
         setSensor(false)
         val before = System.currentTimeMillis()
         startTestApp()
@@ -385,6 +396,7 @@ abstract class SensorPrivacyBaseTest(
     @Test
     @AppModeFull(reason = "Uses secondary app, instant apps have no visibility")
     fun testOpStartsRunningAfterStartedWithSensoryPrivacyEnabled() {
+        assumeSensorToggleSupport()
         setSensor(true)
         // Retry camera connection because external cameras are disconnected
         // if sensor privacy is enabled (b/182204067)
@@ -401,6 +413,7 @@ abstract class SensorPrivacyBaseTest(
     @Test
     @AppModeFull(reason = "Uses secondary app, instant apps have no visibility")
     fun testOpGetsRecordedAfterStartedWithSensorPrivacyEnabled() {
+        assumeSensorToggleSupport()
         setSensor(true)
         // Retry camera connection because external cameras are disconnected
         // if sensor privacy is enabled (b/182204067)
@@ -422,6 +435,7 @@ abstract class SensorPrivacyBaseTest(
     @Test
     @AppModeFull(reason = "Uses secondary app, instant apps have no visibility")
     fun testOpLastAccessUpdatesAfterToggleSensorPrivacy() {
+        assumeSensorToggleSupport()
         setSensor(false)
         val before = System.currentTimeMillis()
         startTestApp()
@@ -453,6 +467,7 @@ abstract class SensorPrivacyBaseTest(
     @Test
     @AppModeFull(reason = "Uses secondary app, instant apps have no visibility")
     fun testOpFinishedWhileToggleOn() {
+        assumeSensorToggleSupport()
         setSensor(false)
         startTestApp()
         eventually {
@@ -473,12 +488,27 @@ abstract class SensorPrivacyBaseTest(
     @Test
     @AsbSecurityTest(cveBugId = [199550934])
     fun testTapjacking() {
+        assumeSensorToggleSupport()
         setSensor(true)
         startTestOverlayApp(false)
         assertNotNull("Dialog never showed",
                 UiAutomatorUtils.waitFindObject(By.res(getDialogPositiveButtonId())))
         val view = UiAutomatorUtils.waitFindObjectOrNull(By.text("This Should Be Hidden"), 10_000)
         assertNull("Overlay should not have shown.", view)
+    }
+
+    @Test
+    @AppModeFull(reason = "Uses secondary app, instant apps have no visibility")
+    fun testCantEnablePrivacyIfNotSupported() {
+        Assume.assumeFalse(spm.supportsSensorToggle(sensor))
+        Assume.assumeFalse(spm.supportsSensorToggle(TOGGLE_TYPE_SOFTWARE, sensor))
+        setSensor(true)
+        assertFalse(isSensorPrivacyEnabled())
+    }
+
+    private fun assumeSensorToggleSupport() {
+        Assume.assumeTrue(spm.supportsSensorToggle(sensor))
+        Assume.assumeTrue(spm.supportsSensorToggle(TOGGLE_TYPE_SOFTWARE, sensor))
     }
 
     private fun startTestApp() {
@@ -511,7 +541,9 @@ abstract class SensorPrivacyBaseTest(
         context.startActivity(intent)
         // Wait for app to open
         if (!isWear()) {
-            UiAutomatorUtils.waitFindObject(By.textContains(ACTIVITY_TITLE_SNIP))
+            eventually {
+                UiAutomatorUtils.waitFindObject(By.textContains(ACTIVITY_TITLE_SNIP))
+            }
         }
 
         context.sendBroadcast(Intent(SHOW_OVERLAY_ACTION))
@@ -589,9 +621,7 @@ abstract class SensorPrivacyBaseTest(
         }
     }
 
-    private fun isWear(): Boolean {
-        return packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
-    }
+    private fun isWear(): Boolean = packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
 
     private fun assertLastAccessTimeAndDuration(before: Long, after: Long) {
         val pkgOp = getOpForPackage()
@@ -610,10 +640,10 @@ abstract class SensorPrivacyBaseTest(
     fun runWhileLocked(r: () -> Unit) {
         val km = context.getSystemService(KeyguardManager::class.java)!!
         val pm = context.getSystemService(PowerManager::class.java)!!
-        val password = byteArrayOf(1, 2, 3, 4)
+        val pin = "1234".toByteArray(StandardCharsets.UTF_8)
         try {
             runWithShellPermissionIdentity {
-                km.setLock(KeyguardManager.PIN, password, KeyguardManager.PIN, null)
+                assertTrue(km.setLock(KeyguardManager.PIN, pin, KeyguardManager.PIN, null))
             }
             eventually {
                 uiDevice.pressKeyCode(KeyEvent.KEYCODE_SLEEP)
@@ -630,7 +660,7 @@ abstract class SensorPrivacyBaseTest(
             r.invoke()
         } finally {
             runWithShellPermissionIdentity {
-                km.setLock(KeyguardManager.PIN, null, KeyguardManager.PIN, password)
+                assertTrue(km.setLock(KeyguardManager.PIN, null, KeyguardManager.PIN, pin))
             }
 
             // Recycle the screen power in case the keyguard is stuck open
