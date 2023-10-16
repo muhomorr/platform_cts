@@ -38,6 +38,7 @@ import com.android.compatibility.common.util.ApiTest;
 import com.android.compatibility.common.util.NonMainlineTest;
 
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -319,7 +320,7 @@ public class CodecUnitTest {
             }
         }
 
-        @ApiTest(apis = "MediaCodec#createByCodecName")
+        @ApiTest(apis = "android.media.MediaCodec#createByCodecName")
         @Test
         public void testCreateByCodecNameForNull() throws IOException {
             try {
@@ -332,7 +333,7 @@ public class CodecUnitTest {
             }
         }
 
-        @ApiTest(apis = "MediaCodec#createByCodecName")
+        @ApiTest(apis = "android.media.MediaCodec#createByCodecName")
         @Test
         public void testCreateByCodecNameForInvalidName() throws IOException {
             try {
@@ -345,7 +346,7 @@ public class CodecUnitTest {
             }
         }
 
-        @ApiTest(apis = "MediaCodec#createDecoderByType")
+        @ApiTest(apis = "android.media.MediaCodec#createDecoderByType")
         @Test
         public void testCreateDecoderByTypeForNull() throws IOException {
             try {
@@ -358,7 +359,7 @@ public class CodecUnitTest {
             }
         }
 
-        @ApiTest(apis = "MediaCodec#createDecoderByType")
+        @ApiTest(apis = "android.media.MediaCodec#createDecoderByType")
         @Test
         public void testCreateDecoderByTypeForInvalidMediaType() throws IOException {
             try {
@@ -371,7 +372,7 @@ public class CodecUnitTest {
             }
         }
 
-        @ApiTest(apis = "MediaCodec#createEncoderByType")
+        @ApiTest(apis = "android.media.MediaCodec#createEncoderByType")
         @Test
         public void testCreateEncoderByTypeForNull() throws IOException {
             try {
@@ -384,7 +385,7 @@ public class CodecUnitTest {
             }
         }
 
-        @ApiTest(apis = "MediaCodec#createEncoderByType")
+        @ApiTest(apis = "android.media.MediaCodec#createEncoderByType")
         @Test
         public void testCreateEncoderByTypeForInvalidMediaType() throws IOException {
             try {
@@ -397,7 +398,7 @@ public class CodecUnitTest {
             }
         }
 
-        @ApiTest(apis = "MediaCodec#configure")
+        @ApiTest(apis = "android.media.MediaCodec#configure")
         @Test
         @Ignore("TODO(b/151302868)")
         public void testConfigureForNullFormat() throws IOException {
@@ -406,7 +407,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#configure")
+        @ApiTest(apis = "android.media.MediaCodec#configure")
         @Test
         @Ignore("TODO(b/151302868)")
         public void testConfigureForEmptyFormat() throws IOException {
@@ -415,7 +416,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#configure")
+        @ApiTest(apis = "android.media.MediaCodec#configure")
         @Test
         @Ignore("TODO(b/151302868)")
         public void testConfigureAudioDecodeForIncompleteFormat() throws IOException {
@@ -426,7 +427,7 @@ public class CodecUnitTest {
             testConfigureCodecForIncompleteFormat(format, mandatoryKeys, false);
         }
 
-        @ApiTest(apis = "MediaCodec#configure")
+        @ApiTest(apis = "android.media.MediaCodec#configure")
         @Test
         @Ignore("TODO(b/151302868)")
         public void testConfigureAudioEncodeForIncompleteFormat() throws IOException {
@@ -437,7 +438,7 @@ public class CodecUnitTest {
             testConfigureCodecForIncompleteFormat(format, mandatoryKeys, true);
         }
 
-        @ApiTest(apis = "MediaCodec#configure")
+        @ApiTest(apis = "android.media.MediaCodec#configure")
         @Test
         @Ignore("TODO(b/151302868)")
         public void testConfigureVideoDecodeForIncompleteFormat() throws IOException {
@@ -448,7 +449,7 @@ public class CodecUnitTest {
             testConfigureCodecForIncompleteFormat(format, mandatoryKeys, false);
         }
 
-        @ApiTest(apis = "MediaCodec#configure")
+        @ApiTest(apis = "android.media.MediaCodec#configure")
         @Test
         @Ignore("TODO(b/151302868, b/151303041)")
         public void testConfigureVideoEncodeForIncompleteFormat() throws IOException {
@@ -461,21 +462,21 @@ public class CodecUnitTest {
             testConfigureCodecForIncompleteFormat(format, mandatoryKeys, true);
         }
 
-        @ApiTest(apis = "MediaCodec#configure")
+        @ApiTest(apis = "android.media.MediaCodec#configure")
         @Test
         @Ignore("TODO(b/151304147)")
         public void testConfigureEncoderForBadFlags() throws IOException {
             testConfigureCodecForBadFlags(true);
         }
 
-        @ApiTest(apis = "MediaCodec#configure")
+        @ApiTest(apis = "android.media.MediaCodec#configure")
         @Test
         @Ignore("TODO(b/151304147)")
         public void testConfigureDecoderForBadFlags() throws IOException {
             testConfigureCodecForBadFlags(false);
         }
 
-        @ApiTest(apis = "MediaCodec#configure")
+        @ApiTest(apis = "android.media.MediaCodec#configure")
         @Test
         public void testConfigureInInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -492,7 +493,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#configure")
+        @ApiTest(apis = "android.media.MediaCodec#configure")
         @Test
         @Ignore("TODO(b/151894670)")
         public void testConfigureAfterStart() throws IOException, InterruptedException {
@@ -513,7 +514,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#configure")
+        @ApiTest(apis = "android.media.MediaCodec#configure")
         @Test
         @Ignore("TODO(b/151894670)")
         public void testConfigureAfterQueueInputBuffer() throws IOException, InterruptedException {
@@ -534,7 +535,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#configure")
+        @ApiTest(apis = "android.media.MediaCodec#configure")
         @Test
         public void testConfigureInEOSState() throws IOException, InterruptedException {
             MediaFormat format = getSampleAudioFormat();
@@ -554,7 +555,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#configure")
+        @ApiTest(apis = "android.media.MediaCodec#configure")
         @Test
         @Ignore("TODO(b/147576107)")
         public void testConfigureInFlushState() throws IOException, InterruptedException {
@@ -577,7 +578,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#configure")
+        @ApiTest(apis = "android.media.MediaCodec#configure")
         @Test
         public void testConfigureInUnInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -598,7 +599,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#configure")
+        @ApiTest(apis = "android.media.MediaCodec#configure")
         @Test
         public void testConfigureInReleaseState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -609,7 +610,7 @@ public class CodecUnitTest {
                     "codec configure succeeds in release state");
         }
 
-        @ApiTest(apis = "MediaCodec#dequeueInputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#dequeueInputBuffer")
         @Test
         public void testDequeueInputBufferInUnInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -630,7 +631,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#dequeueInputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#dequeueInputBuffer")
         @Test
         public void testDequeueInputBufferInInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -647,7 +648,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#dequeueInputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#dequeueInputBuffer")
         @Test
         public void testDequeueInputBufferInRunningState()
                 throws IOException, InterruptedException {
@@ -670,7 +671,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#dequeueInputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#dequeueInputBuffer")
         @Test
         public void testDequeueInputBufferInReleaseState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -682,7 +683,7 @@ public class CodecUnitTest {
                     "dequeue input buffer succeeds in release state");
         }
 
-        @ApiTest(apis = "MediaCodec#dequeueOutputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#dequeueOutputBuffer")
         @Test
         public void testDequeueOutputBufferInUnInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -703,7 +704,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#dequeueOutputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#dequeueOutputBuffer")
         @Test
         public void testDequeueOutputBufferInInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -720,7 +721,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#dequeueOutputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#dequeueOutputBuffer")
         @Test
         public void testDequeueOutputBufferInRunningState()
                 throws IOException, InterruptedException {
@@ -743,7 +744,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#dequeueOutputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#dequeueOutputBuffer")
         @Test
         public void testDequeueOutputBufferInReleaseState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -755,7 +756,7 @@ public class CodecUnitTest {
                     "dequeue output buffer succeeds in release state");
         }
 
-        @ApiTest(apis = "MediaCodec#flush")
+        @ApiTest(apis = "android.media.MediaCodec#flush")
         @Test
         public void testFlushInUnInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -775,7 +776,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#flush")
+        @ApiTest(apis = "android.media.MediaCodec#flush")
         @Test
         public void testFlushInInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -791,7 +792,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#flush")
+        @ApiTest(apis = "android.media.MediaCodec#flush")
         @Test
         @Ignore("TODO(b/147576107)")
         public void testFlushInRunningState() throws IOException, InterruptedException {
@@ -812,7 +813,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#flush")
+        @ApiTest(apis = "android.media.MediaCodec#flush")
         @Test
         public void testFlushInReleaseState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -822,10 +823,10 @@ public class CodecUnitTest {
             tryFlushInInvalidState("codec flush succeeds in release state");
         }
 
-        @ApiTest(apis = {"MediaCodec#getName",
-                         "MediaCodec#getCanonicalName",
-                         "MediaCodec#getCodecInfo",
-                         "MediaCodec#getMetrics"})
+        @ApiTest(apis = {"android.media.MediaCodec#getName",
+                         "android.media.MediaCodec#getCanonicalName",
+                         "android.media.MediaCodec#getCodecInfo",
+                         "android.media.MediaCodec#getMetrics"})
         @Test
         public void testGetMetaDataInUnInitState() throws IOException, InterruptedException {
             MediaFormat format = getSampleAudioFormat();
@@ -845,10 +846,10 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = {"MediaCodec#getName",
-                         "MediaCodec#getCanonicalName",
-                         "MediaCodec#getCodecInfo",
-                         "MediaCodec#getMetrics"})
+        @ApiTest(apis = {"android.media.MediaCodec#getName",
+                         "android.media.MediaCodec#getCanonicalName",
+                         "android.media.MediaCodec#getCodecInfo",
+                         "android.media.MediaCodec#getMetrics"})
         @Test
         public void testGetMetaDataInInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -863,10 +864,10 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = {"MediaCodec#getName",
-                         "MediaCodec#getCanonicalName",
-                         "MediaCodec#getCodecInfo",
-                         "MediaCodec#getMetrics"})
+        @ApiTest(apis = {"android.media.MediaCodec#getName",
+                         "android.media.MediaCodec#getCanonicalName",
+                         "android.media.MediaCodec#getCodecInfo",
+                         "android.media.MediaCodec#getMetrics"})
         @Test
         public void testGetMetaDataInRunningState() throws IOException, InterruptedException {
             MediaFormat format = getSampleAudioFormat();
@@ -886,10 +887,10 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = {"MediaCodec#getName",
-                         "MediaCodec#getCanonicalName",
-                         "MediaCodec#getCodecInfo",
-                         "MediaCodec#getMetrics"})
+        @ApiTest(apis = {"android.media.MediaCodec#getName",
+                         "android.media.MediaCodec#getCanonicalName",
+                         "android.media.MediaCodec#getCodecInfo",
+                         "android.media.MediaCodec#getMetrics"})
         @Test
         public void testGetMetaDataInReleaseState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -925,7 +926,7 @@ public class CodecUnitTest {
             }
         }
 
-        @ApiTest(apis = "MediaCodec#setCallback")
+        @ApiTest(apis = "android.media.MediaCodec#setCallback")
         @Test
         public void testSetCallBackInUnInitState() throws IOException, InterruptedException {
             MediaFormat format = getSampleAudioFormat();
@@ -955,7 +956,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#setCallback")
+        @ApiTest(apis = "android.media.MediaCodec#setCallback")
         @Test
         public void testSetCallBackInInitState() throws IOException, InterruptedException {
             MediaFormat format = getSampleAudioFormat();
@@ -985,7 +986,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#setCallback")
+        @ApiTest(apis = "android.media.MediaCodec#setCallback")
         @Test
         @Ignore("TODO(b/151305056)")
         public void testSetCallBackInRunningState() throws IOException, InterruptedException {
@@ -1025,7 +1026,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#setCallback")
+        @ApiTest(apis = "android.media.MediaCodec#setCallback")
         @Test
         public void testSetCallBackInReleaseState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1041,7 +1042,7 @@ public class CodecUnitTest {
             }
         }
 
-        @ApiTest(apis = "MediaCodec#getInputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#getInputBuffer")
         @Test
         public void testGetInputBufferInUnInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1059,7 +1060,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getInputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#getInputBuffer")
         @Test
         public void testGetInputBufferInInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1074,7 +1075,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getInputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#getInputBuffer")
         @Test
         @Ignore("TODO(b/151304147)")
         public void testGetInputBufferInRunningState() throws IOException, InterruptedException {
@@ -1105,7 +1106,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getInputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#getInputBuffer")
         @Test
         public void testGetInputBufferInReleaseState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1115,7 +1116,7 @@ public class CodecUnitTest {
             tryGetInputBufferInInvalidState("getInputBuffer succeeds in release state");
         }
 
-        @ApiTest(apis = "MediaCodec#getInputFormat")
+        @ApiTest(apis = "android.media.MediaCodec#getInputFormat")
         @Test
         public void testGetInputFormatInUnInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1133,7 +1134,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getInputFormat")
+        @ApiTest(apis = "android.media.MediaCodec#getInputFormat")
         @Test
         public void testGetInputFormatInInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1153,7 +1154,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getInputFormat")
+        @ApiTest(apis = "android.media.MediaCodec#getInputFormat")
         @Test
         public void testGetInputFormatInRunningState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1173,7 +1174,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getInputFormat")
+        @ApiTest(apis = "android.media.MediaCodec#getInputFormat")
         @Test
         public void testGetInputFormatInReleaseState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1183,7 +1184,7 @@ public class CodecUnitTest {
             tryGetInputFormatInInvalidState("getInputFormat succeeds in release state");
         }
 
-        @ApiTest(apis = "MediaCodec#getOutputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#getOutputBuffer")
         @Test
         public void testGetOutputBufferInUnInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1201,7 +1202,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getOutputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#getOutputBuffer")
         @Test
         public void testGetOutputBufferInInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1216,7 +1217,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getOutputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#getOutputBuffer")
         @Test
         @Ignore("TODO(b/151304147)")
         public void testGetOutputBufferInRunningState() throws IOException, InterruptedException {
@@ -1265,7 +1266,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getOutputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#getOutputBuffer")
         @Test
         public void testGetOutputBufferInReleaseState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1275,7 +1276,7 @@ public class CodecUnitTest {
             tryGetOutputBufferInInvalidState("getOutputBuffer succeeds in release state");
         }
 
-        @ApiTest(apis = "MediaCodec#getOutputFormat")
+        @ApiTest(apis = "android.media.MediaCodec#getOutputFormat")
         @Test
         public void testGetOutputFormatInUnInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1293,7 +1294,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getOutputFormat")
+        @ApiTest(apis = "android.media.MediaCodec#getOutputFormat")
         @Test
         public void testGetOutputFormatInInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1319,7 +1320,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getOutputFormat")
+        @ApiTest(apis = "android.media.MediaCodec#getOutputFormat")
         @Test
         @Ignore("TODO(b/151304147)")
         public void testGetOutputFormatInRunningState() throws IOException, InterruptedException {
@@ -1372,7 +1373,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getOutputFormat")
+        @ApiTest(apis = "android.media.MediaCodec#getOutputFormat")
         @Test
         public void testGetOutputFormatInReleaseState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1382,7 +1383,7 @@ public class CodecUnitTest {
             tryGetOutputFormatInInvalidState("getOutputFormat succeeds in release state");
         }
 
-        @ApiTest(apis = "MediaCodec#setParameters")
+        @ApiTest(apis = "android.media.MediaCodec#setParameters")
         @Test
         public void testSetParametersInUnInitState() throws IOException {
             MediaFormat format = getSampleVideoFormat();
@@ -1404,7 +1405,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#setParameters")
+        @ApiTest(apis = "android.media.MediaCodec#setParameters")
         @Test
         public void testSetParametersInInitState() throws IOException {
             MediaFormat format = getSampleVideoFormat();
@@ -1423,7 +1424,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#setParameters")
+        @ApiTest(apis = "android.media.MediaCodec#setParameters")
         @Test
         public void testSetParametersInRunningState() throws IOException, InterruptedException {
             MediaFormat format = getSampleVideoFormat();
@@ -1448,7 +1449,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#setParameters")
+        @ApiTest(apis = "android.media.MediaCodec#setParameters")
         @Test
         public void testSetParametersInReleaseState() throws IOException {
             MediaFormat format = getSampleVideoFormat();
@@ -1464,7 +1465,7 @@ public class CodecUnitTest {
             }
         }
 
-        @ApiTest(apis = "MediaCodec#start")
+        @ApiTest(apis = "android.media.MediaCodec#start")
         @Test
         public void testStartInUnInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1480,7 +1481,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#start")
+        @ApiTest(apis = "android.media.MediaCodec#start")
         @Test
         public void testStartInRunningState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1494,7 +1495,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#start")
+        @ApiTest(apis = "android.media.MediaCodec#start")
         @Test
         public void testStartInReleaseState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1505,7 +1506,7 @@ public class CodecUnitTest {
             tryStartInInvalidState("codec start succeeds in release state");
         }
 
-        @ApiTest(apis = "MediaCodec#stop")
+        @ApiTest(apis = "android.media.MediaCodec#stop")
         @Test
         public void testStopInUnInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1522,7 +1523,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#stop")
+        @ApiTest(apis = "android.media.MediaCodec#stop")
         @Test
         public void testStopInInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1536,7 +1537,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#stop")
+        @ApiTest(apis = "android.media.MediaCodec#stop")
         @Test
         public void testStopInRunningState() throws IOException, InterruptedException {
             MediaFormat format = getSampleAudioFormat();
@@ -1552,7 +1553,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#stop")
+        @ApiTest(apis = "android.media.MediaCodec#stop")
         @Test
         public void testStopInReleaseState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1567,7 +1568,7 @@ public class CodecUnitTest {
             }
         }
 
-        @ApiTest(apis = "MediaCodec#reset")
+        @ApiTest(apis = "android.media.MediaCodec#reset")
         @Test
         public void testResetInUnInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1584,7 +1585,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#reset")
+        @ApiTest(apis = "android.media.MediaCodec#reset")
         @Test
         public void testResetInInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1598,7 +1599,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#reset")
+        @ApiTest(apis = "android.media.MediaCodec#reset")
         @Test
         public void testResetInRunningState() throws IOException, InterruptedException {
             MediaFormat format = getSampleAudioFormat();
@@ -1614,7 +1615,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#reset")
+        @ApiTest(apis = "android.media.MediaCodec#reset")
         @Test
         public void testResetInReleaseState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1629,7 +1630,7 @@ public class CodecUnitTest {
             }
         }
 
-        @ApiTest(apis = "MediaCodec#getInputImage")
+        @ApiTest(apis = "android.media.MediaCodec#getInputImage")
         @Test
         public void testGetInputImageInUnInitState() throws IOException {
             MediaFormat format = getSampleVideoFormat();
@@ -1647,7 +1648,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getInputImage")
+        @ApiTest(apis = "android.media.MediaCodec#getInputImage")
         @Test
         public void testGetInputImageInInitState() throws IOException {
             MediaFormat format = getSampleVideoFormat();
@@ -1662,7 +1663,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getInputImage")
+        @ApiTest(apis = "android.media.MediaCodec#getInputImage")
         @Test
         @Ignore("TODO(b/151304147)")
         public void testGetInputImageInRunningStateVideo()
@@ -1694,7 +1695,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getInputImage")
+        @ApiTest(apis = "android.media.MediaCodec#getInputImage")
         @Test
         @Ignore("TODO(b/151304147)")
         public void testGetInputImageInRunningStateAudio()
@@ -1725,7 +1726,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getInputImage")
+        @ApiTest(apis = "android.media.MediaCodec#getInputImage")
         @Test
         public void testGetInputImageInReleaseState() throws IOException {
             MediaFormat format = getSampleVideoFormat();
@@ -1735,7 +1736,7 @@ public class CodecUnitTest {
             tryGetInputImageInInvalidState("getInputImage succeeds in release state");
         }
 
-        @ApiTest(apis = "MediaCodec#getOutputImage")
+        @ApiTest(apis = "android.media.MediaCodec#getOutputImage")
         @Test
         public void testGetOutputImageInUnInitState() throws IOException {
             MediaFormat format = getSampleVideoFormat();
@@ -1753,7 +1754,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getOutputImage")
+        @ApiTest(apis = "android.media.MediaCodec#getOutputImage")
         @Test
         public void testGetOutputImageInInitState() throws IOException {
             MediaFormat format = getSampleVideoFormat();
@@ -1768,7 +1769,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getOutputImage")
+        @ApiTest(apis = "android.media.MediaCodec#getOutputImage")
         @Test
         @Ignore("TODO(b/151304147)")
         public void testGetOutputImageInRunningState() throws IOException, InterruptedException {
@@ -1812,7 +1813,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#getOutputImage")
+        @ApiTest(apis = "android.media.MediaCodec#getOutputImage")
         @Test
         public void testGetOutputImageInReleaseState() throws IOException {
             MediaFormat format = getSampleVideoFormat();
@@ -1822,7 +1823,7 @@ public class CodecUnitTest {
             tryGetOutputImageInInvalidState("getOutputImage succeeds in release state");
         }
 
-        @ApiTest(apis = "MediaCodec#queueInputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#queueInputBuffer")
         @Test
         public void testQueueInputBufferInUnInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1841,7 +1842,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#queueInputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#queueInputBuffer")
         @Test
         public void testQueueInputBufferInInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1858,7 +1859,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#queueInputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#queueInputBuffer")
         @Test
         public void testQueueInputBufferWithBadIndex() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1880,7 +1881,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#queueInputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#queueInputBuffer")
         @Test
         public void testQueueInputBufferWithBadSize() throws IOException, InterruptedException {
             MediaFormat format = getSampleAudioFormat();
@@ -1908,7 +1909,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#queueInputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#queueInputBuffer")
         @Test
         public void testQueueInputBufferWithBadBuffInfo() throws IOException, InterruptedException {
             MediaFormat format = getSampleAudioFormat();
@@ -1935,7 +1936,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#queueInputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#queueInputBuffer")
         @Test
         @Ignore("TODO(b/151305059)")
         public void testQueueInputBufferWithBadOffset() throws IOException, InterruptedException {
@@ -1963,7 +1964,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#queueInputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#queueInputBuffer")
         @Test
         public void testQueueInputBufferInReleaseState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1973,7 +1974,32 @@ public class CodecUnitTest {
             tryQueueInputBufferInInvalidState("queueInputBuffer succeeds in release state");
         }
 
-        @ApiTest(apis = "MediaCodec#releaseOutputBuffer")
+        @ApiTest(apis = {"android.media.MediaCodec#queueInputBuffer",
+                "android.media.MediaCodec#queueSecureInputBuffer"})
+        @Test
+        public void testExceptionThrownWhenBufferIsEOSAndDecodeOnly() throws IOException {
+            MediaFormat format = getSampleAudioFormat();
+            String mediaType = format.getString(MediaFormat.KEY_MIME);
+            mCodec = MediaCodec.createEncoderByType(mediaType);
+            boolean[] boolStates = {true, false};
+            for (boolean isAsync : boolStates) {
+                configureCodec(format, isAsync, false, true);
+                mCodec.start();
+                final int flags = MediaCodec.BUFFER_FLAG_END_OF_STREAM
+                        | MediaCodec.BUFFER_FLAG_DECODE_ONLY;
+
+                Assert.assertThrows(MediaCodec.InvalidBufferFlagsException.class,
+                        () -> mCodec.queueInputBuffer(0, 0, 0, 0, flags));
+
+                Assert.assertThrows(MediaCodec.InvalidBufferFlagsException.class,
+                        () -> mCodec.queueSecureInputBuffer(0, 0, null, 0, flags));
+                mCodec.stop();
+                mCodec.reset();
+            }
+            mCodec.release();
+        }
+
+        @ApiTest(apis = "android.media.MediaCodec#releaseOutputBuffer")
         @Test
         public void testReleaseOutputBufferInUnInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -1993,7 +2019,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#releaseOutputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#releaseOutputBuffer")
         @Test
         public void testReleaseOutputBufferInInitState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -2009,7 +2035,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#releaseOutputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#releaseOutputBuffer")
         @Test
         public void testReleaseOutputBufferInRunningState()
                 throws IOException, InterruptedException {
@@ -2057,7 +2083,7 @@ public class CodecUnitTest {
             mCodec.release();
         }
 
-        @ApiTest(apis = "MediaCodec#releaseOutputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#releaseOutputBuffer")
         @Test
         public void testReleaseOutputBufferInReleaseState() throws IOException {
             MediaFormat format = getSampleAudioFormat();
@@ -2068,7 +2094,7 @@ public class CodecUnitTest {
                     "releaseOutputBuffer succeeds in release state");
         }
 
-        @ApiTest(apis = "MediaCodec#releaseOutputBuffer")
+        @ApiTest(apis = "android.media.MediaCodec#releaseOutputBuffer")
         @Test
         public void testReleaseIdempotent() throws IOException {
             MediaFormat format = getSampleAudioFormat();

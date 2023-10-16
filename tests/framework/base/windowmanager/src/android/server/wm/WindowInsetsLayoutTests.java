@@ -35,10 +35,8 @@ import android.view.WindowInsets;
 import android.view.WindowInsets.Side;
 import android.view.WindowInsets.Type;
 import android.view.WindowManager;
-import android.view.WindowMetrics;
 
 import androidx.annotation.Nullable;
-import androidx.test.filters.FlakyTest;
 
 import com.android.compatibility.common.util.PollingCheck;
 
@@ -51,8 +49,8 @@ import org.junit.Test;
  * Build/Install/Run:
  *     atest CtsWindowManagerDeviceTestCases:WindowInsetsLayoutTests
  */
-@FlakyTest(detail = "Promote once confirmed non-flaky")
 @Presubmit
+@android.server.wm.annotation.Group2
 public class WindowInsetsLayoutTests extends WindowManagerTestBase {
 
     private final static long TIMEOUT = 1000; // milliseconds
@@ -205,6 +203,8 @@ public class WindowInsetsLayoutTests extends WindowManagerTestBase {
         @Override
         protected void onCreate(@Nullable Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
+            final View view = new View(this);
+            setContentView(view);
             WindowManager.LayoutParams lp = getWindow().getAttributes();
             lp.layoutInDisplayCutoutMode = LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
             getWindow().setAttributes(lp);

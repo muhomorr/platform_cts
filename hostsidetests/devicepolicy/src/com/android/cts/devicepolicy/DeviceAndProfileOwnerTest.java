@@ -116,14 +116,9 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
 
     private static final String CONTENT_CAPTURE_SERVICE_PKG = "com.android.cts.devicepolicy.contentcaptureservice";
     private static final String CONTENT_CAPTURE_SERVICE_APK = "CtsDevicePolicyContentCaptureService.apk";
-    private static final String CONTENT_SUGGESTIONS_APP_APK =
-            "CtsDevicePolicyContentSuggestionsApp.apk";
 
     protected static final String ASSIST_APP_PKG = "com.android.cts.devicepolicy.assistapp";
     protected static final String ASSIST_APP_APK = "CtsDevicePolicyAssistApp.apk";
-
-    private static final String PRINTING_APP_PKG = "com.android.cts.devicepolicy.printingapp";
-    private static final String PRINTING_APP_APK = "CtsDevicePolicyPrintingApp.apk";
 
     private static final String METERED_DATA_APP_PKG
             = "com.android.cts.devicepolicy.meteredtestapp";
@@ -189,7 +184,6 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         getDevice().uninstallPackage(AUTOFILL_APP_PKG);
         getDevice().uninstallPackage(CONTENT_CAPTURE_SERVICE_PKG);
         getDevice().uninstallPackage(CONTENT_CAPTURE_APP_PKG);
-        getDevice().uninstallPackage(PRINTING_APP_PKG);
         getDevice().uninstallPackage(METERED_DATA_APP_PKG);
         getDevice().uninstallPackage(TEST_APP_PKG);
 
@@ -247,6 +241,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     @RequiresDevice
     @Test
     public void testAlwaysOnVpn() throws Exception {
+        assumeIsNotWatch();
         int userId = getUserIdForAlwaysOnVpnTests();
         installAppAsUser(VPN_APP_APK, userId);
         executeDeviceTestClassNoRestrictBackground(".AlwaysOnVpnTest", userId);
@@ -259,6 +254,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     @RequiresDevice
     @Test
     public void testAlwaysOnVpnLockDown() throws Exception {
+        assumeIsNotWatch();
         int userId = getUserIdForAlwaysOnVpnTests();
         installAppAsUser(VPN_APP_APK, userId);
         try {
@@ -273,6 +269,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     @RequiresDevice
     @Test
     public void testAlwaysOnVpnAcrossReboot() throws Exception {
+        assumeIsNotWatch();
         int userId = getUserIdForAlwaysOnVpnTests();
         try {
             installAppAsUser(VPN_APP_APK, userId);
@@ -292,6 +289,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     @RequiresDevice
     @Test
     public void testAlwaysOnVpnPackageUninstalled() throws Exception {
+        assumeIsNotWatch();
         int userId = getUserIdForAlwaysOnVpnTests();
         installAppAsUser(VPN_APP_APK, userId);
         try {
@@ -309,6 +307,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     @RequiresDevice
     @Test
     public void testAlwaysOnVpnUnsupportedPackage() throws Exception {
+        assumeIsNotWatch();
         int userId = getUserIdForAlwaysOnVpnTests();
         try {
             // Target SDK = 23: unsupported
@@ -334,6 +333,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     @RequiresDevice
     @Test
     public void testAlwaysOnVpnUnsupportedPackageReplaced() throws Exception {
+        assumeIsNotWatch();
         int userId = getUserIdForAlwaysOnVpnTests();
         try {
             // Target SDK = 24: supported
@@ -356,6 +356,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     @RequiresDevice
     @Test
     public void testAlwaysOnVpnPackageLogged() throws Exception {
+        assumeIsNotWatch();
         int userId = getUserIdForAlwaysOnVpnTests();
         // Will be uninstalled in tearDown().
         installAppAsUser(VPN_APP_APK, userId);
@@ -435,19 +436,6 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
             installAppAsUser(SIMPLE_PRE_M_APP_APK, mDeviceOwnerUserId);
         }
         executeDeviceTestMethod(".PermissionsTest", "testPermissionGrantState_preMApp");
-    }
-
-    @Test
-    public void testPersistentIntentResolving() throws Exception {
-        executeDeviceTestClass(".PersistentIntentResolvingTest");
-        assertMetricsLogged(getDevice(), () -> {
-            executeDeviceTestMethod(".PersistentIntentResolvingTest",
-                    "testAddPersistentPreferredActivityYieldsReceptionAtTarget");
-        }, new DevicePolicyEventWrapper.Builder(EventId.ADD_PERSISTENT_PREFERRED_ACTIVITY_VALUE)
-                .setAdminPackageName(DEVICE_ADMIN_PKG)
-                .setStrings(DEVICE_ADMIN_PKG,
-                        "com.android.cts.deviceandprofileowner.EXAMPLE_ACTION")
-                .build());
     }
 
     @Test
@@ -607,30 +595,6 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         }
     }
 
-    @Test
-    public void testDisallowContentSuggestions_allowed() throws Exception {
-        boolean hasContentSuggestions = hasService("content_suggestions");
-        if (!hasContentSuggestions) {
-            return;
-        }
-        installAppAsUser(CONTENT_SUGGESTIONS_APP_APK, mUserId);
-
-        setDefaultContentSuggestionsServiceEnabled(false);
-        try {
-            executeDeviceTestMethod(".ContentSuggestionsRestrictionsTest",
-                    "testDisallowContentSuggestions_allowed");
-        } finally {
-            setDefaultContentSuggestionsServiceEnabled(true);
-        }
-    }
-
-    private void setDefaultContentSuggestionsServiceEnabled(boolean enabled)
-            throws DeviceNotAvailableException {
-        CLog.d("setDefaultContentSuggestionsServiceEnabled(" + mUserId + "): " + enabled);
-        getDevice().executeShellCommand(
-                "cmd content_suggestions set default-service-enabled " + mUserId + " " + enabled);
-    }
-
     private void setDefaultContentCaptureServiceEnabled(boolean enabled)
             throws Exception {
         CLog.d("setDefaultServiceEnabled(" + mUserId + "): " + enabled);
@@ -641,7 +605,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     @Test
     public void testSetMeteredDataDisabledPackages() throws Exception {
         assumeHasWifiFeature();
-        assumeFalse("is watch", hasDeviceFeature("android.hardware.type.watch"));
+        assumeIsNotWatch();
 
         installAppAsUser(METERED_DATA_APP_APK, mUserId);
 
@@ -830,24 +794,6 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
 
         executeDeviceTestClass(".TrustAgentInfoTest");
     }
-
-    @FlakyTest(bugId = 141161038)
-    @Test
-    public void testCannotRemoveUserIfRestrictionSet() throws Exception {
-        assumeCanCreateAdditionalUsers(1);
-        assumeTrue("Outside of the primary user, setting DISALLOW_REMOVE_USER would not work",
-                mUserId == getPrimaryUser());
-
-        final int userId = createUser();
-        try {
-            changeUserRestrictionOrFail(DISALLOW_REMOVE_USER, true, mUserId);
-            assertFalse(getDevice().removeUser(userId));
-        } finally {
-            changeUserRestrictionOrFail(DISALLOW_REMOVE_USER, false, mUserId);
-            assertTrue(getDevice().removeUser(userId));
-        }
-    }
-
     @Test
     public void testCannotEnableOrDisableDeviceOwnerOrProfileOwner() throws Exception {
         // Try to disable a component in device owner/ profile owner.
@@ -1005,14 +951,6 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         // Clearing data of active admin should fail
         executeDeviceTestMethod(".ClearApplicationDataTest",
                 "testClearApplicationData_activeAdmin");
-    }
-
-    @Test
-    public void testPrintingPolicy() throws Exception {
-        assumeHasPrintFeature();
-
-        installAppAsUser(PRINTING_APP_APK, mUserId);
-        executeDeviceTestClass(".PrintingPolicyTest");
     }
 
     @TemporarilyIgnoreOnHeadlessSystemUserMode(bugId = "197859595",
@@ -1635,5 +1573,9 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     private void restoreRestrictBackgroundPolicyTo(boolean restricted) throws Exception {
         getDevice().executeShellCommand(
                 restricted ? RESTRICT_BACKGROUND_ON_CMD : RESTRICT_BACKGROUND_OFF_CMD);
+    }
+
+    private void assumeIsNotWatch() throws Exception {
+        assumeFalse("is watch", hasDeviceFeature("android.hardware.type.watch"));
     }
 }

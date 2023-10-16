@@ -25,7 +25,7 @@ android_library {
         "ctstestrunner-axt",
         "mockito-target-minus-junit4",
         "CtsCameraUtils",
-        "truth-prebuilt",
+        "truth",
         "androidx.test.rules",
     ],
 
@@ -62,11 +62,15 @@ android_test {
         "mockito-target-minus-junit4",
         "android-ex-camera2",
         "CtsCameraUtils",
-        "truth-prebuilt",
+        "truth",
         "androidx.heifwriter_heifwriter",
         "androidx.test.rules",
         "MediaPerformanceClassCommon",
         "cts-wm-util",
+        "cts-install-lib",
+        "androidx.camera_camera-core",
+        "androidx.camera_camera-extensions",
+        "androidx.camera_camera-lifecycle",
     ],
     jni_libs: [
         "libctscamera2_jni",
@@ -75,6 +79,10 @@ android_test {
     stl: "c++_shared",
     srcs: [
         "src/**/*.java",
+    ],
+    java_resources: [
+        ":CameraCtsPropertyTestApp1",
+        ":CameraCtsPropertyTestApp2",
     ],
     test_suites: [
         "cts",
