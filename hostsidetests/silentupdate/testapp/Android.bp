@@ -29,7 +29,7 @@ android_test_helper_app {
         "androidx.annotation_annotation",
         "androidx.core_core",
         "androidx.test.runner",
-        "truth-prebuilt",
+        "truth",
         "TestApp",
         "Nene",
     ],
@@ -38,13 +38,11 @@ android_test_helper_app {
         "mdpi-v4",
     ],
     test_suites: [
-        "cts",
         "general-tests",
-        "mts",
     ],
     java_resources: [
         ":SilentInstallCurrent",
         ":SilentInstallR",
-        ":SilentInstallQ",
+        ":SilentInstallS",
     ],
 }

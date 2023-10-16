@@ -369,16 +369,18 @@ public class PerformanceClassEvaluator {
          * ms or less for a 1080p or smaller video encoding session for all hardware video
          * encoders when under load. Load here is defined as a concurrent 1080p to 720p
          * video-only transcoding session using hardware video codecs together with the 1080p
-         * audio-video recording initialization.
+         * audio-video recording initialization. For Dolby vision codec, the codec initialization
+         * latency MUST be 50 ms or less.
          */
-        public static CodecInitLatencyRequirement createR5_1__H_1_7() {
+        public static CodecInitLatencyRequirement createR5_1__H_1_7(String mediaType) {
+            long latency = mediaType.equals(MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION) ? 50L : 40L;
             RequiredMeasurement<Long> codec_init_latency =
                 RequiredMeasurement.<Long>builder().setId(RequirementConstants.CODEC_INIT_LATENCY)
                         .setPredicate(RequirementConstants.LONG_LTE)
                         .addRequiredValue(Build.VERSION_CODES.R, 65L)
                         .addRequiredValue(Build.VERSION_CODES.S, 50L)
-                        .addRequiredValue(Build.VERSION_CODES.TIRAMISU, 40L)
-                        .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 40L)
+                        .addRequiredValue(Build.VERSION_CODES.TIRAMISU, latency)
+                        .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, latency)
                         .build();
 
             return new CodecInitLatencyRequirement(RequirementConstants.R5_1__H_1_7,
@@ -1108,6 +1110,50 @@ public class PerformanceClassEvaluator {
                     .build();
 
             return new ExtYuvTargetRequirement(RequirementConstants.R5_12__H_1_3, requirement);
+        }
+    }
+
+    public static class FaceDetectionRequirement extends Requirement {
+        private static final String TAG =
+                FaceDetectionRequirement.class.getSimpleName();
+
+        public static int PRIMARY_REAR_CAMERA = 0;
+        public static int PRIMARY_FRONT_CAMERA = 1;
+
+        private FaceDetectionRequirement(String id, RequiredMeasurement<?> ... reqs) {
+            super(id, reqs);
+        }
+
+        public void setFaceDetectionSupported(int camera, boolean supported) {
+            if (camera == PRIMARY_REAR_CAMERA) {
+                this.setMeasuredValue(RequirementConstants.REAR_CAMERA_FACE_DETECTION_SUPPORTED,
+                        supported);
+            } else if (camera == PRIMARY_FRONT_CAMERA) {
+                this.setMeasuredValue(RequirementConstants.FRONT_CAMERA_FACE_DETECTION_SUPPORTED,
+                        supported);
+            }
+        }
+
+        /**
+         * [2.2.7.2/7.5/H-1-17] MUST support face detection capability
+         * (STATISTICS_FACE_DETECT_MODE_SIMPLE or STATISTICS_FACE_DETECT_MODE_FULL) for the primary
+         * cameras.
+         */
+        public static FaceDetectionRequirement createFaceDetectionReq() {
+            RequiredMeasurement<Boolean> rearFaceDetectionRequirement = RequiredMeasurement
+                    .<Boolean>builder()
+                    .setId(RequirementConstants.REAR_CAMERA_FACE_DETECTION_SUPPORTED)
+                    .setPredicate(RequirementConstants.BOOLEAN_EQ)
+                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, true)
+                    .build();
+            RequiredMeasurement<Boolean> frontFaceDetectionRequirement = RequiredMeasurement
+                    .<Boolean>builder()
+                    .setId(RequirementConstants.FRONT_CAMERA_FACE_DETECTION_SUPPORTED)
+                    .setPredicate(RequirementConstants.BOOLEAN_EQ)
+                    .addRequiredValue(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, true)
+                    .build();
+            return new FaceDetectionRequirement(RequirementConstants.R7_5__H_1_17,
+                    rearFaceDetectionRequirement, frontFaceDetectionRequirement);
         }
     }
 
@@ -2162,8 +2208,8 @@ public class PerformanceClassEvaluator {
         return this.addRequirement(ConcurrentCodecRequirement.createR5_1__H_1_6_4k());
     }
 
-    public CodecInitLatencyRequirement addR5_1__H_1_7() {
-        return this.addRequirement(CodecInitLatencyRequirement.createR5_1__H_1_7());
+    public CodecInitLatencyRequirement addR5_1__H_1_7(String mediaType) {
+        return this.addRequirement(CodecInitLatencyRequirement.createR5_1__H_1_7(mediaType));
     }
 
     public CodecInitLatencyRequirement addR5_1__H_1_8() {
@@ -2329,6 +2375,10 @@ public class PerformanceClassEvaluator {
 
     public DynamicRangeTenBitsRequirement addR7_5__H_1_16() {
         return this.addRequirement(DynamicRangeTenBitsRequirement.createDynamicRangeTenBitsReq());
+    }
+
+    public FaceDetectionRequirement addR7_5__H_1_17() {
+        return this.addRequirement(FaceDetectionRequirement.createFaceDetectionReq());
     }
 
 

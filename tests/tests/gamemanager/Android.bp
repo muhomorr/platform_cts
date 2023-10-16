@@ -22,14 +22,16 @@ android_test {
         "ctsdeviceutillegacy-axt",
         "ctstestrunner-axt",
         "ctstestserver",
+        "framework-annotations-lib",
         "junit",
-        "truth-prebuilt",
+        "truth",
     ],
 
     data: [
         ":CtsGameTestApp",
         ":CtsGameTestAppWithBatteryMode",
         ":CtsGameTestAppWithPerformanceMode",
+        ":CtsGameTestAppWithTiramisuTarget",
         ":CtsLegacyGameTestApp",
         ":CtsNotGameTestApp",
     ],

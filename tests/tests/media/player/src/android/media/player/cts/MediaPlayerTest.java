@@ -22,6 +22,8 @@ import static junit.framework.TestCase.assertSame;
 import static junit.framework.TestCase.assertTrue;
 import static junit.framework.TestCase.fail;
 
+import static org.junit.Assert.assertThrows;
+
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
@@ -934,7 +936,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
                         mContext.getPackageName(), getInstrumentation(), true /* on */);
             }
 
-            mp1 = new MediaPlayer();
+            mp1 = new MediaPlayer(mContext);
             mp1.setAudioStreamType(AudioManager.STREAM_MUSIC);
 
             AssetFileDescriptor afd = getAssetFileDescriptorFor(res1);
@@ -944,7 +946,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
 
             int session = mp1.getAudioSessionId();
 
-            mp2 = new MediaPlayer();
+            mp2 = new MediaPlayer(mContext);
             mp2.setAudioSessionId(session);
             mp2.setAudioStreamType(AudioManager.STREAM_MUSIC);
 
@@ -1285,7 +1287,12 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
         mOnSeekCompleteCalled.waitForSignal();
         Thread.sleep(playTime);
         assertFalse("MediaPlayer should not be playing", mMediaPlayer.isPlaying());
-        assertEquals("MediaPlayer position should be 0", 0, mMediaPlayer.getCurrentPosition());
+        int positionAtStart = mMediaPlayer.getCurrentPosition();
+        // Allow both 0 and 23 (the timestamp of the second audio sample) to avoid flaky failures
+        // on builds that don't include http://r.android.com/2700283.
+        if (positionAtStart != 0 && positionAtStart != 23) {
+            fail("MediaPlayer position should be 0 or 23");
+        }
 
         mMediaPlayer.start();
         Thread.sleep(playTime);
@@ -2622,4 +2629,11 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
             getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
         }
     }
+
+    @Presubmit
+    @Test
+    public void testConstructorWithNullContextFails() {
+        assertThrows(NullPointerException.class, () -> new MediaPlayer(/*context=*/null));
+    }
+
 }
