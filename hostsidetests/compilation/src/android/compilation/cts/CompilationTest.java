@@ -54,6 +54,10 @@ public class CompilationTest extends BaseHostJUnit4Test {
     private static final String TEST_APP_PKG = "android.compilation.cts";
     private static final String TEST_APP_APK_RES = "/CtsCompilationApp.apk";
     private static final String TEST_APP_DM_RES = "/CtsCompilationApp.dm";
+    private static final String TEST_APP_WITH_GOOD_PROFILE_RES =
+            "/CtsCompilationApp_with_good_profile.apk";
+    private static final String TEST_APP_WITH_BAD_PROFILE_RES =
+            "/CtsCompilationApp_with_bad_profile.apk";
     private static final String TEST_APP_2_PKG = "android.compilation.cts.appusedbyotherapp";
     private static final String TEST_APP_2_APK_RES = "/AppUsedByOtherApp.apk";
     private static final String TEST_APP_2_DM_RES = "/AppUsedByOtherApp_1.dm";
@@ -263,6 +267,22 @@ public class CompilationTest extends BaseHostJUnit4Test {
                 .isEqualTo(1);
     }
 
+    @Test
+    public void testEmbeddedProfileOk() throws Exception {
+        mUtils.installFromResources(getAbi(), TEST_APP_WITH_GOOD_PROFILE_RES);
+        String dump = mUtils.assertCommandSucceeds("pm art dump " + TEST_APP_PKG);
+        checkDexoptStatus(dump, Pattern.quote("base.apk"), "speed-profile");
+    }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_USE_ART_SERVICE_V2)
+    public void testEmbeddedProfileFailed() throws Exception {
+        Throwable throwable = assertThrows(Throwable.class,
+                () -> { mUtils.installFromResources(getAbi(), TEST_APP_WITH_BAD_PROFILE_RES); });
+        assertThat(throwable).hasMessageThat().contains(
+                "Error occurred during dexopt when processing external profiles:");
+    }
+
     /**
      * Verifies that adb install-multi-package fails with multiple error messages when multiple
      * APK-DM mismatches happen.
@@ -279,6 +299,26 @@ public class CompilationTest extends BaseHostJUnit4Test {
         assertThat(Utils.countSubstringOccurrence(throwable.getMessage(),
                            "Error occurred during dexopt when processing external profiles:"))
                 .isEqualTo(2);
+    }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_USE_ART_SERVICE_V2)
+    public void testIgnoreDexoptProfile() throws Exception {
+        // Both the APK and the DM have a good profile, but ART Service should use none of them.
+        mUtils.installFromResourcesWithArgs(getAbi(), List.of("--ignore-dexopt-profile"),
+                List.of(Pair.create(TEST_APP_WITH_GOOD_PROFILE_RES, TEST_APP_DM_RES)));
+        String dump = mUtils.assertCommandSucceeds("pm art dump " + TEST_APP_PKG);
+        checkDexoptStatus(dump, Pattern.quote("base.apk"), "verify");
+    }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_USE_ART_SERVICE_V2)
+    public void testIgnoreDexoptProfileNoValidation() throws Exception {
+        // Both the APK and the DM have a bad profile, but ART Service should not complain.
+        mUtils.installFromResourcesWithArgs(getAbi(), List.of("--ignore-dexopt-profile"),
+                List.of(Pair.create(TEST_APP_WITH_BAD_PROFILE_RES, TEST_APP_2_DM_RES)));
+        String dump = mUtils.assertCommandSucceeds("pm art dump " + TEST_APP_PKG);
+        checkDexoptStatus(dump, Pattern.quote("base.apk"), "verify");
     }
 
     private void checkDexoptStatus(String dump, String dexfilePattern, String statusPattern) {

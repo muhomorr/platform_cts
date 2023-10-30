@@ -15,6 +15,9 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.nfc.*;
+import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.platform.test.flag.junit.CheckFlagsRule;
+import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.nfc.tech.*;
 import android.os.Bundle;
 import android.os.RemoteException;
@@ -25,6 +28,7 @@ import androidx.test.core.app.ApplicationProvider;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -40,6 +44,8 @@ public class NfcAdapterTest {
     @Mock private INfcAdapter mService;
     private INfcAdapter mSavedService;
     private Context mContext;
+    @Rule
+    public final CheckFlagsRule mCheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
 
     private boolean supportsHardware() {
         final PackageManager pm = mContext.getPackageManager();
@@ -220,6 +226,7 @@ public class NfcAdapterTest {
     }
 
     @Test
+    @RequiresFlagsEnabled(Flags.FLAG_ENABLE_NFC_READER_OPTION)
     public void testIsReaderOptionEnabled() throws NoSuchFieldException, RemoteException {
         NfcAdapter adapter = createMockedInstance();
         when(mService.isReaderOptionEnabled()).thenReturn(true);
@@ -228,11 +235,20 @@ public class NfcAdapterTest {
     }
 
     @Test
+    @RequiresFlagsEnabled(Flags.FLAG_ENABLE_NFC_READER_OPTION)
     public void testIsReaderOptionSupported() throws NoSuchFieldException, RemoteException {
         NfcAdapter adapter = createMockedInstance();
         when(mService.isReaderOptionSupported()).thenReturn(true);
         boolean result = adapter.isReaderOptionSupported();
         Assert.assertTrue(result);
+    }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_ENABLE_NFC_MAINLINE)
+    public void testAdapterState() throws NoSuchFieldException, RemoteException {
+        NfcAdapter adapter = createMockedInstance();
+        when(mService.getState()).thenReturn(NfcAdapter.STATE_ON);
+        Assert.assertEquals(adapter.getAdapterState(), NfcAdapter.STATE_ON);
     }
 
     @Test
@@ -256,6 +272,15 @@ public class NfcAdapterTest {
         NfcAdapter adapter = NfcAdapter.getDefaultAdapter(mContext);
         boolean result = adapter.removeNfcUnlockHandler(new CtsNfcUnlockHandler());
         Assert.assertTrue(result);
+    }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_ENABLE_NFC_MAINLINE)
+    public void testSetReaderMode() {
+        NfcAdapter adapter = NfcAdapter.getDefaultAdapter(mContext);
+        // Verify the API does not crash or throw any exceptions.
+        adapter.setReaderMode(true);
+        adapter.setReaderMode(false);
     }
 
     private class CtsReaderCallback implements NfcAdapter.ReaderCallback {
