@@ -60,6 +60,7 @@ _VALIDATE_LIGHTING_REGIONS = {
                      1-_VALIDATE_LIGHTING_PATCH_H),
 }
 _VALIDATE_LIGHTING_THRESH = 0.05  # Determined empirically from scene[1:6] tests
+_VALIDATE_LIGHTING_THRESH_DARK = 0.15  # Determined empirically for night test
 _CMD_NAME_STR = 'cmdName'
 _OBJ_VALUE_STR = 'objValue'
 _STR_VALUE = 'strValue'
@@ -793,6 +794,35 @@ class ItsSession(object):
       raise error_util.CameraItsError('No supported extensions')
     return [int(x) for x in str(data['strValue'][1:-1]).split(', ') if x]
 
+  def get_supported_extension_sizes(self, camera_id, extension, image_format):
+    """Get all supported camera sizes for this camera, extension, and format.
+
+    Sorts in ascending order according to area, i.e.
+    ['640x480', '800x600', '1280x720', '1440x1080', '1920x1080']
+
+    Args:
+      camera_id: int; device ID
+      extension: int; the integer value of the extension.
+      image_format: int; the integer value of the format.
+    Returns:
+      List of sizes supported for this camera, extension, and format.
+    """
+    cmd = {
+        'cmdName': 'getSupportedExtensionSizes',
+        'cameraId': camera_id,
+        'extension': extension,
+        'format': image_format
+    }
+    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
+    timeout = self.SOCK_TIMEOUT + self.EXTRA_SOCK_TIMEOUT
+    self.sock.settimeout(timeout)
+    data, _ = self.__read_response_from_socket()
+    if data[_TAG_STR] != 'supportedExtensionSizes':
+      raise error_util.CameraItsError('Invalid command response')
+    if not data[_STR_VALUE]:
+      raise error_util.CameraItsError('No supported extensions')
+    return data[_STR_VALUE].split(';')
+
   def get_display_size(self):
     """Get the display size of the screen.
 
@@ -1371,7 +1401,8 @@ class ItsSession(object):
         fmt = json_obj[_TAG_STR][:-5]
         bufs[self._camera_id][fmt].append(buf)
         nbufs += 1
-      elif json_obj[_TAG_STR] == 'privImage':
+      # Physical camera is appended to the tag string of a private capture
+      elif json_obj[_TAG_STR].startswith('privImage'):
         # The private image format buffers are opaque to camera clients
         # and cannot be accessed.
         nbufs += 1
@@ -1593,34 +1624,6 @@ class ItsSession(object):
         do_af and af_dist is None or not converged):
       raise error_util.CameraItsError('3A failed to converge')
     return ae_sens, ae_exp, awb_gains, awb_transform, af_dist
-
-  def do_autoframing(self, zoom_ratio=None):
-    """Perform autoframing on the device.
-
-    Args:
-      zoom_ratio: Zoom ratio. None if default zoom.
-    """
-    cmd = {}
-    cmd[_CMD_NAME_STR] = 'doAutoframing'
-    if zoom_ratio:
-      if self.zoom_ratio_within_range(zoom_ratio):
-        cmd['zoomRatio'] = zoom_ratio
-      else:
-        raise AssertionError(f'Zoom ratio {zoom_ratio} out of range')
-    converged = False
-    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
-
-    while True:
-      data, _ = self.__read_response_from_socket()
-      if data[_TAG_STR] == 'autoframingConverged':
-        converged = True
-      elif data[_TAG_STR] == 'autoframingDone':
-        break
-      else:
-        raise error_util.CameraItsError('Invalid command response')
-
-    if not converged:
-      raise error_util.CameraItsError('Autoframing failed to converge')
 
   def calc_camera_fov(self, props):
     """Determine the camera field of view from internal params.
@@ -1981,7 +1984,8 @@ def load_scene(cam, props, scene, tablet, chart_distance, lighting_check=True,
     validate_lighting(y_plane, scene, log_path=log_path)
 
 
-def validate_lighting(y_plane, scene, state='ON', log_path=None):
+def validate_lighting(y_plane, scene, state='ON', log_path=None,
+                      tablet_state='ON'):
   """Validates the lighting level in scene corners based on empirical values.
 
   Args:
@@ -1989,6 +1993,7 @@ def validate_lighting(y_plane, scene, state='ON', log_path=None):
     scene: scene name
     state: string 'ON' or 'OFF'
     log_path: [Optional] path to store artifacts
+    tablet_state: string 'ON' or 'OFF'
 
   Returns:
     boolean True if lighting validated, else raise AssertionError
@@ -1998,6 +2003,11 @@ def validate_lighting(y_plane, scene, state='ON', log_path=None):
   if log_path:
     file_name = os.path.join(log_path, f'validate_lighting_{scene}.jpg')
 
+  if tablet_state == 'OFF':
+    validate_lighting_thresh = _VALIDATE_LIGHTING_THRESH_DARK
+  else:
+    validate_lighting_thresh = _VALIDATE_LIGHTING_THRESH
+
   # Test patches from each corner.
   for location, coordinates in _VALIDATE_LIGHTING_REGIONS.items():
     patch = image_processing_utils.get_image_patch(
@@ -2006,14 +2016,14 @@ def validate_lighting(y_plane, scene, state='ON', log_path=None):
     y_mean = image_processing_utils.compute_image_means(patch)[0]
     logging.debug('%s corner Y mean: %.3f', location, y_mean)
     if state == 'ON':
-      if y_mean > _VALIDATE_LIGHTING_THRESH:
+      if y_mean > validate_lighting_thresh:
         logging.debug('Lights ON in test rig.')
         return True
       else:
         image_processing_utils.write_image(y_plane, file_name)
         raise AssertionError('Lights OFF in test rig. Turn ON and retry.')
     elif state == 'OFF':
-      if y_mean < _VALIDATE_LIGHTING_THRESH:
+      if y_mean < validate_lighting_thresh:
         logging.debug('Lights OFF in test rig.')
         return True
       else:
