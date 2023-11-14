@@ -1,4 +1,4 @@
-// Copyright (C) 2021 The Android Open Source Project
+// Copyright (C) 2020 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,21 +16,21 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-android_test_helper_app {
-    name: "CtsAngleGameDriverTestCases",
-    defaults: ["cts_support_defaults"],
-    srcs: [
-        "src/**/*.java",
+java_library {
+    name: "CtsAppSearchTestUtils",
+    srcs: ["src/**/*.java"],
+    libs: [
+        "androidx.test.ext.junit",
+        "framework-annotations-lib",
+        "framework-appsearch.impl",
+        "guava",
+        "service-appsearch-for-tests",
+        "truth",
     ],
-    // tag this module as a cts test artifact
-    test_suites: [
-        "cts",
-        "general-tests",
-    ],
-    compile_multilib: "both",
-    static_libs: [
-        "ctstestrunner-axt",
-        "androidx.test.rules",
-        "AngleIntegrationTestCommon",
+    sdk_version: "system_server_current",
+    visibility: [
+        "//cts/hostsidetests/appsearch",
+        "//cts/tests:__subpackages__",
+        "//packages/modules/AppSearch/testing:__subpackages__",
     ],
 }
