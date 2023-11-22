@@ -140,6 +140,7 @@ public abstract class CodecTestBase {
     public static final String HDR_STATIC_INCORRECT_INFO =
             "00 d0 84 80 3e c2 33 c4 86 10 27 d0 07 13 3d 42 40 a0 0f 32 00 10 27 df 0d";
     public static final String CODEC_PREFIX_KEY = "codec-prefix";
+    public static final String CODEC_FILTER_KEY = "codec-filter";
     public static final String MEDIA_TYPE_PREFIX_KEY = "media-type-prefix";
     public static final String MEDIA_TYPE_SEL_KEY = "media-type-sel";
     public static final Map<String, String> CODEC_SEL_KEY_MEDIA_TYPE_MAP = new HashMap<>();
@@ -271,6 +272,7 @@ public abstract class CodecTestBase {
     public static String mediaTypeSelKeys;
     public static String codecPrefix;
     public static String mediaTypePrefix;
+    public static Pattern codecFilter;
 
     public enum SupportClass {
         CODEC_ALL, // All codecs must support
@@ -394,6 +396,10 @@ public abstract class CodecTestBase {
         mediaTypeSelKeys = args.getString(MEDIA_TYPE_SEL_KEY);
         codecPrefix = args.getString(CODEC_PREFIX_KEY);
         mediaTypePrefix = args.getString(MEDIA_TYPE_PREFIX_KEY);
+        String codecFilterStr = args.getString(CODEC_FILTER_KEY);
+        if (codecFilterStr != null) {
+            codecFilter = Pattern.compile(codecFilterStr);
+        }
 
         PROFILE_SDR_MAP.put(MediaFormat.MIMETYPE_VIDEO_AVC, AVC_SDR_PROFILES);
         PROFILE_SDR_MAP.put(MediaFormat.MIMETYPE_VIDEO_HEVC, HEVC_SDR_PROFILES);
@@ -516,14 +522,13 @@ public abstract class CodecTestBase {
         }
     }
 
-    public static boolean isFeatureSupported(String name, String mediaType, String feature)
-            throws IOException {
-        MediaCodec codec = MediaCodec.createByCodecName(name);
-        MediaCodecInfo.CodecCapabilities codecCapabilities =
-                codec.getCodecInfo().getCapabilitiesForType(mediaType);
-        boolean isSupported = codecCapabilities.isFeatureSupported(feature);
-        codec.release();
-        return isSupported;
+    public static boolean isFeatureSupported(String name, String mediaType, String feature) {
+        for (MediaCodecInfo codecInfo : MEDIA_CODEC_LIST_ALL.getCodecInfos()) {
+            if (name.equals(codecInfo.getName())) {
+                return codecInfo.getCapabilitiesForType(mediaType).isFeatureSupported(feature);
+            }
+        }
+        return false;
     }
 
     public static boolean isHDRCaptureSupported() {
@@ -608,34 +613,34 @@ public abstract class CodecTestBase {
     }
 
     public static boolean areFormatsSupported(String name, String mediaType,
-            ArrayList<MediaFormat> formats) throws IOException {
-        MediaCodec codec = MediaCodec.createByCodecName(name);
-        MediaCodecInfo.CodecCapabilities codecCapabilities =
-                codec.getCodecInfo().getCapabilitiesForType(mediaType);
-        boolean isSupported = true;
-        if (formats != null) {
-            for (int i = 0; i < formats.size() && isSupported; i++) {
-                isSupported = codecCapabilities.isFormatSupported(formats.get(i));
+            List<MediaFormat> formats) throws IOException {
+        for (MediaCodecInfo codecInfo : MEDIA_CODEC_LIST_ALL.getCodecInfos()) {
+            if (name.equals(codecInfo.getName())) {
+                MediaCodecInfo.CodecCapabilities cap = codecInfo.getCapabilitiesForType(mediaType);
+                boolean isSupported = true;
+                if (formats != null) {
+                    for (int i = 0; i < formats.size() && isSupported; i++) {
+                        isSupported = cap.isFormatSupported(formats.get(i));
+                    }
+                }
+                if (isSupported) return true;
             }
         }
-        codec.release();
-        return isSupported;
+        return false;
     }
 
-    public static boolean hasSupportForColorFormat(String name, String mediaType, int colorFormat)
-            throws IOException {
-        MediaCodec codec = MediaCodec.createByCodecName(name);
-        MediaCodecInfo.CodecCapabilities cap =
-                codec.getCodecInfo().getCapabilitiesForType(mediaType);
-        boolean hasSupport = false;
-        for (int c : cap.colorFormats) {
-            if (c == colorFormat) {
-                hasSupport = true;
-                break;
+    public static boolean hasSupportForColorFormat(String name, String mediaType, int colorFormat) {
+        for (MediaCodecInfo codecInfo : MEDIA_CODEC_LIST_ALL.getCodecInfos()) {
+            if (name.equals(codecInfo.getName())) {
+                MediaCodecInfo.CodecCapabilities cap = codecInfo.getCapabilitiesForType(mediaType);
+                for (int c : cap.colorFormats) {
+                    if (c == colorFormat) {
+                        return true;
+                    }
+                }
             }
         }
-        codec.release();
-        return hasSupport;
+        return false;
     }
 
     public static boolean isDefaultCodec(String codecName, String mediaType, boolean isEncoder)
@@ -883,9 +888,10 @@ public abstract class CodecTestBase {
             ArrayList<String> totalListOfCodecs =
                     selectCodecs(mediaType, null, null, isEncoder, selectSwitch);
             ArrayList<String> listOfCodecs = new ArrayList<>();
-            if (codecPrefix != null) {
+            if (codecPrefix != null || codecFilter != null) {
                 for (String codec : totalListOfCodecs) {
-                    if (codec.startsWith(codecPrefix)) {
+                    if ((codecPrefix != null && codec.startsWith(codecPrefix))
+                            || (codecFilter != null && codecFilter.matcher(codec).matches())) {
                         listOfCodecs.add(codec);
                     }
                 }
@@ -1238,7 +1244,7 @@ public abstract class CodecTestBase {
                     mOutputCount, mInputCount);
             // check the pts lists to see what frames are dropped, the below call is needed to
             // get useful error messages
-            boolean unused = mOutputBuff.isOutPtsListIdenticalToInpPtsList(true);
+            mOutputBuff.isOutPtsListIdenticalToInpPtsList(true);
             fail(msg + mTestConfig + mTestEnv + mOutputBuff.getErrMsg());
         }*/
     }

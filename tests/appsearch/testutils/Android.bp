@@ -17,13 +17,20 @@ package {
 }
 
 java_library {
-    name: "bluetooth-test-util-lib",
-    defaults: ["cts_defaults"],
-    static_libs: [
-        "junit",
-        "compatibility-device-util-axt",
-        "PlatformProperties",
-    ],
+    name: "CtsAppSearchTestUtils",
     srcs: ["src/**/*.java"],
-    sdk_version: "test_current",
+    libs: [
+        "androidx.test.ext.junit",
+        "framework-annotations-lib",
+        "framework-appsearch.impl",
+        "guava",
+        "service-appsearch-for-tests",
+        "truth",
+    ],
+    sdk_version: "system_server_current",
+    visibility: [
+        "//cts/hostsidetests/appsearch",
+        "//cts/tests:__subpackages__",
+        "//packages/modules/AppSearch/testing:__subpackages__",
+    ],
 }

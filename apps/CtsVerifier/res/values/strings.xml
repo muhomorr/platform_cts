@@ -33,6 +33,9 @@
     <string name="fail_and_next_button_text">Fail and Next</string>
     <string name="yes_string">Yes</string>
     <string name="no_string">No</string>
+    <string name="search_label">TestListActivity</string>
+    <string name="search_hint">Search Tests</string>
+    <string name="search_title">Search</string>
 
     <!-- Strings for CtsReportLog warning -->
     <string name="reportlog_warning_title">CTS-Verifier Report Log</string>
@@ -4455,9 +4458,8 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="test_accessibility_service_label">Test accessibility service</string>
     <string name="policy_transparency_test_instructions">
         1. <xliff:g id="set_step" example="Set policy by turning the switch on">%1$s</xliff:g>\n
-        2. Open Settings app by clicking the "Open settings" button below. Note that this will open the personal Settings app. If this device has the work settings in a different app or screen, then navigate there, ignoring the button if necessary.\n
-        3. Verify that performing the following action will trigger a support dialog:\n
-           <xliff:g id="user_action" example="Adding an account">%2$s</xliff:g>.<xliff:g id="exception_node" example="NOTE: if the device doesn't support the action...">%3$s</xliff:g>\n
+        2. Open Settings app by clicking the \"Open settings\" button below. Note that this will open the personal Settings app. If this device has the work settings in a different app or screen, then navigate there, ignoring the button if necessary.\n
+        3. Verify that clicking on \"Allow multiple users\" toggle will trigger a support dialog.\n
         4. Verify that the support dialog displays the short support message set earlier.\n
     </string>
     <string name="optional_policy_transparency_test_note">\n\t<b>NOTE</b>: if the device doesn\'t support this action please skip this test and mark it as passing.</string>
@@ -6949,7 +6951,7 @@ Follow the instructions on the screen to measure the frequency response for the 
         \n1. Ensure that the test is already started on the reference device.
         \n2. Input the device ID of the reference device (displayed on the reference device) into the provided field and click "Start Test"
         \n3. The test is automatically stopped and passed (or failed) when all the required data is collected
-        \n4. The test is passed if the median RSSI from both DUT and reference device is between -65dBm and -45dBm.
+        \n4. The test is passed if the median RSSI from both DUT and reference device is between -65dBm and -35dBm.
         \nReference device instructions
         \n1. Ensure that the "Is reference device" checkbox is checked, then click, "Start Advertising"
     </string>
