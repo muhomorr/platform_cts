@@ -27,6 +27,7 @@ android_test_helper_app {
     min_sdk_version: "23",
     // Tag this module as a cts test artifact
     test_suites: [
+        "csuite",
         "cts",
         "general-tests",
         "sts",
@@ -96,7 +97,5 @@ genrule {
         " -lo androidx.window.sidecar " +
         " -p com.android.compatibility.common.deviceinfo " +
         " -i androidx.test.runner.AndroidJUnitRunner " +
-        " -s 23 " +
-        " -t 23 " +
         " -o $(out)",
 }
