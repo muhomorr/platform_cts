@@ -38,6 +38,7 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.cts.WifiFeature;
+import android.os.Build;
 import android.os.PowerManager;
 import android.platform.test.annotations.AppModeFull;
 import android.support.test.uiautomator.UiDevice;
@@ -47,6 +48,7 @@ import android.wifi.mockwifi.MockWifiModemManager;
 import android.wifi.mockwifi.nl80211.IClientInterfaceImp;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.filters.SdkSuppress;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
@@ -261,11 +263,12 @@ public class MockWifiTest {
         waitForNetworkInfoState(NetworkInfo.State.CONNECTED, WIFI_CONNECT_TIMEOUT_MS);
     }
 
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     @Test
     public void testMockSignalPollOnMockWifi() throws Exception {
         int testRssi = -30;
 
-        MockWifiModemManager sMockModemManager = new MockWifiModemManager();
+        MockWifiModemManager sMockModemManager = new MockWifiModemManager(sContext);
         assertNotNull(sMockModemManager);
 
         UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
@@ -278,7 +281,7 @@ public class MockWifiTest {
             String ifaceName = wifiLinkProperties.getInterfaceName();
             WifiInfo wifiInfo = sWifiManager.getConnectionInfo();
 
-            assertTrue(sMockModemManager.connectMockWifiModemService());
+            assertTrue(sMockModemManager.connectMockWifiModemService(sContext));
             assertTrue(sMockModemManager.configureClientInterfaceMock(ifaceName,
                     new IClientInterfaceImp.ClientInterfaceMock() {
                         @Override
